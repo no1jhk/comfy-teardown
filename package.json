@@ -1,0 +1,21 @@
+{
+  "name": "comfy-teardown",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "ComfyUI 무거운 파이프라인(Trellis2/UniRig/HYMotion) 환경 진단 도구",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "lucide-react": "^0.400.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.1",
+    "vite": "^5.3.4"
+  }
+}

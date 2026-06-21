@@ -1,0 +1,54 @@
+# CLAUDE.md — comfy-teardown
+
+이 파일은 Claude가 이 프로젝트에서 작업할 때 참조하는 컨텍스트다.
+
+## 프로젝트 정체
+- 이름: Teardown
+- 목적: 무거운 ComfyUI 파이프라인(Trellis2/UniRig/HYMotion) 워크플로 JSON 진단
+- 상세 기획: `docs/PRD.md` 참조 (작업 전 반드시 읽기)
+- 포지셔닝: 일반 미씽노드는 ComfyUI-Manager 영역. 이 도구는 Manager가 못 푸는
+  "컴파일 지뢰 파이프라인"의 환경 진단에 집중.
+
+## 스택
+- React 18 + Vite 5, lucide-react. 브라우저 파싱(서버 불필요), Vercel 배포 예정.
+- `npm run dev` → localhost:5173
+
+## 구조
+- `src/Teardown.jsx` — 단일 컴포넌트. 파싱(normalize) / 분석(analyze) / 렌더 분리.
+- 매핑·룰은 파일 상단 상수 테이블: REPO_BY_CNR, REPO_BY_PREFIX, RENAME_HINT, FRONTEND_ONLY
+- 분석 결과는 표준 객체 `report` 하나로 통합 (v2 스냅샷 확장 지점)
+
+## 간격·스타일 일관성 (HARD RULE — 인라인 스타일이라 더 주의)
+- Findings·Inventory 각 블록 간격: **제목↔내용 60(펼침 시 marginTop) / 내용↔다음 순번 60(paddingBottom 고정)**. paddingBottom은 **펼침/닫힘 무관 항상 60** (닫혀도 서브카피와 구분선이 붙지 않게). 한 블록만 고치지 말고 5개 블록 전부 동일하게.
+- 순번 배지(BlockHead num, Solution·Error Diagnosis 숫자)는 **완전 원형 노란 배경 · 제목과 세로중앙**. Solution=30px, BlockHead=28px. Error Diagnosis fixes도 Solution과 동일 구조(동그라미 숫자 30px + 텍스트 17.5 dim, gap 14).
+- 같은 역할의 요소는 같은 값. 새 블록 추가 시 옆 블록의 padding/margin을 그대로 복제.
+- 색은 `C` 객체만(하드코딩 금지), 폰트 최소 12px(푸터 예외), wordBreak:"break-all" 금지(토큰만 overflowWrap:"anywhere").
+- 수정 후 항상 "같은 종류의 다른 블록도 같이 바꿔야 일관되는가" 자검.
+
+## 작업 원칙
+- 결론 먼저(두괄식), 개조식. 코드 주석·커밋은 영어, 설명은 한국어.
+- "추정"은 화면·코드에서 반드시 추정으로 표기. 자동 해결 약속 금지.
+- 기능 추가 전 PRD의 "안 하는 것"(§6) 확인 — 스코프 밖이면 로드맵(§7)으로.
+
+## 작업 이력·지시서 (포인터)
+- 과거 작업 로그·결정: `docs/HISTORY.md` (날짜별, 최신이 위 / 하단 ADR)
+- 무인 작업 지시서: `docs/AUTOPILOT.md` (Claude Code 자동 진행용 백로그·규칙)
+
+## 작업 종료 시 기록 (HARD RULE — 까먹지 말 것)
+- **모든 task가 끝날 때마다** `docs/HISTORY.md` 최상단(오늘 날짜 블록)에 1건 append. 사람이 따로 요청하지 않아도 자동으로 한다.
+- 형식(개조식, 명사형):
+  - **한 일**: 무엇을 했는지 1~3줄
+  - **어떻게**: 핵심 구현·접근 1줄 (선택)
+  - **막힌 점**: 에러·미해결 (있을 때만)
+  - **다음 할 일**: 이어서 할 것 1~2줄
+- 되돌아볼 결정(왜 이렇게 정했나)이 생기면 HISTORY 하단 `## Decisions (ADR)`에 1줄 추가.
+- 아무 작업도 안 했으면 기록하지 않는다. 커밋되지 않은 변경이 없는지 `git status`로 확인 후 종료.
+
+## IP 분리 (중요)
+- 개인 프로젝트. GitHub `no1jhk`에 개인 자산으로 관리. 회사 자원·계정과 섞지 않음.
+
+## 로드맵 (현재 v1.0)
+- v1.1: AI 진단(분석 결과+에러 → LLM). 백엔드 프록시로 API 키·CORS 처리.
+- v2: 동작 환경 스냅샷(lockfile) 저장·불러오기
+- v3: 설치 전 torch/python 충돌 사전 점검
+- v4: 진단 → 맞춤 설치 스크립트 생성
