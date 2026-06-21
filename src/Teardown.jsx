@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef } from "react";
 import {
   Upload, Boxes, ChevronRight, GitBranch,
   CircleAlert, Copy, Check, ExternalLink, Plus, Minus, Download,
-  Terminal, ImagePlus, X, ScanSearch,
+  Terminal, ImagePlus, X, ScanSearch, Loader2,
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
 
@@ -153,6 +153,78 @@ function analyze(norm) {
     packs, unmapped: unmappedRaw, frontendOnly: [...new Set(frontendOnly)],
     muted, models, sameRepo, portability: portabilityScan(norm.nodes),
   };
+}
+
+// ── AI 정밀 진단(v1.1) ──────────────────────────────────────────
+// 키는 .env.local 의 VITE_ANTHROPIC_API_KEY 에서 읽는다(배포본엔 노출 안 함).
+// 키가 없으면 버튼이 안내문만 띄우고 호출하지 않는다.
+const AI_KEY = import.meta.env?.VITE_ANTHROPIC_API_KEY || "";
+const AI_MODEL = "claude-sonnet-4-5-20250929";
+
+// report(룰 분석 결과)를 LLM에 줄 컨텍스트 문자열로 압축.
+function reportToContext(report) {
+  const packs = report.packs.map((p) => `${p.id}${p.repo ? ` (${p.repo})` : ""} [${p.vers.join(", ") || "ver?"}]${p.conflict ? " ⚠버전충돌" : ""}`);
+  const models = report.models.map((m) => `${m.node}: ${m.file} → ${m.folder}`);
+  const muted = report.muted.map((m) => `${m.type}(${m.mode === 4 ? "bypass" : "muted"})`);
+  const port = report.portability.map((h) => `${h.node}: ${h.value} — ${h.risk}`);
+  return [
+    `전체 노드: ${report.totalNodes} / 커스텀 pack: ${report.customPackCount}`,
+    `패키지·버전:\n${packs.map((x) => "  - " + x).join("\n") || "  없음"}`,
+    `참조 모델·자산:\n${models.map((x) => "  - " + x).join("\n") || "  없음"}`,
+    `이식 위험 값:\n${port.map((x) => "  - " + x).join("\n") || "  없음"}`,
+    `비활성 노드: ${muted.join(", ") || "없음"}`,
+  ].join("\n");
+}
+
+// 에러 로그 + report 컨텍스트 → Claude API → 구조화 JSON 진단.
+// 반환: {title, severity, rootCause, relatedNode, fixes[], command, confidence, caveat}
+async function runAiDiagnosis(errlog, report) {
+  if (!AI_KEY) {
+    return { _noKey: true };
+  }
+  const ctx = reportToContext(report);
+  const prompt = `당신은 ComfyUI 무거운 파이프라인(Trellis2/UniRig/HYMotion) 환경 디버깅 전문가입니다.
+아래는 사용자가 실행하려는 워크플로의 구조 분석 결과와, 실행 중 발생한 에러 로그입니다.
+이 에러를 **이 워크플로의 구체적인 노드·모델과 결합해서** 진단하세요. 일반론이 아니라 "당신의 OO 노드가/이 모델이" 식으로 짚어야 합니다.
+확신이 없으면 솔직하게 caveat에 적고 confidence를 낮추세요. 없는 URL·파일을 지어내지 마세요.
+
+[워크플로 구조]
+${ctx}
+
+[에러 로그]
+${errlog}
+
+각 해결 단계는 충분히 구체적으로 쓰세요. step에는 한 줄 요약(무엇을 할지)을, detail에는 그 단계를 실제로 따라할 수 있는 자세한 설명(어디서·어떻게·왜, 주의점, 대안)을 2~4문장으로 적으세요. 일반론 금지 — 이 워크플로의 실제 노드·모델·경로를 짚으세요. 단계는 4~7개 권장.
+
+다음 JSON 형식으로만 답하세요. 마크다운·코드펜스 없이 순수 JSON만:
+{
+  "title": "한 줄 진단 제목 (이 워크플로 맥락 반영)",
+  "severity": "high|mid|low",
+  "rootCause": "근본 원인 2~3문장. 워크플로의 어느 노드·모델과 연결되는지 명시",
+  "relatedNode": "관련 노드 타입 (워크플로에 실제 있는 것, 없으면 빈 문자열)",
+  "fixes": [
+    { "step": "단계 한 줄 요약", "detail": "이 단계를 따라할 수 있는 자세한 설명 2~4문장" }
+  ],
+  "command": "실행할 명령어 (있으면, 없으면 빈 문자열)",
+  "confidence": "high|mid|low",
+  "caveat": "확신이 낮거나 추가 확인이 필요하면 솔직하게. 없으면 빈 문자열"
+}`;
+
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": AI_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({ model: AI_MODEL, max_tokens: 2000, messages: [{ role: "user", content: prompt }] }),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const data = await res.json();
+  const textOut = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const clean = textOut.replace(/```json|```/g, "").trim();
+  return JSON.parse(clean);
 }
 
 // 에러 로그(텍스트)를 패턴 매칭해 진단 항목으로 변환 (룰 기반 v1.1 초기 버전, LLM 불필요)
@@ -419,18 +491,14 @@ function buildMarkdown(report, summary, rx) {
     L.push(``);
   }
 
-  // 에러 로그 진단 (있을 때만)
-  if (report.logFindings && report.logFindings.length) {
-    L.push(`## 에러 로그 진단`);
+  // 에러 로그 (있을 때만) — 원본 로그를 그대로 담아 복기·LLM 재질의에 쓰게 함
+  if (report.errlog && report.errlog.trim()) {
+    L.push(`## 에러 로그`);
     L.push(``);
-    for (const d of report.logFindings) {
-      const sev = d.sev === "high" ? "치명" : d.sev === "mid" ? "주의" : "참고";
-      L.push(`### [${sev}] ${d.title}`);
-      L.push(d.cause);
-      for (const fx of d.fixes) L.push(`- ${fx}`);
-      if (d.command) { L.push("```bash"); L.push(d.command); L.push("```"); }
-      L.push(``);
-    }
+    L.push("```");
+    L.push(report.errlog.trim());
+    L.push("```");
+    L.push(``);
   }
 
   // Solution (처방)
@@ -499,6 +567,30 @@ function buildMarkdown(report, summary, rx) {
   return L.join("\n");
 }
 
+// LLM에 바로 붙여넣을 "브리핑" — 구조 분석 요약 + 에러 로그 원본 + 지시문.
+// 도구가 LLM을 호출하지 않고(비용 0), 사용자가 자기 Claude·Gemini 챗에 붙여넣기 위한 용도.
+function buildBriefing(report, errlog) {
+  const ctx = reportToContext(report);
+  const L = [];
+  L.push(`아래는 ComfyUI 워크플로의 구조 분석 결과와 실행 중 발생한 에러 로그입니다.`);
+  L.push(`이 에러를 이 워크플로의 구체적인 노드·모델과 결합해 진단하고, 해결 방법을 단계별로 알려주세요.`);
+  L.push(`확신이 없는 부분은 솔직하게 밝히고, 없는 URL·파일을 지어내지 마세요.`);
+  L.push(``);
+  L.push(`## 워크플로 구조 (대상: ${report.source})`);
+  L.push("```");
+  L.push(ctx);
+  L.push("```");
+  L.push(``);
+  L.push(`## 에러 로그`);
+  L.push("```");
+  L.push(errlog.trim() || "(에러 로그 없음 — 구조만 보고 점검해 주세요)");
+  L.push("```");
+  L.push(``);
+  L.push(`---`);
+  L.push(`Generated by Teardown · 이 브리핑을 그대로 붙여넣고 엔터를 누르세요.`);
+  return L.join("\n");
+}
+
 // 브라우저 다운로드 (서버·라이브러리 없이 Blob)
 function downloadText(filename, text) {
   const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
@@ -557,7 +649,7 @@ function BlockHead({ num, label, count, role, open, onToggle }) {
         <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
           {/* 순번 배지 — 한 자리 숫자면 완전 원형(minWidth=height로 원 보장), 길어지면 자연스럽게 타원 */}
           <span style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", height: 28, minWidth: 28, padding: "0 8px", boxSizing: "border-box", borderRadius: 999, background: C.point, color: INK, fontFamily: MONO, fontSize: 15, fontWeight: 800, lineHeight: 1, flexShrink: 0 }}>{num}</span>
-          <span style={{ fontFamily: SANS, fontSize: 24, fontWeight: 650, letterSpacing: "-0.01em", color: C.text }}>{label}</span>
+          <span style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: C.text }}>{label}</span>
           {count != null && <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, border: `1px solid ${C.line}`, borderRadius: 20, padding: "2px 11px" }}>{count}</span>}
         </div>
         {role && <p style={{ fontSize: 18.75, color: C.dim, margin: "13px 0 0", lineHeight: 1.5 }}>{role}</p>}
@@ -590,11 +682,16 @@ export default function Teardown() {
   const [err, setErr] = useState(null);
   const [drag, setDrag] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
-  const [open, setOpen] = useState({ s0: true }); // Solution 1단계는 기본 펼침
+  const [open, setOpen] = useState({}); // 전부 기본 닫힘(스크롤 절약) — Solution/Findings/Inventory/AI 모두
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
   const [rawSrc, setRawSrc] = useState("");
+  const [aiResult, setAiResult] = useState(null);  // AI 정밀 진단 결과
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiErr, setAiErr] = useState(null);
+  const [briefingBusy, setBriefingBusy] = useState(false); // 브리핑 복사 처리 중 표시(딤+스피너)
+  const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);
   const shotRef = useRef(null);
@@ -607,7 +704,7 @@ export default function Teardown() {
   const copy = (text, key) => { navigator.clipboard?.writeText(text); setCopiedKey(key); setTimeout(() => setCopiedKey(null), 1500); };
   const saveReport = () => {
     if (!report) return;
-    const md = buildMarkdown(report, summary, rx);
+    const md = buildMarkdown({ ...report, errlog }, summary, rx);
     const safe = (report.source || "workflow").replace(/\.[^.]+$/, "").replace(/[^\w가-힣.-]+/g, "_").slice(0, 40);
     const d = new Date();
     const day = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
@@ -617,12 +714,12 @@ export default function Teardown() {
   const run = useCallback((text, src, logText = "") => {
     setErr(null);
     setRawJson(text); setRawSrc(src);
+    setAiResult(null); setAiErr(null); setAiLoading(false); // 새 분석 시 이전 AI 진단 결과 초기화
     try {
       const norm = normalize(JSON.parse(text));
       if (!norm) throw new Error("ComfyUI 워크플로 형식이 아닙니다. nodes 배열 또는 class_type 키가 보이지 않습니다.");
       const rep = analyze(norm);
-      const logFindings = logText && logText.trim() ? analyzeLog(logText, rep) : [];
-      setReport({ ...rep, source: src, logFindings });
+      setReport({ ...rep, source: src });
     } catch (e) {
       setReport(null);
       setErr(/JSON|Unexpected|token/.test(e.message)
@@ -636,8 +733,53 @@ export default function Teardown() {
     r.onerror = () => setErr("파일을 읽지 못했습니다. 다시 시도하세요.");
     r.readAsText(file);
   };
-  // 진단하기 — 저장된 원본 JSON + 현재 에러 로그를 함께 넘겨 재진단.
-  const diagnose = () => { if (rawJson) run(rawJson, rawSrc, errlog); };
+  // 진단하기 — 저장된 원본 JSON을 다시 분석(구조만 재실행). 에러는 AI 진단/브리핑이 따로 처리.
+  const diagnose = () => { if (rawJson) run(rawJson, rawSrc); };
+
+  // AI 정밀 진단 — 룰로 부족한 건 LLM이 이 워크플로 맥락으로 풀어준다.
+  // 안전장치: 하루 호출 횟수를 제한해 비용 폭주를 막는다(localStorage 기반, 날짜별 리셋).
+  const AI_DAILY_LIMIT = 20; // 하루 최대 호출 수
+  const doAiDiagnosis = async () => {
+    if (!report || !errlog.trim()) return;
+    // 일일 호출 제한 체크
+    try {
+      const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+      const raw = localStorage.getItem("td-ai-usage");
+      const usage = raw ? JSON.parse(raw) : {};
+      const used = usage.date === today ? (usage.count || 0) : 0;
+      if (used >= AI_DAILY_LIMIT) {
+        setAiErr(`오늘의 AI 진단 한도(${AI_DAILY_LIMIT}회)를 모두 사용했습니다. 브리핑 복사로 자신의 챗에서 이어가세요.`);
+        return;
+      }
+      localStorage.setItem("td-ai-usage", JSON.stringify({ date: today, count: used + 1 }));
+    } catch { /* localStorage 차단 환경이면 제한 없이 진행 */ }
+
+    setAiLoading(true); setAiErr(null); setAiResult(null);
+    try {
+      const r = await runAiDiagnosis(errlog, report);
+      if (r && r._noKey) setAiErr("nokey");
+      else setAiResult(r);
+    } catch (e) {
+      setAiErr(e.message || "알 수 없는 오류");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  // LLM용 브리핑 복사 — API 호출 없이(비용 0), 구조 요약+에러를 클립보드에 담아 자기 챗에 붙여넣게 한다.
+  // 짧은 처리 표시(딤+스피너) 후 복사하고, 무엇을 담았는지 요약을 보여준다("얘가 일을 했구나").
+  const copyBriefing = () => {
+    if (!report) return;
+    setBriefingBusy(true);
+    setBriefingInfo(null);
+    setTimeout(() => {
+      const text = buildBriefing(report, errlog);
+      const lines = errlog.trim() ? errlog.trim().split("\n").length : 0;
+      copy(text, "briefing");
+      setBriefingInfo({ lines, shots: errShots.length, chars: text.length });
+      setBriefingBusy(false);
+    }, 650);
+  };
 
   const rx = report ? buildPrescription(report) : [];
 
@@ -679,6 +821,7 @@ export default function Teardown() {
         .td-btn:hover{transform:translateY(-1px)} .td-btn:active{transform:translateY(0)}
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-acc{transition:opacity .15s;opacity:.9}.td-acc:hover{opacity:1}
+        .td-spin{animation:tdSpin .9s linear infinite}@keyframes tdSpin{to{transform:rotate(360deg)}}
         .td-hf{display:inline-flex;align-items:center;gap:6px;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:6px 16px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf:hover{background:${C.point};color:${INK}}
         .td-hf-sm{display:inline-flex;align-items:center;justify-content:center;width:280px;max-width:100%;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:8px 0;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
@@ -703,7 +846,7 @@ export default function Teardown() {
       <div style={{ maxWidth: 1080, margin: "0 auto", position: "relative", zIndex: 1 }}>
         {/* 헤더 — 로고 */}
         <img src={LOGO} alt="Comfy Teardown" style={{ height: 50, width: "auto", display: "block", marginBottom: 16 }} />
-        <p style={{ color: C.dim, fontSize: 14.5, margin: "0 0 28px", lineHeight: 1.6 }}>ComfyUI 에서 파이프라인 실행에 문제 있는 JSON 파일을 첨부하면, 모든 노드를 일일이 분석해서 문제점을 진단하고 해결법을 제시합니다.</p>
+        <p style={{ color: C.dim, fontSize: 16.5, margin: "0 0 28px", lineHeight: 1.6 }}>실행에 문제 있는 JSON 파일을 첨부하면, 모든 노드를 분석해서 문제점을 진단하고 해결법을 제시합니다.</p>
 
         {/* B안 1차 입력 — JSON 드롭존(주인공, 노란 점선 단독). 드래그&드롭으로 넣는 공간임을 명확히. */}
         <div className="td-drop"
@@ -733,98 +876,11 @@ export default function Teardown() {
           </div>
         </div>
 
-        {/* B안 2차 입력 — JSON 분석 후에만 등장. 점선 아닌 솔리드 톤다운 박스(보조 위계). "막혔으면 로그도 넣어보세요". */}
-        {report && (
-          <div className="td-fade" style={{ marginTop: 12, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: "18px 22px", position: "relative", zIndex: 1 }}
-            onDragOver={(e) => e.stopPropagation()} onDrop={(e) => e.stopPropagation()}>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 0 }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: C.surfaceHi, display: "grid", placeItems: "center", border: `1px solid ${C.line}`, flexShrink: 0 }}>
-                  <Terminal size={19} color={C.point} strokeWidth={1.9} /></div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 14.5, fontWeight: 600, color: C.text }}>에러 로그 붙여넣기</div>
-                  <div style={{ fontSize: 12.5, color: C.dim, marginTop: 3 }}>터미널·콘솔의 빨간 에러를 복사·붙여넣기 후 아래 버튼을 누르면 JSON과 함께 진단합니다.</div>
-                </div>
-              </div>
-              <span style={{ fontFamily: MONO, fontSize: 11.5, color: C.faint, border: `1px solid ${C.line}`, borderRadius: 999, padding: "3px 11px", flexShrink: 0 }}>v1.1 연결 예정</span>
-            </div>
-            <textarea value={errlog} onChange={(e) => setErrlog(e.target.value)} spellCheck={false}
-              placeholder={"마지막 Traceback 블록 전체를 붙여넣으세요.\n예) Traceback (most recent call last):\n  File \".../nodes.py\", line 123, in ...\nModuleNotFoundError: No module named 'flash_attn'"}
-              style={{ width: "100%", minHeight: 120, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
-                border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", fontFamily: MONO, fontSize: 12.5, lineHeight: 1.65, outline: "none" }} />
-
-            <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-              <input ref={shotRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => onShots(e.target.files)} />
-              <button className="td-btn" onClick={() => shotRef.current?.click()}
-                style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "transparent", color: C.dim, border: `1px solid ${C.line}`, borderRadius: 999, padding: "8px 15px", fontFamily: SANS, fontSize: 12.5, cursor: "pointer" }}>
-                <ImagePlus size={15} /> 캡처 이미지 첨부</button>
-              <span style={{ fontSize: 12, color: C.faint }}>긴 로그는 텍스트 붙여넣기가 더 정확합니다. 캡처는 보조용.</span>
-            </div>
-            {errShots.length > 0 && (
-              <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
-                {errShots.map((s, i) => (
-                  <div key={i} style={{ position: "relative", width: 92, height: 92, borderRadius: 10, overflow: "hidden", border: `1px solid ${C.line}`, background: C.bg }}>
-                    <img src={s.url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                    <button onClick={() => removeShot(i)} aria-label="제거"
-                      style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 999, background: "rgba(26,21,5,0.72)", border: "none", color: C.point, cursor: "pointer", display: "grid", placeItems: "center", lineHeight: 0 }}>
-                      <X size={12} /></button>
-                  </div>))}
-              </div>
-            )}
-
-            {/* 진단하기 — 아웃라인 CTA(hover시 채움). 로그 비어있으면 비활성. 중앙정렬, 가로 300px 고정. 아이콘 없음. */}
-            <div style={{ marginTop: 18, display: "flex", justifyContent: "center" }}>
-              <button className="td-cta" onClick={diagnose} disabled={!errlog.trim()}
-                style={{ width: 300, maxWidth: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center",
-                  borderRadius: 999, padding: "13px 0", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: errlog.trim() ? "pointer" : "not-allowed", letterSpacing: "-0.01em" }}>
-                Error Log 진단하기</button>
-            </div>
-          </div>
-        )}
-
         {err && (<div className="td-fade" style={{ marginTop: 16, background: "rgba(239,83,80,0.08)", border: `1px solid ${C.red}55`, borderRadius: 12, padding: "13px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
           <CircleAlert size={17} color={C.red} style={{ flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 13.5, lineHeight: 1.55 }}>{err}</span></div>)}
 
         {report && (<div className="td-fade">
-          {/* 에러 로그 진단 — 로그를 넣고 "진단하기"를 누른 경우에만. 워크플로 구조보다 먼저(실행 실패=지금 가장 급한 문제). */}
-          {report.logFindings && report.logFindings.length > 0 && (
-            <div style={{ marginTop: 64 }}>
-              <SectionTitle>Error Diagnosis</SectionTitle>
-              <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                {report.logFindings.map((d) => {
-                  const sevColor = d.sev === "high" ? C.red : d.sev === "mid" ? C.amber : C.faint;
-                  const sevLabel = d.sev === "high" ? "CRITICAL" : d.sev === "mid" ? "WARNING" : "INFO";
-                  return (
-                  <div key={d.key} style={{ background: C.surface, border: `1.5px solid ${C.red}`, borderRadius: 14, padding: "18px 20px", boxShadow: `0 0 0 4px rgba(239,83,80,0.06)` }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                      <span style={{ fontSize: 11, fontWeight: 700, color: d.sev === "high" ? C.red : INK, background: d.sev === "high" ? "rgba(239,83,80,0.12)" : sevColor, borderRadius: 6, padding: "3px 9px", letterSpacing: "0.02em" }}>{sevLabel}</span>
-                      <span style={{ fontSize: 17, fontWeight: 700, color: C.text, letterSpacing: "-0.01em" }}>{d.title}</span>
-                    </div>
-                    <div style={{ fontSize: 13.5, color: C.dim, marginTop: 10, lineHeight: 1.6 }}>{d.cause}</div>
-                    <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-                      {d.fixes.map((fx, k) => (
-                        <div key={k} style={{ display: "flex", alignItems: "center", gap: 14 }}>
-                          <div style={{ display: "inline-flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, flexShrink: 0, lineHeight: 1 }}>{k + 1}</div>
-                          <span style={{ fontSize: 17.5, color: C.dim, lineHeight: 1.5 }}>{fx}</span>
-                        </div>))}
-                    </div>
-                    {d.command && (
-                      <div style={{ marginTop: 12, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
-                        <button className="td-copy" onClick={() => copy(d.command, `log-${d.key}`)} title="복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                          {copiedKey === `log-${d.key}` ? <Check size={16} /> : <Copy size={16} />}</button>
-                        <pre style={{ margin: 0, fontFamily: MONO, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.6, paddingRight: 32 }}>{d.command}</pre>
-                      </div>
-                    )}
-                  </div>);
-                })}
-              </div>
-              <div style={{ marginTop: 12, fontSize: 11.5, color: C.faint, lineHeight: 1.5 }}>
-                ※ 룰 기반 1차 진단입니다. 복잡한 Traceback의 정밀 분석은 v1.1 AI 진단(LLM)에서 다룰 예정.
-              </div>
-            </div>
-          )}
-
           {/* Summary — 아래 Solution과의 구분선 제거(borderBottom 없음) */}
           {summary && (
             <div style={{ marginTop: 64, paddingBottom: 48 }}>
@@ -834,7 +890,6 @@ export default function Teardown() {
                   style={{ display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 999, padding: "8px 16px", fontFamily: SANS, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   <Download size={15} /> 결과 저장 (.md)</button>
               </div>
-              <p style={{ fontSize: 14.5, color: C.text, margin: "0 0 20px", lineHeight: 1.5 }}>{summary.headline}</p>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 24px" }}>
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
                 <MetricBox value={report.customPackCount} label="커스텀 pack" unit="개" />
@@ -868,18 +923,18 @@ export default function Teardown() {
 
           {/* Solution — 위 Summary와의 구분선 제거(Summary 박스의 borderBottom을 없앰) */}
           {rx.length > 0 && (
-            <div style={{ marginTop: 60, paddingBottom: 60 }}>
+            <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <SectionTitle>Solution</SectionTitle>
               <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)` }}>
                 {rx.map((step, i) => {
                   const sk = `s${i}`;
                   const sopen = !!open[sk]; // s0는 기본 펼침(useState 초기값)
                   return (
-                  <div key={step.key} style={{ padding: "20px 0", borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
+                  <div key={step.key} style={{ paddingTop: 20, paddingBottom: sopen ? 55 : 20, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
                     {/* 번호(동그라미) + 제목 + 펼침 토글 — 수직 중앙정렬 */}
                     <div onClick={() => toggle(sk)} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
                       <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</div>
-                      <div style={{ fontSize: 22.5, fontWeight: 680, color: C.text, lineHeight: 1.2, flex: 1 }}>{step.title}</div>
+                      <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>{step.title}</div>
                       <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle(sk); }} aria-label="펼치기/접기"
                         style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
                         {sopen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
@@ -933,7 +988,7 @@ export default function Teardown() {
           )}
 
           {/* Findings — 박스 없는 아코디언. 헤더는 BlockHead로 통일. */}
-          <div style={{ marginTop: 60, paddingBottom: 48 }}>
+          <div style={{ marginTop: 44, paddingBottom: 48 }}>
             <SectionTitle>Findings</SectionTitle>
 
             {/* 1 이식 위험 값 — Findings 제목 바로 아래 구분선 제거(borderTop 없음)
@@ -941,7 +996,7 @@ export default function Teardown() {
             <div style={{ borderTop: "none", paddingTop: 0 }}>
               <BlockHead num="1" label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
                 role="다른 PC로 옮길때 생기는 호환성 이슈. 환경 의존 설정 우회와 끊어진 경로·입력 파일 정리에 대한 근거." />
-              <div style={{ marginTop: open.f1 ? 60 : 0, paddingBottom: open.f1 ? 60 : 40 }}>{open.f1 && (
+              <div style={{ marginTop: open.f1 ? 32 : 0, paddingBottom: open.f1 ? 36 : 36 }}>{open.f1 && (
                 report.portability.length === 0 ? <Empty text="이식 시 깨질 위험 값이 없습니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     {report.portability.map((h, i) => (
@@ -960,10 +1015,10 @@ export default function Teardown() {
             </div>
 
             {/* 2 패키지 · 버전 — 간격 규칙 동일(상단 60 / 하단 60) */}
-            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 30 }}>
+            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
               <BlockHead num="2" label="패키지 · 버전" count={report.packs.length} open={open.f2} onToggle={() => toggle("f2")}
                 role="이 워크플로가 쓰는 노드팩과 기록된 버전입니다. 처방 1단계(설치)에 들어갈 저장소의 근거입니다." />
-              <div style={{ marginTop: open.f2 ? 60 : 0, paddingBottom: open.f2 ? 60 : 40 }}>{open.f2 && (<>
+              <div style={{ marginTop: open.f2 ? 32 : 0, paddingBottom: open.f2 ? 36 : 36 }}>{open.f2 && (<>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {report.packs.map((p, i) => (
                     <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 18, paddingTop: i > 0 ? 18 : 0, marginTop: i > 0 ? 18 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
@@ -1016,10 +1071,10 @@ export default function Teardown() {
             </div>
 
             {/* 3 출처 추정 노드 — 간격 규칙 동일(상단 60 / 하단 60) */}
-            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 30 }}>
+            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
               <BlockHead num="3" label="출처 추정 노드" count={report.unmapped.length} open={open.f3} onToggle={() => toggle("f3")}
                 role="메타데이터가 없어 이름으로 출처를 추측한 노드입니다. 설치 후 반드시 Manager에서 한번 더 확인하세요." />
-              <div style={{ marginTop: open.f3 ? 60 : 0, paddingBottom: open.f3 ? 60 : 40 }}>{open.f3 && (<>
+              <div style={{ marginTop: open.f3 ? 32 : 0, paddingBottom: open.f3 ? 36 : 36 }}>{open.f3 && (<>
                 {report.unmapped.length === 0 ? <Empty text="cnr_id 없는 노드가 모두 출처로 해소됩니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     {report.unmapped.map((u, i) => (
@@ -1039,14 +1094,14 @@ export default function Teardown() {
           </div>
 
           {/* Inventory — Findings와 동일한 BlockHead 헤더 사용 (푸터 위 구분선 제거) */}
-          <div style={{ marginTop: 60, paddingBottom: 48 }}>
+          <div style={{ marginTop: 44, paddingBottom: 48 }}>
             <SectionTitle>Inventory</SectionTitle>
 
             {/* 1 모델 · 자산 인벤토리 — 간격 규칙 Findings와 동일. 제목 바로 아래 구분선 제거(borderTop 없음). 하단 여백은 펼침/닫힘 무관 항상 60. */}
             <div style={{ borderTop: "none", paddingTop: 0 }}>
               <BlockHead num="1" label="모델 · 자산 인벤토리" count={report.models.length} open={open.i1} onToggle={() => toggle("i1")}
                 role="워크플로가 참조하는 모델·자산 전체입니다. 처방의 '다운로드' 단계는 이 중 가중치 파일만 추린 것입니다." />
-              <div style={{ marginTop: open.i1 ? 60 : 0, paddingBottom: open.i1 ? 60 : 40 }}>{open.i1 && (
+              <div style={{ marginTop: open.i1 ? 32 : 0, paddingBottom: open.i1 ? 36 : 36 }}>{open.i1 && (
                 report.models.length === 0 ? <Empty text="참조된 모델 파일을 찾지 못했습니다." /> : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                     {report.models.map((m, i) => {
@@ -1064,10 +1119,10 @@ export default function Teardown() {
             </div>
 
             {/* 2 비활성 노드 — 간격 규칙 동일(상단 60 / 하단 60), 1번과 구분선으로 분리 */}
-            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 30 }}>
+            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
               <BlockHead num="2" label="비활성 노드" count={report.muted.length} open={open.i2} onToggle={() => toggle("i2")}
                 role="꺼졌거나(muted) 우회된(bypass) 노드입니다. 의도한 게 아니라면 결과가 달라질 수 있어 점검 대상입니다." />
-              <div style={{ marginTop: open.i2 ? 60 : 0, paddingBottom: open.i2 ? 60 : 40 }}>{open.i2 && (
+              <div style={{ marginTop: open.i2 ? 32 : 0, paddingBottom: open.i2 ? 36 : 36 }}>{open.i2 && (
                 report.muted.length === 0 ? <Empty text="muted/bypass된 노드가 없습니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     {report.muted.map((m, i) => (<div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
@@ -1079,7 +1134,172 @@ export default function Teardown() {
             </div>
           </div>
 
-          <p style={{ marginTop: 120, fontSize: 12, color: C.faint, lineHeight: 1.6, textAlign: "center" }}>
+          {/* ───────── Diagnose (에러 로그 → AI 진단 / 브리핑) ─────────
+              스토리라인 끝단: 구조 결과(Summary~Inventory)를 다 본 뒤,
+              "그래도 막히면 에러 로그도 넣어보세요" → AI 정밀 진단 / LLM 브리핑.
+              위에 2px #c1bfba 구분선으로 '다른 영역'임을 명확히 한다. */}
+          <div style={{ marginTop: 64, paddingTop: 64, paddingBottom: 48, borderTop: `2px solid ${C.green}` }}>
+            <SectionTitle>Diagnose</SectionTitle>
+
+            {/* 에러 로그 입력 박스 — Summary 안의 작은 라운딩 박스(MetricBox)와 동일한 색(#28222E), 스트로크 없음 */}
+            <div style={{ background: "#28222E", border: "none", borderRadius: 16, padding: "22px 26px", position: "relative", zIndex: 1 }}
+              onDragOver={(e) => e.stopPropagation()} onDrop={(e) => e.stopPropagation()}>
+              {/* 브리핑 복사 처리 중 — 가벼운 딤 + 스피너로 "수집·정리했다"는 액션을 보여준다 */}
+              {briefingBusy && (
+                <div className="td-fade" style={{ position: "absolute", inset: 0, background: "rgba(32,25,38,0.62)", borderRadius: 16, display: "flex", alignItems: "center", justifyContent: "center", gap: 11, zIndex: 5 }}>
+                  <Loader2 size={18} color={C.point} className="td-spin" />
+                  <span style={{ fontSize: 13, color: C.text }}>로그·이미지 수집해 정리하는 중…</span>
+                </div>
+              )}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", marginBottom: 12 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 18, minWidth: 0 }}>
+                  <div style={{ width: 44, height: 44, borderRadius: 12, background: C.surfaceHi, display: "grid", placeItems: "center", border: `1px solid ${C.line}`, flexShrink: 0 }}>
+                    <Terminal size={19} color={C.point} strokeWidth={1.9} /></div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 14.5, fontWeight: 600, color: C.text }}>에러 로그</div>
+                    <div style={{ fontSize: 12.5, color: C.dim, marginTop: 3 }}>터미널·콘솔의 빨간 에러를 붙여넣으면, 위 구조와 결합해 더 정확히 짚어줍니다.</div>
+                  </div>
+                </div>
+              </div>
+              <textarea value={errlog} onChange={(e) => setErrlog(e.target.value)} spellCheck={false}
+                placeholder={"마지막 Traceback 블록 전체를 붙여넣으세요.\n예) Traceback (most recent call last):\n  File \".../nodes.py\", line 123, in ...\nModuleNotFoundError: No module named 'flash_attn'"}
+                style={{ width: "100%", minHeight: 120, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
+                  border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", fontFamily: MONO, fontSize: 12.5, lineHeight: 1.65, outline: "none" }} />
+
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                <input ref={shotRef} type="file" accept="image/*" multiple style={{ display: "none" }} onChange={(e) => onShots(e.target.files)} />
+                <button className="td-btn" onClick={() => shotRef.current?.click()}
+                  style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "transparent", color: C.dim, border: `1px solid ${C.line}`, borderRadius: 999, padding: "8px 15px", fontFamily: SANS, fontSize: 12.5, cursor: "pointer" }}>
+                  <ImagePlus size={15} /> 캡처 이미지 첨부</button>
+                <span style={{ fontSize: 12, color: C.faint }}>긴 로그는 텍스트 붙여넣기가 더 정확합니다. 캡처는 보조용.</span>
+              </div>
+              {errShots.length > 0 && (
+                <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
+                  {errShots.map((s, i) => (
+                    <div key={i} style={{ position: "relative", width: 92, height: 92, borderRadius: 10, overflow: "hidden", border: `1px solid ${C.line}`, background: C.bg }}>
+                      <img src={s.url} alt={s.name} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+                      <button onClick={() => removeShot(i)} aria-label="제거"
+                        style={{ position: "absolute", top: 4, right: 4, width: 20, height: 20, borderRadius: 999, background: "rgba(26,21,5,0.72)", border: "none", color: C.point, cursor: "pointer", display: "grid", placeItems: "center", lineHeight: 0 }}>
+                        <X size={12} /></button>
+                    </div>))}
+                </div>
+              )}
+
+              {/* 두 갈래 CTA — AI 버튼은 "키가 있는 환경(=로컬 개발)"에서만 노출.
+                  배포본엔 키가 없으므로 자동으로 브리핑 복사만 남는다 → 타인이 써도 내 API 비용 0원. */}
+              <div style={{ marginTop: 18, display: "flex", justifyContent: "center", gap: 12, flexWrap: "wrap" }}>
+                {AI_KEY && (
+                  <button className="td-cta" onClick={doAiDiagnosis} disabled={!errlog.trim() || aiLoading}
+                    style={{ width: 280, maxWidth: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 9,
+                      borderRadius: 999, padding: "13px 0", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: errlog.trim() && !aiLoading ? "pointer" : "not-allowed", letterSpacing: "-0.01em" }}>
+                    {aiLoading ? <><Loader2 size={16} className="td-spin" /> AI 정밀 진단 중…</> : <>AI 정밀 진단 실행</>}</button>
+                )}
+                <button className="td-btn td-outline" onClick={copyBriefing} disabled={!errlog.trim()}
+                  style={{ width: 280, maxWidth: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
+                    borderRadius: 999, padding: "13px 0", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: errlog.trim() ? "pointer" : "not-allowed", letterSpacing: "-0.01em", opacity: errlog.trim() ? 1 : 0.4 }}>
+                  {copiedKey === "briefing" ? <><Check size={16} /> 복사됨 — 내 챗에 붙여넣기</> : <><Copy size={16} /> LLM 분석 프롬프트</>}</button>
+              </div>
+              {AI_KEY ? (
+                <div style={{ marginTop: 11, fontSize: 12, color: C.faint, textAlign: "center", lineHeight: 1.6 }}>
+                  <b style={{ color: C.dim }}>AI 정밀 진단</b>: 버튼 한 번으로 바로 진단 (API 사용). &nbsp;·&nbsp; <b style={{ color: C.dim }}>브리핑 복사</b>: 복사해서 직접 쓰는 Claude·Gemini 챗에 붙여넣기 (무료).
+                </div>
+              ) : (
+                <div style={{ marginTop: 11, fontSize: 12, color: C.faint, textAlign: "center", lineHeight: 1.6 }}>
+                  <b style={{ color: C.dim }}>브리핑 복사</b>를 누르면 위 구조 분석 + 에러가 한 번에 정리됩니다. 그대로 복사해 자신의 Claude·Gemini 챗에 붙여넣으면 끝 — 별도 설정 없이 바로 진단을 받을 수 있습니다.
+                </div>
+              )}
+
+              {/* 복사 완료 피드백 — 무엇을 담았는지 요약. 이미지는 텍스트 클립보드에 못 담기므로 정직하게 안내한다. */}
+              {briefingInfo && (
+                <div className="td-fade" style={{ marginTop: 12, padding: "11px 14px", background: C.surfaceHi, borderRadius: 10, display: "flex", alignItems: "center", gap: 9, justifyContent: "center", flexWrap: "wrap", textAlign: "center" }}>
+                  <Check size={15} color={C.point} style={{ flexShrink: 0 }} />
+                  <span style={{ fontSize: 12.5, color: C.text, lineHeight: 1.5 }}>
+                    구조 분석{briefingInfo.lines > 0 ? ` + 에러 ${briefingInfo.lines}줄` : ""} 정리 완료 · 총 {briefingInfo.chars.toLocaleString()}자 복사됨
+                    {briefingInfo.shots > 0 ? <span style={{ color: C.dim }}> · 이미지 {briefingInfo.shots}장은 텍스트에 안 담기니 챗에 따로 첨부하세요</span> : null}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* AI 진단 결과 — 로딩·에러·결과 모두 이 자리 */}
+            {(aiLoading || aiErr || aiResult) && (
+              <div className="td-fade" style={{ marginTop: 32 }}>
+                {aiLoading && (
+                  <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: "26px 30px", display: "flex", alignItems: "center", gap: 14 }}>
+                    <Loader2 size={20} color={C.point} className="td-spin" />
+                    <span style={{ fontSize: 14, color: C.dim }}>이 워크플로의 구조와 에러를 결합해 Claude가 분석 중…</span>
+                  </div>
+                )}
+                {aiErr === "nokey" && (
+                  <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "16px 20px", fontSize: 13, color: C.dim, lineHeight: 1.65 }}>
+                    AI 정밀 진단은 API 키가 연결된 환경(로컬 개발)에서만 작동합니다. 키 없이 바로 쓰려면 위의 <b style={{ color: C.text }}>LLM 분석 프롬프트</b> 버튼을 눌러 복사한 뒤, 직접 쓰는 Claude·Gemini 챗에 붙여넣으세요.
+                  </div>
+                )}
+                {aiErr && aiErr !== "nokey" && (
+                  <div style={{ background: "rgba(239,83,80,0.08)", border: `1px solid ${C.red}55`, borderRadius: 12, padding: "13px 16px", fontSize: 13, color: C.text }}>AI 호출 실패: {aiErr} — 잠시 후 다시 시도하거나, 위의 브리핑 복사로 우회하세요.</div>
+                )}
+                {aiResult && (
+                  <div className="td-fade" style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "28px 30px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)` }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 16 }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: aiResult.severity === "high" ? C.red : INK, background: aiResult.severity === "high" ? "rgba(239,83,80,0.12)" : (aiResult.severity === "mid" ? C.amber : C.faint), borderRadius: 6, padding: "6px 9px", letterSpacing: "0.02em" }}>{aiResult.severity === "high" ? "CRITICAL" : aiResult.severity === "mid" ? "WARNING" : "INFO"}</span>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: INK, background: C.point, borderRadius: 6, padding: "6px 9px", letterSpacing: "0.02em" }}>AI 진단</span>
+                      <span style={{ fontSize: 18, fontWeight: 700, color: C.text, flex: 1, letterSpacing: "-0.01em" }}>{aiResult.title}</span>
+                    </div>
+                    {aiResult.relatedNode && (
+                      <div style={{ display: "inline-flex", alignItems: "center", gap: 7, background: C.surfaceHi, border: `1px solid ${C.line}`, borderRadius: 8, padding: "6px 12px", marginBottom: 16 }}>
+                        <span style={{ fontSize: 12, color: C.faint }}>관련 노드</span>
+                        <span style={{ fontFamily: MONO, fontSize: 13, color: C.point }}>{aiResult.relatedNode}</span>
+                      </div>
+                    )}
+                    <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.65, marginBottom: 6 }}>{aiResult.rootCause}</div>
+                    {Array.isArray(aiResult.fixes) && aiResult.fixes.length > 0 && (
+                      <div style={{ marginTop: 16 }}>
+                        {aiResult.fixes.map((fx, k) => {
+                          const ak = `ai${k}`;
+                          const aopen = open[ak] !== undefined ? open[ak] : k === 0;
+                          const isObj = fx && typeof fx === "object";
+                          const head = isObj ? (fx.step || fx.title || "") : String(fx);
+                          const body = isObj ? (fx.detail || fx.desc || "") : "";
+                          return (
+                          <div key={k} style={{ borderTop: k > 0 ? `1px solid ${C.divider}` : "none" }}>
+                            <div onClick={() => toggle(ak)} style={{ display: "flex", alignItems: "center", gap: 14, padding: "16px 0", cursor: body ? "pointer" : "default" }}>
+                              <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{k + 1}</div>
+                              <span style={{ fontSize: 16, color: C.text, lineHeight: 1.5, flex: 1, fontWeight: aopen && body ? 650 : 400 }}>{head}</span>
+                              {body && (
+                                <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle(ak); }} aria-label="펼치기/접기"
+                                  style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
+                                  {aopen ? <Minus size={22} strokeWidth={2.25} /> : <Plus size={22} strokeWidth={2.25} />}
+                                </button>
+                              )}
+                            </div>
+                            {body && aopen && (
+                              <div style={{ paddingLeft: 44, paddingBottom: 18, fontSize: 14, color: C.dim, lineHeight: 1.7, whiteSpace: "pre-wrap" }}>{body}</div>
+                            )}
+                          </div>);
+                        })}
+                      </div>
+                    )}
+                    {aiResult.command && (
+                      <div style={{ marginTop: 18, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
+                        <button className="td-copy" onClick={() => copy(aiResult.command, "ai-cmd")} title="복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
+                          {copiedKey === "ai-cmd" ? <Check size={16} /> : <Copy size={16} />}</button>
+                        <pre style={{ margin: 0, fontFamily: MONO, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.6, paddingRight: 32 }}>{aiResult.command}</pre>
+                      </div>
+                    )}
+                    <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                      <span style={{ fontSize: 12, fontWeight: 700, color: aiResult.confidence === "high" ? C.green : aiResult.confidence === "mid" ? C.amber : C.red }}>● {aiResult.confidence === "high" ? "확신 높음" : aiResult.confidence === "mid" ? "확신 보통" : "확신 낮음 — 검증 권장"}</span>
+                      {aiResult.caveat && <span style={{ fontSize: 12.5, color: C.faint, lineHeight: 1.5 }}>{aiResult.caveat}</span>}
+                    </div>
+                    <div style={{ marginTop: 14, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
+                      ※ AI가 생성한 진단입니다. 더 깊은 분석이 필요하면 위의 <b style={{ color: C.dim }}>브리핑 복사</b>로 자신의 LLM 챗에서 이어가세요. 명령·다운로드는 실행 전 한 번 확인하세요.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <p style={{ marginTop: 64, fontSize: 12, color: C.faint, lineHeight: 1.6, textAlign: "center" }}>
             pytorch·cuda·python 버전 호환성은 각 pack의 requirements.txt 영역으로 JSON 파일만으로는 확인할 수 없음. AI 진단(에러 로그 + JSON 컨텍스트 → LLM) 업데이트 예정.
             <br />
             <a href="https://no1jhk.space" target="_blank" rel="noopener noreferrer"
