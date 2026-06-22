@@ -227,6 +227,45 @@ ${errlog}
   return JSON.parse(clean);
 }
 
+// 모르는 노드 1개를 web_search로 자동 조사 → 출처 저장소 + 설치 주의사항.
+// 로컬(키 있음)에서만 호출됨. 결과는 정적 지식 DB를 살찌우는 후보가 된다.
+// 반환: {found, repo, installNote, confidence}
+async function researchNode(nodeType) {
+  if (!AI_KEY) return { _noKey: true };
+  const prompt = `ComfyUI 커스텀 노드 "${nodeType}"의 출처를 웹에서 찾아주세요.
+이 노드가 어느 GitHub 저장소(커스텀 노드 팩)에 속하는지, 설치할 때 비개발자가 알아야 할 주의사항(설치 위치, 필요 환경, 추가 빌드 등)이 있는지 확인하세요.
+확실하지 않으면 솔직하게 found를 false, confidence를 low로 하세요. 없는 저장소를 지어내지 마세요.
+
+다음 JSON으로만 답하세요. 마크다운·코드펜스 없이 순수 JSON만:
+{
+  "found": true,
+  "repo": "owner/repo 형식 (찾았으면, 못 찾으면 빈 문자열)",
+  "installNote": "설치 위치·환경·주의사항 중 핵심을 비개발자 말로 1~2문장 (없으면 빈 문자열)",
+  "confidence": "high|mid|low"
+}`;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": AI_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: AI_MODEL,
+      max_tokens: 1024,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const data = await res.json();
+  const textOut = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const clean = textOut.replace(/```json|```/g, "").trim();
+  const m = clean.match(/\{[\s\S]*\}/); // web_search는 앞뒤 텍스트가 섞일 수 있어 JSON 블록만 추출
+  return JSON.parse(m ? m[0] : clean);
+}
+
 // 에러 로그(텍스트)를 패턴 매칭해 진단 항목으로 변환 (룰 기반 v1.1 초기 버전, LLM 불필요)
 // report가 있으면 컨텍스트(노드명·pack)를 결합해 더 구체적인 제안을 붙인다.
 function analyzeLog(log, report) {
@@ -692,6 +731,7 @@ export default function Teardown() {
   const [aiErr, setAiErr] = useState(null);
   const [briefingBusy, setBriefingBusy] = useState(false); // 브리핑 복사 처리 중 표시(딤+스피너)
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
+  const [nodeResearch, setNodeResearch] = useState({});    // 모르는 노드 자동 조사 결과 { [nodeType]: {loading, result, error} }
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);
   const shotRef = useRef(null);
@@ -781,6 +821,17 @@ export default function Teardown() {
     }, 650);
   };
 
+  // 모르는 노드 자동 조사 — 로컬에서 web_search로 출처·주의사항을 찾는다. 결과는 추후 정적 DB에 반영 후보.
+  const researchUnknownNode = async (nodeType) => {
+    setNodeResearch((s) => ({ ...s, [nodeType]: { loading: true } }));
+    try {
+      const r = await researchNode(nodeType);
+      setNodeResearch((s) => ({ ...s, [nodeType]: { loading: false, result: r } }));
+    } catch (e) {
+      setNodeResearch((s) => ({ ...s, [nodeType]: { loading: false, error: e.message || "조사 실패" } }));
+    }
+  };
+
   const rx = report ? buildPrescription(report) : [];
 
   // 진단 요약 계산
@@ -815,8 +866,7 @@ export default function Teardown() {
           backgroundSize: "contain", maskImage: "linear-gradient(to bottom, transparent, #000 38%)", WebkitMaskImage: "linear-gradient(to bottom, transparent, #000 38%)" }} />
       )}
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&display=swap');
-        .td-drop{transition:border-color .18s,background .18s}
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap');        .td-drop{transition:border-color .18s,background .18s}
         .td-btn{transition:transform .12s,opacity .18s}
         .td-btn:hover{transform:translateY(-1px)} .td-btn:active{transform:translateY(0)}
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
@@ -1077,14 +1127,39 @@ export default function Teardown() {
               <div style={{ marginTop: open.f3 ? 32 : 0, paddingBottom: open.f3 ? 36 : 36 }}>{open.f3 && (<>
                 {report.unmapped.length === 0 ? <Empty text="cnr_id 없는 노드가 모두 출처로 해소됩니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    {report.unmapped.map((u, i) => (
-                      <div key={u.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: MONO, fontSize: 18.5, color: C.text, minWidth: 0, flex: 1 }}>
-                          <ChevronRight size={16} color={C.amber} style={{ flexShrink: 0 }} /><span style={{ overflowWrap: "anywhere" }}>{u.type}</span></div>
-                        {u.repo ? <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, maxWidth: "45%", justifyContent: "flex-end" }}>
-                          <GitBranch size={11} color={C.green} style={{ flexShrink: 0 }} /><span style={{ fontFamily: MONO, fontSize: 12, color: C.green, overflowWrap: "anywhere", textAlign: "right" }}>{u.repo} · 추정</span></div>
-                          : <div style={{ fontSize: 12, color: C.faint, flexShrink: 0, textAlign: "right" }}>출처 미상 — Manager로 확인</div>}
-                      </div>))}
+                    {report.unmapped.map((u, i) => {
+                      const nr = nodeResearch[u.type];
+                      const rr = nr?.result;
+                      return (
+                      <div key={u.id} style={{ paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: MONO, fontSize: 18.5, color: C.text, minWidth: 0, flex: 1 }}>
+                            <ChevronRight size={16} color={C.amber} style={{ flexShrink: 0 }} /><span style={{ overflowWrap: "anywhere" }}>{u.type}</span></div>
+                          {u.repo ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, maxWidth: "45%", justifyContent: "flex-end" }}>
+                              <GitBranch size={11} color={C.green} style={{ flexShrink: 0 }} /><span style={{ fontFamily: MONO, fontSize: 12, color: C.green, overflowWrap: "anywhere", textAlign: "right" }}>{u.repo} · 추정</span></div>
+                          ) : rr?.found && rr?.repo ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, maxWidth: "55%", justifyContent: "flex-end" }}>
+                              <GitBranch size={11} color={C.violet} style={{ flexShrink: 0 }} /><span style={{ fontFamily: MONO, fontSize: 12, color: C.violet, overflowWrap: "anywhere", textAlign: "right" }}>{rr.repo} · 검색됨</span></div>
+                          ) : rr && !rr.found ? (
+                            <div style={{ fontSize: 12, color: C.faint, flexShrink: 0, textAlign: "right" }}>검색해도 못 찾음 — Manager로 확인</div>
+                          ) : nr?.error ? (
+                            <div style={{ fontSize: 12, color: C.red, flexShrink: 0, textAlign: "right" }}>검색 실패 · 다시 시도</div>
+                          ) : nr?.loading ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, color: C.faint, fontSize: 12 }}><Loader2 size={12} className="td-spin" /> 검색 중…</div>
+                          ) : AI_KEY ? (
+                            <button onClick={() => researchUnknownNode(u.type)} style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, background: "#28222E", border: "none", borderRadius: 999, padding: "5px 12px", cursor: "pointer", color: C.dim, fontFamily: SANS, fontSize: 12, fontWeight: 600 }}>
+                              <ScanSearch size={12} /> 이 노드 검색</button>
+                          ) : (
+                            <div style={{ fontSize: 12, color: C.faint, flexShrink: 0, textAlign: "right" }}>출처 미상 — Manager로 확인</div>
+                          )}
+                        </div>
+                        {rr?.found && rr?.installNote ? (
+                          <div style={{ marginTop: 8, marginLeft: 24, fontSize: 12.5, color: C.dim, lineHeight: 1.55, paddingRight: 8 }}>
+                            <span style={{ color: C.violet, fontWeight: 700 }}>설치 메모</span> · {rr.installNote}{rr.confidence ? <span style={{ color: C.faint }}> (확신 {rr.confidence === "high" ? "높음" : rr.confidence === "mid" ? "보통" : "낮음"})</span> : null}</div>
+                        ) : null}
+                      </div>);
+                    })}
                   </div>)}
                 {report.frontendOnly.length > 0 && (
                   <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.divider}`, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
