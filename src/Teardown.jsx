@@ -111,6 +111,19 @@ function compatModelInfo(file) {
   return hfLink(file);
 }
 
+// ComfyUI 시작 로그에서 GPU/torch/CUDA 추출
+function parseComfyLog(text) {
+  const out = { gpu: "", torch: "", cuda: "" };
+  const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
+  if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
+  const g = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?RTX\s*(\d{4})\s*(Ti|Super)?/i);
+  if (g) out.gpu = "RTX " + g[1] + (g[2] ? " " + g[2] : "");
+  else { const g2 = text.match(/([AB]\d{3,4}|RTX\s*A?\d{4,5})/i); if (g2) out.gpu = g2[0].trim(); }
+  return out;
+}
+
+const GPU_OPTIONS = ["RTX 3060","RTX 3070","RTX 3080","RTX 3090","RTX 4060","RTX 4070","RTX 4080","RTX 4090","RTX 5070","RTX 5080","RTX 5090"];
+
 function repoForUnmapped(type) {
   for (const [pre, repo] of REPO_BY_PREFIX) if (type.startsWith(pre)) return repo;
   return null;
@@ -768,6 +781,15 @@ export default function Teardown() {
   const [briefingBusy, setBriefingBusy] = useState(false); // 브리핑 복사 처리 중 표시(딤+스피너)
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const [nodeResearch, setNodeResearch] = useState({});    // 모르는 노드 자동 조사 결과 { [nodeType]: {loading, result, error} }
+  const [envOpen, setEnvOpen] = useState(false);
+  const [envLog, setEnvLog] = useState("");
+  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "" });
+  const [cmdOpen, setCmdOpen] = useState(false);
+  const onEnvLog = (text) => {
+    setEnvLog(text);
+    const parsed = parseComfyLog(text);
+    setEnv((prev) => ({ gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda }));
+  };
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);
   const shotRef = useRef(null);
@@ -960,6 +982,88 @@ export default function Teardown() {
             <button className="td-btn" onClick={() => run(JSON.stringify(SAMPLE_WORKFLOW), "샘플 · Rig+Anim 파이프라인")}
               style={{ background: "transparent", color: C.dim, border: `1px solid ${C.line}`, borderRadius: 999, padding: "10px 18px", fontFamily: SANS, fontSize: 13.5, cursor: "pointer" }}>샘플 보기</button>
           </div>
+        </div>
+
+        {/* 환경 정보 — 접이식. JSON 드롭존 아래, 결과 위. 선택사항. */}
+        <div style={{ marginTop: 14 }}>
+          <button onClick={() => setEnvOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "6px 0", color: C.dim, fontFamily: SANS, fontSize: 13.5, fontWeight: 600 }}>
+            {envOpen ? <Minus size={15} color={C.dim} /> : <Plus size={15} color={C.dim} />}
+            <span>내 환경 정보 (선택)</span>
+            {(env.gpu || env.torch || env.cuda) && !envOpen && (
+              <span style={{ fontSize: 12, color: C.point, fontWeight: 400, marginLeft: 4 }}>
+                {[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`].filter(Boolean).join(" · ")}
+              </span>
+            )}
+          </button>
+          {envOpen && (
+            <div className="td-fade" style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: "20px 22px", marginTop: 6 }}>
+              {/* ① ComfyUI 로그 붙여넣기 */}
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>ComfyUI 로그 붙여넣기</div>
+              <textarea value={envLog} onChange={(e) => onEnvLog(e.target.value)} spellCheck={false}
+                placeholder="ComfyUI 시작 시 콘솔에 뜨는 로그를 붙여넣으세요. GPU·torch·CUDA를 자동으로 읽습니다."
+                style={{ width: "100%", minHeight: 110, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", color: C.text, fontFamily: MONO, fontSize: 12.5, lineHeight: 1.6, resize: "vertical", boxSizing: "border-box" }} />
+              {envLog && (env.gpu || env.torch || env.cuda) && (
+                <div style={{ marginTop: 8, fontSize: 12.5, color: "#8BC34A", lineHeight: 1.5 }}>
+                  감지됨: {[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`].filter(Boolean).join(" · ")}
+                </div>
+              )}
+              {envLog && !env.gpu && !env.torch && !env.cuda && (
+                <div style={{ marginTop: 8, fontSize: 12.5, color: C.faint, lineHeight: 1.5 }}>로그에서 환경 정보를 찾지 못했습니다. 아래에서 직접 선택하세요.</div>
+              )}
+              <div style={{ fontSize: 12, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>콘솔에서 복사가 안 되면 아래에서 직접 선택하세요</div>
+
+              {/* ② 직접 선택 */}
+              <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.divider}` }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 10 }}>또는 직접 선택</div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                    <label style={{ fontSize: 12, color: C.dim, marginBottom: 4, display: "block" }}>GPU</label>
+                    <select value={GPU_OPTIONS.includes(env.gpu) ? env.gpu : (env.gpu ? "__custom" : "")}
+                      onChange={(e) => { if (e.target.value === "__custom") setEnv((p) => ({ ...p, gpu: "" })); else setEnv((p) => ({ ...p, gpu: e.target.value })); }}
+                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: SANS, fontSize: 13, boxSizing: "border-box" }}>
+                      <option value="">선택 안 함</option>
+                      {GPU_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
+                      <option value="__custom">직접 입력</option>
+                    </select>
+                    {(env.gpu && !GPU_OPTIONS.includes(env.gpu)) && (
+                      <input type="text" value={env.gpu} onChange={(e) => setEnv((p) => ({ ...p, gpu: e.target.value }))} placeholder="예: RTX A6000"
+                        style={{ width: "100%", marginTop: 6, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: SANS, fontSize: 13, boxSizing: "border-box" }} />
+                    )}
+                  </div>
+                  <div style={{ flex: "1 1 120px", minWidth: 100 }}>
+                    <label style={{ fontSize: 12, color: C.dim, marginBottom: 4, display: "block" }}>torch 버전</label>
+                    <input type="text" value={env.torch} onChange={(e) => setEnv((p) => ({ ...p, torch: e.target.value }))} placeholder="예: 2.8.0"
+                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: "1 1 120px", minWidth: 100 }}>
+                    <label style={{ fontSize: 12, color: C.dim, marginBottom: 4, display: "block" }}>CUDA 버전</label>
+                    <input type="text" value={env.cuda} onChange={(e) => setEnv((p) => ({ ...p, cuda: e.target.value }))} placeholder="예: 12.8"
+                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* ③ 명령어 안내 */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
+                <button onClick={() => setCmdOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, color: C.faint, fontFamily: SANS, fontSize: 12.5 }}>
+                  <CircleAlert size={13} /> 명령어로 확인하는 법</button>
+                {cmdOpen && (
+                  <div className="td-fade" style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                    {[
+                      { label: "torch + CUDA", cmd: 'python -c "import torch; print(torch.__version__, torch.version.cuda)"' },
+                      { label: "GPU 정보", cmd: "nvidia-smi" },
+                    ].map((item) => (
+                      <div key={item.cmd} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "7px 11px" }}>
+                        <code style={{ fontFamily: MONO, fontSize: 12, color: C.text, flex: 1, overflowWrap: "anywhere" }}>{item.cmd}</code>
+                        <button onClick={() => copy(item.cmd, "cmd-" + item.label)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: C.point, flexShrink: 0 }}>
+                          {copiedKey === "cmd-" + item.label ? <Check size={14} /> : <Copy size={14} />}</button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
 
         {err && (<div className="td-fade" style={{ marginTop: 16, background: "rgba(239,83,80,0.08)", border: `1px solid ${C.red}55`, borderRadius: 12, padding: "13px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
