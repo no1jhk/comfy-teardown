@@ -251,27 +251,31 @@ const AI_KEY = import.meta.env?.VITE_ANTHROPIC_API_KEY || "";
 const AI_MODEL = "claude-sonnet-4-5-20250929";
 
 // report(룰 분석 결과)를 LLM에 줄 컨텍스트 문자열로 압축.
-function reportToContext(report) {
+function reportToContext(report, env) {
   const packs = report.packs.map((p) => `${p.id}${p.repo ? ` (${p.repo})` : ""} [${p.vers.join(", ") || "ver?"}]${p.conflict ? " ⚠버전충돌" : ""}`);
   const models = report.models.map((m) => `${m.node}: ${m.file} → ${m.folder}`);
   const muted = report.muted.map((m) => `${m.type}(${m.mode === 4 ? "bypass" : "muted"})`);
   const port = report.portability.map((h) => `${h.node}: ${h.value} — ${h.risk}`);
-  return [
+  const lines = [
     `전체 노드: ${report.totalNodes} / 커스텀 pack: ${report.customPackCount}`,
     `패키지·버전:\n${packs.map((x) => "  - " + x).join("\n") || "  없음"}`,
     `참조 모델·자산:\n${models.map((x) => "  - " + x).join("\n") || "  없음"}`,
     `이식 위험 값:\n${port.map((x) => "  - " + x).join("\n") || "  없음"}`,
     `비활성 노드: ${muted.join(", ") || "없음"}`,
-  ].join("\n");
+  ];
+  if (env && (env.gpu || env.torch || env.cuda)) {
+    lines.push(`사용자 환경: GPU=${env.gpu || "?"} / torch=${env.torch || "?"} / CUDA=${env.cuda || "?"}`);
+  }
+  return lines.join("\n");
 }
 
 // 에러 로그 + report 컨텍스트 → Claude API → 구조화 JSON 진단.
 // 반환: {title, severity, rootCause, relatedNode, fixes[], command, confidence, caveat}
-async function runAiDiagnosis(errlog, report) {
+async function runAiDiagnosis(errlog, report, env) {
   if (!AI_KEY) {
     return { _noKey: true };
   }
-  const ctx = reportToContext(report);
+  const ctx = reportToContext(report, env);
   const prompt = `당신은 ComfyUI 무거운 파이프라인(Trellis2/UniRig/HYMotion) 환경 디버깅 전문가입니다.
 아래는 사용자가 실행하려는 워크플로의 구조 분석 결과와, 실행 중 발생한 에러 로그입니다.
 이 에러를 **이 워크플로의 구체적인 노드·모델과 결합해서** 진단하세요. 일반론이 아니라 "당신의 OO 노드가/이 모델이" 식으로 짚어야 합니다.
@@ -710,21 +714,33 @@ function buildMarkdown(report, summary, rx) {
 
 // LLM에 바로 붙여넣을 "브리핑" — 구조 분석 요약 + 에러 로그 원본 + 지시문.
 // 도구가 LLM을 호출하지 않고(비용 0), 사용자가 자기 Claude·Gemini 챗에 붙여넣기 위한 용도.
-function buildBriefing(report, errlog) {
-  const ctx = reportToContext(report);
+function buildBriefing(report, errlog, env) {
+  const ctx = reportToContext(report, env);
+  const qw = quantWarnings(report.models, env?.gpu);
+  const rx = buildPrescription(report, env?.gpu);
   const L = [];
-  L.push(`아래는 ComfyUI 워크플로의 구조 분석 결과와 실행 중 발생한 에러 로그입니다.`);
-  L.push(`이 에러를 이 워크플로의 구체적인 노드·모델과 결합해 진단하고, 해결 방법을 단계별로 알려주세요.`);
-  L.push(`확신이 없는 부분은 솔직하게 밝히고, 없는 URL·파일을 지어내지 마세요.`);
+  L.push(`아래는 ComfyUI 워크플로의 구조 분석 + 환경 + (있으면)에러 로그입니다.`);
+  L.push(`이 정보를 종합해 이 워크플로의 구체적 노드·모델·환경에 맞춰 진단하고, 해결을 단계별로 알려주세요.`);
+  L.push(`확신 없는 부분은 솔직히 밝히고, 없는 URL·파일을 지어내지 마세요.`);
   L.push(``);
   L.push(`## 워크플로 구조 (대상: ${report.source})`);
   L.push("```");
   L.push(ctx);
   L.push("```");
   L.push(``);
+  if (qw.length) {
+    L.push(`## 이미 발견된 양자화 호환성 문제 (Teardown 룰)`);
+    for (const w of qw) L.push(`- ${w.file}: ${w.quant} 형식 → ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "미지원" : "부분지원"} → ${w.alt} 권장`);
+    L.push(``);
+  }
+  if (rx.length) {
+    L.push(`## Teardown이 이미 제시한 처방 (참고 — 중복 진단 말고 이 다음을 도와주세요)`);
+    rx.forEach((step, i) => L.push(`${i + 1}. ${step.title}`));
+    L.push(``);
+  }
   L.push(`## 에러 로그`);
   L.push("```");
-  L.push(errlog.trim() || "(에러 로그 없음 — 구조만 보고 점검해 주세요)");
+  L.push(errlog.trim() || "(에러 로그 없음 — 구조·환경만 보고 점검해 주세요)");
   L.push("```");
   L.push(``);
   L.push(`---`);
@@ -907,7 +923,7 @@ export default function Teardown() {
 
     setAiLoading(true); setAiErr(null); setAiResult(null);
     try {
-      const r = await runAiDiagnosis(errlog, report);
+      const r = await runAiDiagnosis(errlog, report, env);
       if (r && r._noKey) setAiErr("nokey");
       else setAiResult(r);
     } catch (e) {
@@ -924,7 +940,7 @@ export default function Teardown() {
     setBriefingBusy(true);
     setBriefingInfo(null);
     setTimeout(() => {
-      const text = buildBriefing(report, errlog);
+      const text = buildBriefing(report, errlog, env);
       const lines = errlog.trim() ? errlog.trim().split("\n").length : 0;
       copy(text, "briefing");
       setBriefingInfo({ lines, shots: errShots.length, chars: text.length });
@@ -1464,9 +1480,9 @@ export default function Teardown() {
                       borderRadius: 999, padding: "13px 0", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: errlog.trim() && !aiLoading ? "pointer" : "not-allowed", letterSpacing: "-0.01em" }}>
                     {aiLoading ? <><Loader2 size={16} className="td-spin" /> AI 정밀 진단 중…</> : <>AI 정밀 진단 실행</>}</button>
                 )}
-                <button className="td-btn td-outline" onClick={copyBriefing} disabled={!errlog.trim()}
+                <button className="td-btn td-outline" onClick={copyBriefing} disabled={!errlog.trim() && !env.gpu && !env.torch && !env.cuda}
                   style={{ width: 280, maxWidth: "100%", display: "inline-flex", alignItems: "center", justifyContent: "center", gap: 8,
-                    borderRadius: 999, padding: "13px 0", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: errlog.trim() ? "pointer" : "not-allowed", letterSpacing: "-0.01em", opacity: errlog.trim() ? 1 : 0.4 }}>
+                    borderRadius: 999, padding: "13px 0", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: (errlog.trim() || env.gpu || env.torch || env.cuda) ? "pointer" : "not-allowed", letterSpacing: "-0.01em", opacity: (errlog.trim() || env.gpu || env.torch || env.cuda) ? 1 : 0.4 }}>
                   {copiedKey === "briefing" ? <><Check size={16} /> 복사됨 — 내 챗에 붙여넣기</> : <><Copy size={16} /> LLM 분석 프롬프트</>}</button>
               </div>
               {AI_KEY ? (

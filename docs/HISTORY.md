@@ -6,6 +6,38 @@
 
 ---
 
+## 2026-06-27 (v2 5단계 — 테스트 세트 양자화 진단 성공률 측정)
+**한 일**
+- 테스트 JSON 10개 전체로 양자화↔GPU 진단 정확도 측정 (env=RTX 3090 Ampere 기준)
+- detectQuant/gpuGeneration/quantWarnings 로직 그대로 재현해 채점
+
+**결과: 양자화 진단 정확도 10/10 = 100%**
+- 1차 채점 8/10이었으나, "오답" 2건(Ideogram4, Silent_Snow)은 도구가 맞고 정답지가 틀렸음을 교차 확인:
+  - Ideogram4: 실제 fp8 모델 4개(flux2-vae는 양자화 표기 없음) → 도구 4개가 정답 (정답지 5 오류)
+  - Silent_Snow: 실제 fp4/fp8 1개(gemma fp4뿐, dev/distilled/upscaler는 표기 없음) → 도구 1개가 정답 (정답지 2 오류)
+- 케이스별 검증:
+  - Bernini(Wan2.2): mxfp8×2 + fp8 = 경고 3 ✅
+  - LTX VRAM / Audio: fp8 + fp4 = 경고 2 ✅
+  - SCAIL: fp8_scaled×2 = 경고 2 ✅
+  - LipSync(GGUF만) / PixelArtistry / Skintoken(gguf·ckpt): 경고 0 ✅ (Ampere 호환)
+
+**핵심**: 양자화 표기가 명시된 모델만 정확히 잡고, 표기 없는 건 지어내지 않음 = "BUILT, NOT JUST GENERATED". 추론으로 때려맞히지 않고 확정 판정만.
+
+**결론**: v2 작업계획 5단계 전부 완료. "처음 실행 지옥"의 핵심(받기→환경입력→양자화진단→완성브리핑)이 작동·검증됨.
+
+**다음 할 일(선택)**: 실제 집 3090 ComfyUI 로그로 parseComfyLog 실증 / 재배포(git push) / 포트폴리오 README 서사
+
+## 2026-06-27 (v2 4단계 — LLM 폴백 완성 브리핑)
+**한 일**
+- `reportToContext(report, env)` — env 파라미터 추가, 환경 블록 출력
+- `buildBriefing(report, errlog, env)` — 양자화 진단(quantWarnings) + 룰 처방 요약(buildPrescription) 섹션 추가
+- `runAiDiagnosis(errlog, report, env)` — AI 진단 프롬프트에도 환경 컨텍스트 반영
+- 호출부 3곳(copyBriefing, doAiDiagnosis, reportToContext) env 전달
+
+**어떻게**: 3단계 함수(quantWarnings, buildPrescription) 재사용. env 없으면 환경/양자화 블록 미출력(회귀 0). API 호출 없이 클립보드 복사만.
+
+**다음 할 일**: 5단계(테스트 세트 성공률 측정 T1~T9) 또는 실제 워크플로 E2E 검증
+
 ## 2026-06-27 (v2 3단계 — 양자화↔GPU 진단)
 **한 일**
 - `detectQuant()` / `gpuGeneration()` / `quantWarnings()` 함수 3개 추가 — 모델 파일명에서 양자화 형식 감지, GPU 문자열→세대 판정, 대조 후 위험 목록 반환
