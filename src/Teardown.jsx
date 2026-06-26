@@ -124,6 +124,47 @@ function parseComfyLog(text) {
 
 const GPU_OPTIONS = ["RTX 3060","RTX 3070","RTX 3080","RTX 3090","RTX 4060","RTX 4070","RTX 4080","RTX 4090","RTX 5070","RTX 5080","RTX 5090"];
 
+// quantization detection & GPU generation matching
+function detectQuant(filename) {
+  const f = filename.toLowerCase();
+  if (f.includes("mxfp8")) return "mxfp8";
+  if (f.includes("fp8")) return f.includes("scaled") ? "fp8_scaled" : "fp8_e4m3fn";
+  if (f.includes("fp4")) return "fp4_mixed";
+  if (f.endsWith(".gguf") || /\bq[0-9]_/.test(f) || f.includes("q4_k") || f.includes("q8_0")) return "gguf";
+  if (f.includes("bf16")) return "bf16";
+  if (f.includes("fp16")) return "fp16";
+  if (f.includes("fp32")) return "fp32";
+  return null;
+}
+function gpuGeneration(gpuStr) {
+  if (!gpuStr) return null;
+  const g = gpuStr.toLowerCase().replace(/[^0-9a-z]/g, "");
+  const gens = compat.quant_rules.gpu_generations;
+  for (const [gen, list] of Object.entries(gens)) {
+    for (const model of list) {
+      if (g.includes(model.toLowerCase().replace(/[^0-9a-z]/g, ""))) return gen;
+    }
+  }
+  return null;
+}
+function quantWarnings(models, gpuStr) {
+  const gen = gpuGeneration(gpuStr);
+  if (!gen) return [];
+  const out = [];
+  for (const m of models) {
+    const q = detectQuant(m.file);
+    if (!q) continue;
+    const rule = compat.quant_rules.formats[q];
+    if (!rule) continue;
+    const support = rule[gen];
+    if (support === false || support === "partial") {
+      out.push({ file: m.file, quant: q, gen, support, alt: rule.alt || "GGUF" });
+    }
+  }
+  return out;
+}
+const GEN_LABEL = { ampere: "Ampere(30xx)", ada: "Ada(40xx)", blackwell: "Blackwell(50xx)" };
+
 function repoForUnmapped(type) {
   for (const [pre, repo] of REPO_BY_PREFIX) if (type.startsWith(pre)) return repo;
   return null;
@@ -507,8 +548,20 @@ function analyzeLog(log, report) {
 }
 
 // 분석 결과(report)를 순서 있는 "처방" 액션으로 변환 (룰 기반, LLM 불필요)
-function buildPrescription(r) {
+function buildPrescription(r, envGpu) {
   const steps = [];
+  // quantization warnings (맨 앞)
+  const qw = quantWarnings(r.models, envGpu);
+  if (qw.length) {
+    steps.push({
+      key: "quant",
+      title: `양자화 비호환 ${qw.length}건 — 이 GPU에서 안 돌아갈 수 있음`,
+      severity: "high",
+      items: qw.map((w) => ({
+        action: `${w.file}: ${w.quant}은 ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "지원 안 됨" : "부분 지원(불안정)"} → ${w.alt}(으)로 교체하세요`,
+      })),
+    });
+  }
   const repos = new Set();
   for (const p of r.packs) if (!p.isCore && p.repo) repos.add(p.repo);
   for (const u of r.unmapped) if (u.repo) repos.add(u.repo);
@@ -593,7 +646,7 @@ function buildMarkdown(report, summary, rx) {
     L.push(`## Solution`);
     L.push(``);
     rx.forEach((step, i) => {
-      L.push(`### ${i + 1}. ${step.title}`);
+      L.push(`### ${i + 1}. ${step.severity === "high" ? "⚠ " : ""}${step.title}`);
       if (step.desc) L.push(step.desc);
       if (step.command) {
         L.push(``);
@@ -890,7 +943,7 @@ export default function Teardown() {
     }
   };
 
-  const rx = report ? buildPrescription(report) : [];
+  const rx = report ? buildPrescription(report, env.gpu) : [];
 
   // 진단 요약 계산
   let summary = null;
@@ -1123,8 +1176,8 @@ export default function Teardown() {
                   <div key={step.key} style={{ paddingTop: 20, paddingBottom: sopen ? 55 : 20, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
                     {/* 번호(동그라미) + 제목 + 펼침 토글 — 수직 중앙정렬 */}
                     <div onClick={() => toggle(sk)} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</div>
-                      <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>{step.title}</div>
+                      <div style={{ width: 30, height: 30, borderRadius: 15, background: step.severity === "high" ? C.red : C.point, color: step.severity === "high" ? "#fff" : INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</div>
+                      <div style={{ fontSize: 23, fontWeight: 650, color: step.severity === "high" ? C.red : C.text, lineHeight: 1.2, flex: 1 }}>{step.title}</div>
                       <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle(sk); }} aria-label="펼치기/접기"
                         style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
                         {sopen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}

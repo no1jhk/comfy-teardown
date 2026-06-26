@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-06-27 (v2 3단계 — 양자화↔GPU 진단)
+**한 일**
+- `detectQuant()` / `gpuGeneration()` / `quantWarnings()` 함수 3개 추가 — 모델 파일명에서 양자화 형식 감지, GPU 문자열→세대 판정, 대조 후 위험 목록 반환
+- `buildPrescription(r, envGpu)` 시그니처 확장 — quantWarnings 결과를 Solution 맨 앞 단계로 삽입 (severity: high, 빨간색)
+- Solution 렌더: severity=high 일 때 번호 배지·제목 빨간색
+- Markdown 내보내기에도 ⚠ 표식 반영
+
+**어떻게**: env.gpu 없으면 quantWarnings()가 빈 배열 → 화면에 아무것도 안 뜸(회귀 0). compat.quant_rules.formats 테이블로 Ampere+fp8/fp4/mxfp8 → false 판정.
+
+**다음 할 일**: 4단계(LLM 폴백 개조 — 완성 브리핑 프롬프트) 또는 실제 워크플로 E2E 검증
+
 ## 2026-06-27 (v2 1단계 — 데이터 층 구현)
 **한 일**
 - compatibility.json 탑재: `import compat` → `compatNodeRepo()` (cnr_id 소문자화+aliases→repo) + `compatModelInfo()` (파일명→직링크+폴더+VRAM) 신설
