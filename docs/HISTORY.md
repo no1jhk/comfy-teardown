@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-06-27 (v2 1단계 — 데이터 층 구현)
+**한 일**
+- compatibility.json 탑재: `import compat` → `compatNodeRepo()` (cnr_id 소문자화+aliases→repo) + `compatModelInfo()` (파일명→직링크+폴더+VRAM) 신설
+- analyze() 에서 pack repo를 `compatNodeRepo()`로, 모델에 compat 정보 주입 (folder 확정·VRAM·size)
+- Solution/Inventory/Markdown 렌더에서 compat 매칭 모델은 "HuggingFace에서 검색"→"HuggingFace에서 받기" 직링크 + VRAM 표시
+- 모델 폴더: compat 매칭 시 "추정" 없이 확정색(C.point) 표시
+
+**어떻게**: hfLink()를 폴백으로 유지하고 compatModelInfo()가 compat.models 직접매칭 + path segment 매칭 우선. 노드는 compat.nodes → aliases → REPO_BY_CNR 폴백 체인.
+
+**다음 할 일**: 실제 워크플로 JSON으로 End-to-End 검증 (T1~T9 테스트 세트) → 2단계(환경 입력 UI) 착수
+
+---
+
 ## 2026-06-22 (UI 마감 + AI/검색 레이어 + 방향 재정립 ★중요 세션)
 **한 일 — UI/UX 마감**
 - 간격·위계 통일: 섹션 제목(SectionTitle) 32 유지, 블록 제목(BlockHead+Solution) 28→25→**23pt**로 낮춰 섹션 제목과 위계 분리. Solution/Findings/Inventory 섹션 간격 64→44. 블록 펼침 하단 40→36.

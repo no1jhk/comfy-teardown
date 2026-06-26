@@ -5,6 +5,7 @@ import {
   Terminal, ImagePlus, X, ScanSearch, Loader2,
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
+import compat from "./data/compatibility.json";
 
 /* ──────────────────────────────────────────────────────────────
    Teardown — ComfyUI 무거운 파이프라인 환경 진단 (MVP v1.0)
@@ -64,6 +65,18 @@ const RENAME_HINT = {
   "hymotionlite.ckpt": "다운로드 원본은 latest.ckpt → 이 이름으로 리네임 필요",
 };
 
+// compatibility.json → node repo lookup (cnr_id 소문자화 + aliases → owner/repo)
+function compatNodeRepo(cnrId) {
+  if (!cnrId) return null;
+  const low = cnrId.toLowerCase();
+  const direct = compat.nodes[low];
+  if (direct) return direct.repo.replace("https://github.com/", "");
+  for (const [, node] of Object.entries(compat.nodes)) {
+    if (node.aliases?.some((a) => a.toLowerCase() === low)) return node.repo.replace("https://github.com/", "");
+  }
+  return REPO_BY_CNR[cnrId] || null;
+}
+
 // HuggingFace 연결: 확실한 것만 정확한 repo, 나머지는 검색 링크(없는 건 지어내지 않음)
 const HF_EXACT = {
   "clip-vit-large-patch14.safetensors": "openai/clip-vit-large-patch14",
@@ -76,6 +89,26 @@ function hfLink(file) {
   if (HF_EXACT[low]) return { url: `https://huggingface.co/${HF_EXACT[low]}`, exact: true };
   const q = base.replace(/\.[^.]+$/, "");
   return { url: `https://huggingface.co/models?search=${encodeURIComponent(q)}`, exact: false };
+}
+
+// compatibility.json → model info lookup (파일명 소문자화 → 직링크+폴더+VRAM)
+function compatModelInfo(file) {
+  const parts = file.replace(/\\/g, "/").split("/");
+  const base = parts[parts.length - 1];
+  const stem = base.toLowerCase().replace(/\.[^.]+$/, "");
+  if (compat.models[stem]) {
+    const m = compat.models[stem];
+    return { url: m.url, exact: true, folder: m.folder, vram_gb: m.vram_gb, size_gb: m.size_gb, alternatives: m.alternatives, name: m.name };
+  }
+  // path segment match (e.g. "hymotion/HY-Motion-1.0-Lite/latest.ckpt")
+  for (let i = parts.length - 2; i >= 0; i--) {
+    const seg = parts[i].toLowerCase();
+    if (compat.models[seg]) {
+      const m = compat.models[seg];
+      return { url: m.url, exact: true, folder: m.folder, vram_gb: m.vram_gb, size_gb: m.size_gb, alternatives: m.alternatives, name: m.name };
+    }
+  }
+  return hfLink(file);
 }
 
 function repoForUnmapped(type) {
@@ -133,13 +166,15 @@ function analyze(norm) {
     else unmappedRaw.push({ id: n.id, type: n.type, repo: repoForUnmapped(n.type) });
     if (n.mode === 2 || n.mode === 4) muted.push({ id: n.id, type: n.type, mode: n.mode });
     for (const w of n.widgets) if (typeof w === "string" && MODEL_EXTS.some((e) => w.toLowerCase().endsWith(e))) {
-      const base = w.replace(/\\/g, "/").split("/").pop().toLowerCase();
-      models.push({ node: n.type, file: w.replace(/\\/g, "/"), folder: guessFolder(w, n.type), rename: RENAME_HINT[base] || null });
+      const filePath = w.replace(/\\/g, "/");
+      const base = filePath.split("/").pop().toLowerCase();
+      const ci = compatModelInfo(filePath);
+      models.push({ node: n.type, file: filePath, folder: ci?.exact ? `models/${ci.folder}` : guessFolder(w, n.type), rename: RENAME_HINT[base] || null, compat: ci?.exact ? ci : null });
     }
   }
   const packs = Object.keys(packVers).map((id) => {
     const vers = [...packVers[id]].filter(Boolean).map(String);
-    return { id, vers, repo: REPO_BY_CNR[id] || null, nodeTypes: [...packNodes[id]],
+    return { id, vers, repo: compatNodeRepo(id), nodeTypes: [...packNodes[id]],
       isCore: id === "comfy-core", conflict: id !== "comfy-core" && vers.length > 1 };
   }).sort((a, b) => (a.isCore - b.isCore) || b.vers.length - a.vers.length);
 
@@ -557,9 +592,10 @@ function buildMarkdown(report, summary, rx) {
       if (step.warn) L.push(`- ⚠ ${step.warn}`);
       if (step.models) {
         for (const m of step.models) {
-          const hf = hfLink(m.file);
+          const hf = m.compat ? { url: m.compat.url, exact: true } : hfLink(m.file);
           const link = hf ? ` — [${hf.exact ? "HF 받기" : "HF 검색"}](${hf.url})` : "";
-          L.push(`- \`${m.file}\` → ${m.folder}${link}`);
+          const vram = m.compat ? ` (VRAM ${m.compat.vram_gb}GB)` : "";
+          L.push(`- \`${m.file}\` → ${m.folder}${vram}${link}`);
           if (m.rename) L.push(`  - ⤷ ${m.rename}`);
         }
       }
@@ -1006,7 +1042,7 @@ export default function Teardown() {
                       {step.models && (
                         <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 8 }}>
                           {step.models.map((m, k) => {
-                            const hf = hfLink(m.file);
+                            const hf = m.compat ? { url: m.compat.url, exact: true } : hfLink(m.file);
                             return (
                             <div key={k} style={{ background: C.surfaceHi, borderRadius: 10, padding: "14px 34px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                               <div style={{ minWidth: 0, flex: 1 }}>
@@ -1015,6 +1051,7 @@ export default function Teardown() {
                                   <span style={{ fontFamily: MONO, fontSize: 20, color: C.text, overflowWrap: "anywhere" }}>{m.file}</span>
                                 </div>
                                 <div style={{ fontFamily: MONO, fontSize: 12, color: C.point, marginTop: 8, paddingLeft: 26 }}>{m.folder}</div>
+                                {m.compat && <div style={{ fontSize: 12, color: C.dim, marginTop: 5, paddingLeft: 26 }}>VRAM {m.compat.vram_gb} GB · {m.compat.size_gb} GB</div>}
                                 {m.rename && <div style={{ fontSize: 12, color: C.amber, marginTop: 6, lineHeight: 1.4, paddingLeft: 26 }}>⤷ {m.rename}</div>}
                               </div>
                               {hf && <a className="td-hf" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>{hf.exact ? "HuggingFace에서 받기" : "HuggingFace에서 검색"} <ExternalLink size={12} /></a>}
@@ -1180,11 +1217,12 @@ export default function Teardown() {
                 report.models.length === 0 ? <Empty text="참조된 모델 파일을 찾지 못했습니다." /> : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                     {report.models.map((m, i) => {
-                      const hf = hfLink(m.file);
+                      const hf = m.compat ? { url: m.compat.url, exact: true } : hfLink(m.file);
                       return (
                       <div key={i} style={{ aspectRatio: "3 / 2", background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: 16, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center", overflow: "hidden" }}>
                         <span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
                         <span style={{ fontFamily: SANS, fontSize: 14, color: /추정/.test(m.folder) ? C.green : C.point, opacity: /추정/.test(m.folder) ? 0.6 : 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
+                        {m.compat && <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>VRAM {m.compat.vram_gb} GB · {m.compat.size_gb} GB</span>}
                         {m.rename && <span style={{ fontSize: 12, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}
                         {hf && <a className="td-hf-sm" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ marginTop: 20 }}>{hf.exact ? "다운로드" : "찾아보기"}</a>}
                       </div>);
