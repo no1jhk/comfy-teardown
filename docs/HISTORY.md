@@ -29,6 +29,18 @@
 
 ---
 
+## 2026-06-27 (Solution 4번 강등: 끊어진 경로 → 이식 위험에 통합)
+**한 일**
+- Solution "끊어진 경로·입력 파일 정리"(paths step) 제거 — 내용(portability)이 Findings "이식 위험 값"과 100% 중복이라 단독 처방 강등=통합. 정보 손실 0.
+- 산출물 경로 안내 문구를 직관화: "내 입력 파일을 다시 넣거나 해당 단계를 다시 실행하면 됩니다 (다른 PC엔 이 경로가 없습니다)". Findings·md export 공용(단일 소스).
+- Findings 1 헤더 role도 갱신(없어진 step 언급 제거 + "내 파일 다시 넣으면 됨" 반영).
+
+**어떻게**
+- buildPrescription에서 stale/sep 필터 + paths step 삭제, portabilityScan의 산출물 risk 문구만 개선 → 한 곳 수정으로 화면·md 동시 반영.
+
+**다음 할 일**
+- 정답지 5단계 테스트(T1~T9) 성공률 실측.
+
 ## 2026-06-27 (모델 다운로드: 검색 떠넘기기 제거 + web_search 직링크)
 **한 일**
 - Solution 3번·Inventory 카드의 "HuggingFace 검색/Google 검색" 떠넘기기 링크 전면 제거 → 확정 직링크만 "다운로드" 버튼, 못 구하면 "확인 필요"(추측 URL 금지).

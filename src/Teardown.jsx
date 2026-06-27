@@ -263,7 +263,7 @@ function portabilityScan(nodes) {
     if (w === "flash_attn") hits.push({ node: n.type, value: w, risk: "flash_attn 어텐션 — Windows 빌드가 까다롭습니다. 설치가 막히면 sdpa로 변경하세요." });
     else if (/[A-Za-z0-9._-]+\\[A-Za-z0-9._\\-]+/.test(w)) {
       if (/_\d{8}_/.test(w) && /\.(fbx|glb|obj)$/i.test(w))
-        hits.push({ node: n.type, value: w, risk: "과거 실행 산출물 경로입니다. 다른 PC엔 없을 수 있어 새 파일을 선택하거나 단계를 다시 실행하세요." });
+        hits.push({ node: n.type, value: w, risk: "워크플로에 박힌 과거 파일 경로입니다. 내 입력 파일을 다시 넣거나 해당 단계를 다시 실행하면 됩니다 (다른 PC엔 이 경로가 없습니다)." });
       else hits.push({ node: n.type, value: w, risk: "Windows 경로 구분자(\\)입니다. Mac/Linux에선 / 로 바꿔야 합니다." });
     }
   }
@@ -777,14 +777,8 @@ function buildPrescription(r, envGpu) {
     desc: "설치가 막히면 대체값으로 바꾸세요.",
     items: env.map((h) => ({ action: `${h.node} — attention을 flash_attn → sdpa 로 변경` })),
   });
-  const stale = r.portability.filter((h) => /산출물/.test(h.risk));
-  const sep = r.portability.filter((h) => /구분자/.test(h.risk));
-  if (stale.length || sep.length) {
-    const items = [];
-    for (const h of stale) items.push({ action: `${h.node} — 과거 산출물 경로. 새 파일 선택 또는 단계 재실행` });
-    if (sep.length) items.push({ action: `Windows 경로 구분자(\\) ${sep.length}곳 — Mac/Linux로 옮길 때 / 로 치환` });
-    steps.push({ key: "paths", title: "끊어진 경로·입력 파일 정리", desc: "다른 PC엔 없는 경로. 실행 전 새로 지정.", items });
-  }
+  // 끊어진 경로·입력 파일은 단독 처방으로 두지 않는다(대부분 "내 입력 파일을 다시 넣으면 됨").
+  // 정보는 Findings "이식 위험 값"에 그대로 표시 — Solution 중복 step 제거.
   return steps;
 }
 
@@ -1659,7 +1653,7 @@ export default function Teardown() {
                 간격 규칙: 제목↔내용 60(상단 marginTop) / 내용↔다음 순번 60(하단 paddingBottom). 모든 블록 동일. */}
             <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 32 : 0 }}>
               <BlockHead num="1" label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
-                role="다른 PC로 옮길때 생기는 호환성 이슈. 환경 의존 설정 우회와 끊어진 경로·입력 파일 정리에 대한 근거." />
+                role="다른 PC로 옮길때 깨질 수 있는 값입니다. 입력/산출 파일 경로는 내 파일을 다시 넣으면 되고, flash_attn은 환경 우회가 필요합니다." />
               <div style={{ marginTop: open.f1 ? 32 : 0, paddingBottom: open.f1 ? 36 : 36 }}>{open.f1 && (
                 report.portability.length === 0 ? <Empty text="이식 시 깨질 위험 값이 없습니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
