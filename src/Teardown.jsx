@@ -691,7 +691,7 @@ function buildPrescription(r, envGpu) {
 // 진단 결과(report)를 사람이 읽는 Markdown으로 변환 → 복기·기록용 .md 저장
 // (의존성 없이 순수 문자열 조립. 노션/GitHub에 그대로 붙여넣기 가능)
 // 처방 정보 → OS별 설치 스크립트 문자열. 확정 URL만 실행문, 미확인은 주석. (PRD_v1.1 §2)
-function buildInstallScript(report, envGpu, os) {
+function buildInstallScript(report, os) {
   const isWin = os === "bat";
   const L = [];
   const cmt = isWin ? "REM" : "#";
@@ -894,7 +894,8 @@ function buildBriefing(report, errlog, env) {
 
 // 브라우저 다운로드 (서버·라이브러리 없이 Blob)
 function downloadText(filename, text) {
-  const blob = new Blob([text], { type: "text/markdown;charset=utf-8" });
+  const mime = filename.endsWith(".md") ? "text/markdown;charset=utf-8" : "text/plain;charset=utf-8";
+  const blob = new Blob([text], { type: mime });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url; a.download = filename;
@@ -1026,7 +1027,8 @@ export default function Teardown() {
   const run = useCallback((text, src, logText = "") => {
     setErr(null);
     setRawJson(text); setRawSrc(src);
-    setAiResult(null); setAiErr(null); setAiLoading(false); // 새 분석 시 이전 AI 진단 결과 초기화
+    setAiResult(null); setAiErr(null); setAiLoading(false);
+    setLiveCompat({}); setModelResearch({}); setScriptOs(null); // 새 분석 시 이전 상태 초기화
     try {
       const norm = normalize(JSON.parse(text));
       if (!norm) throw new Error("ComfyUI 워크플로 형식이 아닙니다. nodes 배열 또는 class_type 키가 보이지 않습니다.");
@@ -1443,7 +1445,7 @@ export default function Teardown() {
                   <Terminal size={14} />.bat (Windows)</button>
               </div>
               {scriptOs && (() => {
-                const script = buildInstallScript(report, env.gpu, scriptOs);
+                const script = buildInstallScript(report, scriptOs);
                 const manualCount = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && !(m.compat && m.compat.exact && m.compat.url)).length;
                 const fname = `install.${scriptOs}`;
                 return (
@@ -1619,7 +1621,7 @@ export default function Teardown() {
                         <span style={{ fontFamily: SANS, fontSize: 14, color: /추정/.test(m.folder) ? C.green : C.point, opacity: /추정/.test(m.folder) ? 0.6 : 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
                         {eff?.vram_gb && <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>VRAM {eff.vram_gb} GB · {eff.size_gb} GB</span>}
                         {m.rename && <span style={{ fontSize: 12, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}
-                        {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.8, marginTop: 6 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
+                        {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.7, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
                         {hf?.exact && <a className="td-hf-sm" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>{src === "manager" || src === "manager_live" ? "Manager 링크" : "다운로드"}</a>}
                         {!hf?.exact && !mr && AI_KEY && <button onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14, background: "none", border: `1px solid ${C.violet || C.point}`, borderRadius: 8, padding: "5px 12px", color: C.violet || C.point, fontSize: 12, fontFamily: SANS, cursor: "pointer" }}>이 모델 검색</button>}
                         {!hf?.exact && !mr && !AI_KEY && <a className="td-hf-sm" href={hfLink(m.file)?.url || "#"} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>찾아보기</a>}
