@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, Boxes, ChevronRight, GitBranch,
-  CircleAlert, Copy, Check, ExternalLink, Plus, Minus, Download,
+  CircleAlert, Copy, Check, Plus, Minus, Download,
   Terminal, ImagePlus, X, Loader2,
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
@@ -92,6 +92,15 @@ function hfLink(file) {
   if (HF_EXACT[low]) return { url: `https://huggingface.co/${HF_EXACT[low]}`, exact: true };
   const q = base.replace(/\.[^.]+$/, "");
   return { url: `https://huggingface.co/models?search=${encodeURIComponent(q)}`, exact: false };
+}
+
+// 확정 다운로드 직링크만 반환. 검색 URL 떠넘기기 금지 → 못 구하면 null("확인 필요").
+// 우선순위: compat/Manager(eff) → web_search 확정 결과 → HF_EXACT 화이트리스트.
+function directDownloadUrl(eff, file, research) {
+  if (eff?.url) return eff.url;
+  if (research?.result?.found && research.result.url) return research.result.url;
+  const hf = hfLink(file);
+  return hf?.exact ? hf.url : null;
 }
 
 // compatibility.json → model info lookup (파일명 소문자화 → 직링크+폴더+VRAM)
@@ -931,8 +940,8 @@ function buildMarkdown(report, summary, rx) {
       if (step.warn) L.push(`- ⚠ ${step.warn}`);
       if (step.models) {
         for (const m of step.models) {
-          const hf = m.compat ? { url: m.compat.url, exact: true } : hfLink(m.file);
-          const link = hf ? ` — [${hf.exact ? "HF 받기" : "HF 검색"}](${hf.url})` : "";
+          const dlUrl = directDownloadUrl(m.compat, m.file);
+          const link = dlUrl ? ` — [다운로드](${dlUrl})` : " — (다운로드 링크 확인 필요)";
           const vram = m.compat ? ` (VRAM ${m.compat.vram_gb}GB)` : "";
           L.push(`- \`${m.file}\` → ${m.folder}${vram}${link}`);
           if (m.rename) L.push(`  - ⤷ ${m.rename}`);
@@ -1112,7 +1121,6 @@ export default function Teardown() {
   const [err, setErr] = useState(null);
   const [drag, setDrag] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
-  const [scriptOs, setScriptOs] = useState(null); // null=숨김, "sh"|"bat"=표시
   const [open, setOpen] = useState({}); // 전부 기본 닫힘(스크롤 절약) — Solution/Findings/Inventory/AI 모두
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
@@ -1155,7 +1163,7 @@ export default function Teardown() {
     setErr(null);
     setRawJson(text); setRawSrc(src);
     setAiResult(null); setAiErr(null); setAiLoading(false);
-    setLiveCompat({}); setModelResearch({}); setScriptOs(null); // 새 분석 시 이전 상태 초기화
+    setLiveCompat({}); setModelResearch({}); // 새 분석 시 이전 상태 초기화
     try {
       const norm = normalize(JSON.parse(text));
       if (!norm) throw new Error("ComfyUI 워크플로 형식이 아닙니다. nodes 배열 또는 class_type 키가 보이지 않습니다.");
@@ -1508,6 +1516,49 @@ export default function Teardown() {
                     </div>
                     {sopen && <div style={{ paddingLeft: 44, marginTop: 8 }}>
                       <div style={{ fontSize: 17.5, color: C.dim, lineHeight: 1.5 }}>{step.desc}</div>
+                      {step.key === "install" && step.command ? (
+                        <div style={{ marginTop: 14 }}>
+                          <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요.</div>
+
+                          {/* 방법 A — 직접 */}
+                          <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginBottom: 12 }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: C.point, marginBottom: 8 }}>방법 A — 직접</div>
+                            <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>custom_nodes 폴더에서 우클릭 → Git Bash Here (또는 터미널 열기) → 아래 명령 붙여넣기:</div>
+                            <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
+                              <button className="td-copy" onClick={() => copy(step.command, step.key)} title="전체 복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
+                                {copiedKey === step.key ? <Check size={16} /> : <Copy size={16} />}</button>
+                              <pre style={{ margin: 0, fontFamily: MONO, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 32 }}>{step.command}</pre>
+                            </div>
+                            {step.warn && <div style={{ marginTop: 7, fontSize: 12, color: C.amber, lineHeight: 1.45 }}>⚠ {step.warn}</div>}
+                          </div>
+
+                          {/* 방법 B — 자동 스크립트 */}
+                          <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px" }}>
+                            <div style={{ fontSize: 13, fontWeight: 700, color: C.point, marginBottom: 8 }}>방법 B — 자동 스크립트</div>
+                            <div style={{ fontSize: 12, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
+                            <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                              <button onClick={() => downloadText("install.bat", buildInstallScript(report, "bat"))}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.point, color: INK, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
+                                <Download size={14} /> install.bat (Windows)</button>
+                              <button onClick={() => downloadText("install.sh", buildInstallScript(report, "sh"))}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.point, color: INK, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
+                                <Download size={14} /> install.sh (Mac/Linux)</button>
+                            </div>
+                            <div style={{ marginTop: 8, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>초보자는 이 방법 권장. 반드시 custom_nodes 폴더 안에서 실행하세요.</div>
+                          </div>
+
+                          {step.installNotes && (
+                            <div style={{ marginTop: 12, background: "rgba(239,83,80,0.06)", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 16px" }}>
+                              <div style={{ fontSize: 13, fontWeight: 650, color: C.red, marginBottom: 6 }}>설치 후 주의</div>
+                              {step.installNotes.map((n, ni) => (
+                                <div key={ni} style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.6, marginTop: ni > 0 ? 6 : 0 }}>
+                                  <span style={{ fontFamily: MONO, fontWeight: 600, color: C.text }}>{n.file}</span> — {n.desc}
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      ) : (<>
                       {step.command && (
                         <div style={{ marginTop: 12 }}>
                           <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
@@ -1515,27 +1566,18 @@ export default function Teardown() {
                               {copiedKey === step.key ? <Check size={16} /> : <Copy size={16} />}</button>
                             <pre style={{ margin: 0, fontFamily: MONO, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 32 }}>{step.command}</pre>
                           </div>
-                          <div style={{ marginTop: 7, fontSize: 12, color: C.faint, lineHeight: 1.45 }}>※ 한 줄씩 복사·실행을 권장합니다. 여러 줄을 한꺼번에 붙여넣어도 보통 순차 실행되지만, 중간에 인증·중복 에러가 나면 그 자리에서 멈출 수 있습니다.</div>
                           {step.warn && <div style={{ marginTop: 7, fontSize: 12, color: C.amber, lineHeight: 1.45 }}>⚠ {step.warn}</div>}
                         </div>
                       )}
-                      {step.installNotes && (
-                        <div style={{ marginTop: 12, background: "rgba(239,83,80,0.06)", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 16px" }}>
-                          <div style={{ fontSize: 13, fontWeight: 650, color: C.red, marginBottom: 6 }}>설치 후 주의</div>
-                          {step.installNotes.map((n, ni) => (
-                            <div key={ni} style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.6, marginTop: ni > 0 ? 6 : 0 }}>
-                              <span style={{ fontFamily: MONO, fontWeight: 600, color: C.text }}>{n.file}</span> — {n.desc}
-                            </div>
-                          ))}
-                        </div>
-                      )}
+                      </>)}
                       {step.models && (
                         <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 8 }}>
                           {step.models.map((m, k) => {
                             const live = liveCompat[m.file];
                             const eff = m.compat || live;
-                            const hf = eff ? { url: eff.url, exact: true } : hfLink(m.file);
                             const src = eff?.source;
+                            const mr = modelResearch[m.file];
+                            const dlUrl = directDownloadUrl(eff, m.file, mr);
                             return (
                             <div key={k} style={{ background: C.surfaceHi, borderRadius: 10, padding: "14px 34px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                               <div style={{ minWidth: 0, flex: 1 }}>
@@ -1550,7 +1592,15 @@ export default function Teardown() {
                                 {!eff?.size_gb && !eff?.size_label && <div style={{ fontSize: 12, color: C.faint, marginTop: 5, paddingLeft: 26 }}>용량 확인 필요</div>}
                                 {m.rename && <div style={{ fontSize: 12, color: C.amber, marginTop: 6, lineHeight: 1.4, paddingLeft: 26 }}>⤷ {m.rename}</div>}
                               </div>
-                              {hf && <a className="td-hf" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>{hf.exact ? "HuggingFace에서 받기" : "HuggingFace에서 검색"} <ExternalLink size={12} /></a>}
+                              {dlUrl ? (
+                                <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>다운로드</a>
+                              ) : mr?.loading ? (
+                                <span style={{ flexShrink: 0, fontFamily: SANS, fontSize: 12, color: C.dim }}>검색 중…</span>
+                              ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
+                                <span style={{ flexShrink: 0, fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>
+                              ) : (
+                                <button className="td-hf" onClick={() => researchUnknownModel(m.file)} style={{ flexShrink: 0 }}>다운로드 링크 찾기</button>
+                              )}
                             </div>);
                           })}
                           {step.integrity && (
@@ -1582,40 +1632,6 @@ export default function Teardown() {
                   </div>);
                 })}
               </div>
-            </div>
-          )}
-
-          {/* 설치 스크립트 생성 — Solution 아래, Findings 위 */}
-          {rx.length > 0 && (
-            <div style={{ marginTop: 24 }}>
-              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-                <button onClick={() => setScriptOs(scriptOs === "sh" ? null : "sh")}
-                  style={{ background: scriptOs === "sh" ? C.point : "transparent", color: scriptOs === "sh" ? INK : C.point, border: `1px solid ${C.point}`, borderRadius: 8, padding: "6px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <Terminal size={14} />.sh (Mac/Linux)</button>
-                <button onClick={() => setScriptOs(scriptOs === "bat" ? null : "bat")}
-                  style={{ background: scriptOs === "bat" ? C.point : "transparent", color: scriptOs === "bat" ? INK : C.point, border: `1px solid ${C.point}`, borderRadius: 8, padding: "6px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
-                  <Terminal size={14} />.bat (Windows)</button>
-              </div>
-              {scriptOs && (() => {
-                const script = buildInstallScript(report, scriptOs);
-                const manualCount = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && !(m.compat && m.compat.exact && m.compat.url)).length;
-                const fname = `install.${scriptOs}`;
-                return (
-                <div style={{ marginTop: 12 }}>
-                  {manualCount > 0 && <div style={{ fontSize: 12, color: C.amber, marginBottom: 8 }}>⚠ URL 미확인 {manualCount}개는 주석 처리됨 — 직접 확인 필요.</div>}
-                  <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
-                    <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
-                      <button className="td-copy" onClick={() => copy(script, "script")} title="복사"
-                        style={{ background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                        {copiedKey === "script" ? <Check size={16} /> : <Copy size={16} />}</button>
-                      <button className="td-copy" onClick={() => downloadText(fname, script)} title="다운로드"
-                        style={{ background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                        <Download size={16} /></button>
-                    </div>
-                    <pre style={{ margin: 0, fontFamily: MONO, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 56 }}>{script}</pre>
-                  </div>
-                </div>);
-              })()}
             </div>
           )}
 
@@ -1740,10 +1756,10 @@ export default function Teardown() {
                   const renderCard = (m, i) => {
                     const live = liveCompat[m.file];
                     const eff = m.compat || live;
-                    const hf = eff ? { url: eff.url, exact: true } : hfLink(m.file);
                     const src = eff?.source;
                     const mr = modelResearch[m.file];
-                    const fname = m.file.replace(/\\/g, "/").split("/").pop().replace(/\.[^.]+$/, "");
+                    const dlUrl = directDownloadUrl(eff, m.file, mr);
+                    const isWeight = WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e));
                     return (
                     <div key={i} style={{ minHeight: 150, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                       <span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
@@ -1754,17 +1770,16 @@ export default function Teardown() {
                       {m.rename && <span style={{ fontSize: 12, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}
                       {m.origin && <span style={{ fontFamily: SANS, fontSize: 11, color: C.dim, opacity: 0.7, marginTop: 4 }}>{m.origin}</span>}
                       {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.7, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
-                      {hf?.exact && <a className="td-hf-sm" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>{src === "manager" || src === "manager_live" ? "Manager 링크" : "다운로드"}</a>}
-                      {!hf?.exact && (
-                        <div style={{ marginTop: 10, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "center" }}>
-                          <a className="td-hf-sm" href={`https://huggingface.co/models?search=${encodeURIComponent(fname)}`} target="_blank" rel="noopener noreferrer">HuggingFace 검색</a>
-                          <a className="td-hf-sm" href={`https://www.google.com/search?q=${encodeURIComponent(fname + " ComfyUI model download")}`} target="_blank" rel="noopener noreferrer">Google 검색</a>
-                        </div>
+                      {dlUrl ? (
+                        <a className="td-hf-sm" href={dlUrl} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>다운로드</a>
+                      ) : !isWeight ? null : mr?.loading ? (
+                        <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 14 }}>검색 중…</span>
+                      ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
+                        <span style={{ fontFamily: SANS, fontSize: 12, color: C.faint, marginTop: 14 }}>확인 필요</span>
+                      ) : (
+                        <button className="td-hf-sm" onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14 }}>다운로드 링크 찾기</button>
                       )}
-                      {mr?.loading && <span style={{ fontSize: 12, color: C.dim, marginTop: 10 }}>검색 중…</span>}
-                      {mr?.result?.found && <a href={mr.result.url} target="_blank" rel="noopener noreferrer" style={{ marginTop: 10, fontSize: 12, color: C.violet || C.point, textDecoration: "underline" }}>{mr.result.url.length > 50 ? mr.result.url.slice(0, 50) + "…" : mr.result.url} · 검색됨</a>}
-                      {mr?.result && !mr.result.found && <span style={{ fontSize: 12, color: C.dim, marginTop: 10 }}>검색해도 못 찾음 — 직접 확인</span>}
-                      {mr?.error && <span style={{ fontSize: 12, color: C.amber, marginTop: 10 }}>조사 실패</span>}
+                      {mr?.error && <span style={{ fontFamily: SANS, fontSize: 12, color: C.amber, marginTop: 10 }}>조사 실패</span>}
                     </div>);
                   };
                   return (<>
