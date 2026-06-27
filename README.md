@@ -18,6 +18,8 @@ npm run build
 npm run preview
 ```
 
+모델 목록 갱신(월 1회 권장): `node scripts/update-model-list.mjs` — ComfyUI-Manager의 model-list를 다시 받아 `src/data/manager-model-list.json`(현재 498개)을 갱신한다. 갱신 이력은 `docs/HISTORY.md`.
+
 ## 무엇을 하나
 
 워크플로 JSON 하나를 올리면(또는 "샘플로 보기"):

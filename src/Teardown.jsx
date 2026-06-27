@@ -150,6 +150,31 @@ function knownModelSize(file) {
   const gb = modelSizes.sizes?.[stem];
   return typeof gb === "number" ? gb : null;
 }
+function stemOf(file) {
+  return file.replace(/\\/g, "/").split("/").pop().replace(/\.[^.]+$/, "").toLowerCase();
+}
+
+// ── P7 적립(learned) ── web_search로 확인된 정보를 localStorage에만 후보로 쌓는다.
+// 확정 DB(json 파일)는 도구가 절대 자동 수정하지 않는다. 확정은 사람이 내보내기 스니펫을 병합·커밋할 때만.
+const LEARNED_KEY = "td-learned-v1";
+function loadLearned() {
+  try { const r = localStorage.getItem(LEARNED_KEY); const a = r ? JSON.parse(r) : []; return Array.isArray(a) ? a : []; }
+  catch { return []; }
+}
+function saveLearned(arr) {
+  try { localStorage.setItem(LEARNED_KEY, JSON.stringify(arr)); } catch { /* localStorage 차단 환경이면 메모리에만 */ }
+}
+// 적립 후보 → 대상 파일별 JSON 스니펫(사람이 확인 후 병합). 각 항목에 미검증 표시를 박는다.
+function buildLearnedSnippet(learned) {
+  const out = {};
+  for (const x of learned) {
+    if (x.type === "model_link")
+      (out["compatibility.json → models (확인 후 병합)"] ||= {})[x.key] = { url: x.value.url, folder: x.value.folder || "", _note: "web_search 적립 · 미검증 · 확인 필요", _savedAt: x.at };
+    else if (x.type === "node_repo")
+      (out["node_repo_map.json → mappings (확인 후 추가)"] ||= []).push({ class_type: x.key, repo: x.value.repo, clone_url: x.value.clone_url || null, _note: "web_search 적립 · 미검증 · 확인 필요", _savedAt: x.at });
+  }
+  return JSON.stringify(out, null, 2);
+}
 
 // ComfyUI 시작 로그에서 GPU/torch/CUDA 추출
 function parseComfyLog(text) {
@@ -1313,6 +1338,20 @@ export default function Teardown() {
       setModelResearch((s) => ({ ...s, [filename]: { loading: false, error: e.message || "조사 실패" } }));
     }
   };
+  // P7 적립: web_search로 확인된 결과를 localStorage 후보로(미확정). 확정 DB(json)는 안 건드림.
+  const [learned, setLearned] = useState(() => loadLearned());
+  const addLearned = (item) => setLearned((prev) => {
+    const id = `${item.type}:${item.key}`;
+    const next = [...prev.filter((x) => x.id !== id), { ...item, id, at: new Date().toISOString().slice(0, 10) }];
+    saveLearned(next); return next;
+  });
+  const removeLearned = (id) => setLearned((prev) => { const next = prev.filter((x) => x.id !== id); saveLearned(next); return next; });
+  const clearLearned = () => { setLearned([]); saveLearned([]); };
+  const learnedModel = (file) => {
+    const hit = learned.find((x) => x.type === "model_link" && x.key === stemOf(file));
+    return hit ? { url: hit.value.url, folder: hit.value.folder, exact: true, source: "learned" } : null;
+  };
+  const learnModelLink = (file, result) => addLearned({ type: "model_link", key: stemOf(file), value: { url: result.url, folder: result.folder || "" }, conf: result.confidence || "mid" });
 
   const rx = report ? buildPrescription(report, env.gpu) : [];
 
@@ -1631,7 +1670,7 @@ export default function Teardown() {
                           <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5 }}>다운로드 전, 해당 폴더에 같은 파일이나 비슷한 이름(별칭)이 이미 있는지 먼저 확인하세요. 있으면 다시 받을 필요 없습니다.</div>
                           {step.models.map((m, k) => {
                             const live = liveCompat[m.file];
-                            const eff = m.compat || live;
+                            const eff = m.compat || live || learnedModel(m.file);
                             const src = eff?.source;
                             const mr = modelResearch[m.file];
                             const dlUrl = directDownloadUrl(eff, m.file, mr);
@@ -1641,7 +1680,7 @@ export default function Teardown() {
                                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                                   <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 4 }} />
                                   <span style={{ fontFamily: MONO, fontSize: 20, color: C.text, overflowWrap: "anywhere" }}>{m.file}</span>
-                                  {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.7, flexShrink: 0, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
+                                  {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7, flexShrink: 0, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
                                 </div>
                                 <div style={{ fontFamily: MONO, fontSize: 12, color: C.point, marginTop: 8, paddingLeft: 26 }}>{m.folder}</div>
                                 {env.modelRoot && rewritePath(m.file, env.modelRoot) && <div style={{ fontSize: 12, color: C.point, opacity: 0.7, marginTop: 4, paddingLeft: 26 }}>내 경로: <span style={{ fontFamily: MONO }}>{rewritePath(m.file, env.modelRoot)}</span></div>}
@@ -1651,7 +1690,11 @@ export default function Teardown() {
                                 {(() => { const al = modelAliasInfo(m.file); return al ? <div style={{ fontSize: 12, color: C.dim, marginTop: 6, lineHeight: 1.45, paddingLeft: 26 }}>다른 이름으로 이미 있을 수 있어요: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div> : null; })()}
                               </div>
                               {dlUrl ? (
-                                <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>다운로드</a>
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
+                                  <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
+                                  {!eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>이거 맞았어 (적립)</button>}
+                                  {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 11, color: C.amber }}>✓ 적립됨 (미확정)</span>}
+                                </div>
                               ) : mr?.loading ? (
                                 <span style={{ flexShrink: 0, fontFamily: SANS, fontSize: 12, color: C.dim }}>검색 중…</span>
                               ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
@@ -1819,13 +1862,13 @@ export default function Teardown() {
                   const confirmed = [];
                   const unconfirmed = [];
                   for (const m of report.models) {
-                    const eff = m.compat || liveCompat[m.file];
+                    const eff = m.compat || liveCompat[m.file] || learnedModel(m.file);
                     if (eff) confirmed.push(m);
                     else unconfirmed.push(m);
                   }
                   const renderCard = (m, i) => {
                     const live = liveCompat[m.file];
-                    const eff = m.compat || live;
+                    const eff = m.compat || live || learnedModel(m.file);
                     const src = eff?.source;
                     const mr = modelResearch[m.file];
                     const dlUrl = directDownloadUrl(eff, m.file, mr);
@@ -1840,9 +1883,13 @@ export default function Teardown() {
                       {m.rename && <span style={{ fontSize: 12, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}
                       {(() => { const al = modelAliasInfo(m.file); return al ? <span style={{ fontFamily: SANS, fontSize: 11, color: C.dim, marginTop: 6, lineHeight: 1.4 }}>다른 이름으로 이미 있을 수 있음: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></span> : null; })()}
                       {m.origin && <span style={{ fontFamily: SANS, fontSize: 11, color: C.dim, opacity: 0.7, marginTop: 4 }}>{m.origin}</span>}
-                      {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.7, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
+                      {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
                       {dlUrl ? (
-                        <a className="td-hf-sm" href={dlUrl} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>다운로드</a>
+                        <>
+                          <a className="td-hf-sm" href={dlUrl} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>다운로드</a>
+                          {!eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "5px 0", width: 280, maxWidth: "100%", cursor: "pointer", marginTop: 8 }}>이거 맞았어 (적립)</button>}
+                          {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 11, color: C.amber, marginTop: 6 }}>✓ 적립됨 (미확정)</span>}
+                        </>
                       ) : !isWeight ? null : mr?.loading ? (
                         <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 14 }}>검색 중…</span>
                       ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
@@ -2093,6 +2140,29 @@ export default function Teardown() {
               </div>
             )}
           </div>
+
+          {learned.length > 0 && (
+            <div style={{ marginTop: 56, padding: "22px 26px", background: C.surface, border: `1px solid ${C.amber}55`, borderRadius: 16 }}>
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>적립한 데이터 {learned.length}건 <span style={{ fontSize: 12, fontWeight: 400, color: C.faint }}>· 이 브라우저에만 저장 · 미확정</span></div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <button onClick={() => { const s = buildLearnedSnippet(learned); copy(s, "learned"); console.log("[Teardown 적립 스니펫]\n" + s); }} style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: INK, background: C.point, border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer" }}>{copiedKey === "learned" ? "복사됨 ✓" : "복사 + 콘솔"}</button>
+                  <button onClick={() => downloadText("teardown-learned.json", buildLearnedSnippet(learned))} style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.point, background: "transparent", border: `1px solid ${C.point}`, borderRadius: 8, padding: "7px 14px", cursor: "pointer" }}>내보내기(.json)</button>
+                  <button onClick={clearLearned} style={{ fontFamily: SANS, fontSize: 12, color: C.faint, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 14px", cursor: "pointer" }}>비우기</button>
+                </div>
+              </div>
+              <div style={{ marginTop: 10, fontSize: 12.5, color: C.dim, lineHeight: 1.55 }}>web_search로 찾아 “맞았어”로 확인한 항목입니다. 아래 스니펫을 확인한 뒤 해당 파일에 병합하고, 정확하면 사람이 커밋하세요. <b style={{ color: C.amber }}>도구는 JSON을 자동 수정하지 않습니다.</b></div>
+              <pre style={{ marginTop: 12, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", fontFamily: MONO, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.6, maxHeight: 280, overflowY: "auto" }}>{buildLearnedSnippet(learned)}</pre>
+              <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
+                {learned.map((x) => (
+                  <div key={x.id} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, fontSize: 12 }}>
+                    <span style={{ fontFamily: MONO, color: C.dim, overflowWrap: "anywhere" }}>[{x.type}] {x.key}</span>
+                    <button onClick={() => removeLearned(x.id)} style={{ background: "transparent", border: "none", color: C.faint, cursor: "pointer", fontSize: 12, flexShrink: 0 }}>삭제</button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           <p style={{ marginTop: 64, fontSize: 12, color: C.faint, lineHeight: 1.6, textAlign: "center" }}>
             pytorch·cuda·python 버전 호환성은 각 pack의 requirements.txt 영역으로 JSON 파일만으로는 확인할 수 없음. AI 진단(에러 로그 + JSON 컨텍스트 → LLM) 업데이트 예정.

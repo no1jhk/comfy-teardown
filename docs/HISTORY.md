@@ -12,22 +12,50 @@
 - T1: Findings "출처 추정 노드" 섹션 삭제 (A-4 repo 매핑으로 대체)
 - T2: Solution 3번 모델 다운로드 검색떠넘기기 제거 + directDownloadUrl 확정 URL만 표시
 - T3: Solution 4번 끊어진 경로 강등 → Findings 이식 위험에 통합
-- T5+T6: Solution 2번 "노드 설치 허브" 재구성 (방법A 직접 clone + 방법B 자동 스크립트)
-- P1: install_note 경고 강화 (Findings+Solution 양쪽)
 - T4: Findings 1 이식 위험 값 — 절대경로(제작자 PC) 감지 + 초보 친화 문구 + modelRoot 안내
+- T5+T6: Solution 2번 "노드 설치 허브" 재구성 (방법A 직접 clone + 방법B 자동 스크립트)
+- T7: Findings 2번 버전 충돌 — pack별 다음 행동(커밋 checkout/최신 통일) 추가
+- P1: install_note 경고 강화 (Findings+Solution 양쪽)
+- P2: bypass/muted 입력 끊김 경고 (detectBypassBreaks, 활성 노드로 가는 끊김만)
 - P3: model_aliases.json — 같은 모델 다른 이름 "이미 있을 수 있음" 안내 (확실한 것만)
 - P4: model_sizes.json — 정상 용량 사전, 카드/무결성/스크립트 연결 (정확 일치만)
+- P5: 모델 다운로드 "받기 전 이미 있는지 확인" 안내 (화면+md)
+- P6: 무시 가능 import 경고(ignorable) 노드 회색 처리
+- P7: web_search 적립 루프 — "이거 맞았어"→localStorage 후보→내보내기 스니펫→사람 승인 (자동확정 0)
 
 **남은 과제**
-- T7: Findings 2번 "버전 충돌" — "그래서 다음은" 액션 추가 (충돌 시 뭘 해야 하는지)
+- P8: Manager model-list 월간 갱신 (스크립트·루틴 명시 완료, cron 자동화는 미정)
 - P9: 어제 JSON 10개 회귀테스트 (오늘 변경으로 깨진 게 없는지)
-- P2: bypass 노드 입력 끊김 경고
-- P5: 이미 받은 파일 우선 표시
-- P6: 무시 가능 경고 회색 처리
-- P7: 패턴사전 자동 적립 루프 ("이거 맞았어" 버튼)
-- P8: Manager model-list 월간 갱신 스크립트
 
 ---
+
+## 2026-06-28 (P7: web_search 결과 적립 루프 — pending→내보내기→사람 승인)
+**한 일**
+- "이거 맞았어 (적립)" 버튼: web_search로 찾은 모델 직링크를 localStorage(td-learned-v1) 후보로 적립. 모델 카드(Solution·Inventory) 양쪽.
+- 쓸수록 똑똑: 적립 항목을 런타임 조회(eff)에 합류 → 이 브라우저에서 즉시 "다운로드" 제공. 출처는 "내 적립(미확정)" amber 배지로 curated/Manager와 구분.
+- 오염 방지 3단 분리: 적립=localStorage만 / json 파일은 도구가 절대 자동수정 안 함 / 확정=사람이 내보내기 스니펫 병합·커밋.
+- 내보내기 패널(Diagnose 하단): 적립 N건 → 대상 파일별 JSON 스니펫(복사+콘솔 / .json 다운로드 / 개별삭제 / 비우기). 각 항목에 "_note: 미검증·확인 필요".
+
+**어떻게**
+- learned state(localStorage 미러) + learnedModel()을 eff 우선순위 끝(compat→manager→learned→검색폴백)에 삽입. buildLearnedSnippet이 model_link→compatibility.json models 형식, node_repo→node_repo_map 형식으로 분류(노드 적립은 검색 UI 부활 시 동일 메커니즘으로 확장).
+- 추측 자동확정 0: 적립은 사용자 클릭만, 확정은 사람 승인만.
+
+**다음 할 일**
+- (선택) 노드 repo 적립 트리거 UI(출처 미상 노드 검색 부활).
+- 남은: P8(월간 갱신·사실상 충족), P9(회귀테스트).
+
+## 2026-06-28 (Manager model-list 갱신 + 월간 루틴 명시)
+**한 일**
+- Manager model-list 갱신: `node scripts/update-model-list.mjs` 실행 → manager-model-list.json **498개**. **갱신: 2026-06-27, 다음 갱신 권장 2026-07-27.**
+- 월 1회 갱신 루틴을 README "실행" 섹션에 1줄 명시(갱신 이력은 HISTORY로 안내).
+
+**다음 할 일**
+- 2026-07-27 즈음 model-list 재갱신.
+
+## 2026-06-28 (model_sizes 승격 + 남은 과제 목록 정돈)
+**한 일**
+- model_sizes.json _meta.pending → sizes 승격: ltx23_audio_vae_bf16=0.348GB, ltx-2.3-22b-distilled-1.1-q4_k_m=16.5GB (사용자 실측 정확 파일명). 정확 일치 규칙·키 소문자 유지, pending 제거.
+- HISTORY "남은 과제" 목록을 실제 상태와 동기화: T2/T3/T4/T7/P2/P3/P4/P5/P6 완료로 이동, P7/P8/P9만 남김.
 
 ## 2026-06-28 (T4·P3·P4: 이식위험 친화화 + 모델 별칭/용량 사전)
 **한 일**
