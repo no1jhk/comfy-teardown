@@ -6,6 +6,11 @@
 
 ---
 
+## 2026-06-27 (출력구조: buildBriefing 형식 강제 + TL;DR 박스)
+**한 일**
+- buildBriefing: LLM 출력 형식 지시 추가 (해결요약→단계표→환경설정→원인 짧게)
+- Solution 맨 위 "이것만 하면 됨" TL;DR 박스: rx 단계 제목을 순번으로 압축 표시
+
 ## 2026-06-27 (버그수정: 설치 스크립트 models/ 경로 중복)
 **한 일**
 - buildInstallScript에서 models/ 접두사 제거 (folder가 이미 models/ 포함)

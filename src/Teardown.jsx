@@ -864,8 +864,15 @@ function buildBriefing(report, errlog, env) {
   const rx = buildPrescription(report, env?.gpu);
   const L = [];
   L.push(`아래는 ComfyUI 워크플로의 구조 분석 + 환경 + (있으면)에러 로그입니다.`);
-  L.push(`이 정보를 종합해 이 워크플로의 구체적 노드·모델·환경에 맞춰 진단하고, 해결을 단계별로 알려주세요.`);
-  L.push(`확신 없는 부분은 솔직히 밝히고, 없는 URL·파일을 지어내지 마세요.`);
+  L.push(`이 정보로 진단하되, 반드시 아래 "출력 형식"을 지켜 답하세요.`);
+  L.push(``);
+  L.push(`### 출력 형식 (반드시 이 순서)`);
+  L.push(`1. **해결 요약** (3~5줄): 지금 당장 뭘 하면 되는지만. 원인 설명 없이 행동만.`);
+  L.push(`2. **해결 단계 표**: | 순번 | 할 일 | 대상(파일/노드) | 어디에/어떻게 | 형식의 표. 따라하기 쉽게.`);
+  L.push(`3. **이 PC 환경 설정** (있으면): 이 GPU/torch/CUDA에서 바꿔야 할 설정 한눈에.`);
+  L.push(`4. **원인 설명** (맨 뒤, 짧게): 왜 이 문제가 생겼는지. 1문단 이내. 장황 금지.`);
+  L.push(``);
+  L.push(`규칙: 해결을 먼저, 원인은 맨 뒤 짧게. 확신 없으면 솔직히, 없는 URL·파일은 지어내지 마세요.`);
   L.push(``);
   L.push(`## 워크플로 구조 (대상: ${report.source})`);
   L.push("```");
@@ -1359,6 +1366,14 @@ export default function Teardown() {
           {rx.length > 0 && (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <SectionTitle>Solution</SectionTitle>
+              <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 14, padding: "14px 24px", marginBottom: 16 }}>
+                <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>이것만 하면 됨</div>
+                {rx.map((step, i) => (
+                  <div key={step.key} style={{ fontFamily: SANS, fontSize: 14, color: step.severity === "high" ? C.red : C.text, lineHeight: 1.6, paddingLeft: 4 }}>
+                    {i + 1}. {step.title}
+                  </div>
+                ))}
+              </div>
               <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)` }}>
                 {rx.map((step, i) => {
                   const sk = `s${i}`;
