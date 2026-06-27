@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-06-27 (Findings "출처 추정 노드" 섹션 삭제)
+**한 일**
+- Findings "3 출처 추정 노드" 렌더 블록 통째로 삭제 (A-4 repo 매핑으로 대체)
+- nodeResearch 상태 + researchUnknownNode 함수 삭제 (이 섹션에서만 사용)
+- ScanSearch import 제거
+- Summary "출처 미상 N개" issue 항목 삭제
+- buildMarkdown "출처 추정 노드" 섹션 삭제
+- AI 진단 컨텍스트: "출처 미상" → clone_url/repo 직접 안내로 교체
+- unmapped 데이터 수집은 유지 (buildPrescription/buildInstallScript의 clone URL 소스)
+- 번들 -5.6KB (381→375KB)
+
+## 2026-06-27 (install_note 경고: 노드 설치 후 주의 표시)
+**한 일**
+- Findings 출처 추정 노드: install_note 있으면 빨간 테두리 "설치 후 주의" 박스로 강화 (기존 dim 텍스트→경고 스타일)
+- Solution install 단계: installNotes 배열로 주의사항 있는 노드 수집 → clone 명령 아래 "설치 후 주의" 블록 표시
+- install_note 없으면 미표시 (회귀 없음)
+
 ## 2026-06-27 (노이즈정리: 미확인 모델 접힘 + 검색 링크)
 **한 일**
 - Inventory 모델 목록을 confirmed/unconfirmed로 분리
@@ -43,19 +60,20 @@
 - buildInstallScript: 모델 섹션 상단에 재부팅 금지 + 용량 확인 경고, 각 모델에 정상 용량 주석
 
 ## 2026-06-27 (맥작업패키지 v2 진행 현황)
-**완료**
+**완료 (9/9)**
 - A-4 노드→repo 매핑: node_repo_map.json 통합, class_type exact match, manager_searchable 경고, clone_url 우선
 - A-3 서브그래프 모델 추출: definitions.subgraphs[].nodes 순회, origin 태깅, 중복 병합
+- B-무결성: 모델 예상 용량 표기 + 재부팅 금지 경고 + JSONDecodeError 안내
+- 패턴사전: troubleshooting_patterns.json 매칭 → "감지된 알려진 문제" 자동 표시
+- 경로재작성: 절대경로 감지 → 사용자 루트로 치환 병기 (하드코딩 0)
+- 설치위치 안전장치: .bat/.sh에서 custom_nodes 디렉토리 검증
+- 노이즈정리: 미확인 모델 기본 접힘 + HF/Google 검색 링크
 - 깨진 노드 감지: type=null 노드 빨간 경고
 - 출력구조: buildBriefing 형식 강제 + TL;DR 박스
 - C효용: 설치 스크립트 .sh/.bat 생성 + 경로 중복 버그 수정
 
-**남은 작업 (맥작업패키지 #2~#7)**
-- B-무결성: 모델 다운로드 예상 용량 표기 + 재부팅 금지 경고
-- 패턴사전: troubleshooting_patterns.json → 에러 로그 매칭 → 알려진 문제 자동 감지
-- 경로재작성: 하드코딩 경로(D:\)를 사용자 루트로 치환 표시
-- 설치위치 안전장치: .bat/.sh 실행 위치 검증 (custom_nodes 확인)
-- 노이즈정리: 미확인 모델 접힘 처리 + 검색 링크
+**남은 작업**
+- B-2 양자화 룰 확장: int4/nf4/awq/gptq/Q4_K_M·Q5_K_M·Q6_K/fp8 + GPU세대별 (다음 세션)
 
 ## 2026-06-27 (node_repo_map 통합: 노드→repo 정밀 매핑)
 **한 일**

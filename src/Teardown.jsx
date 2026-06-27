@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, Boxes, ChevronRight, GitBranch,
   CircleAlert, Copy, Check, ExternalLink, Plus, Minus, Download,
-  Terminal, ImagePlus, X, ScanSearch, Loader2,
+  Terminal, ImagePlus, X, Loader2,
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
@@ -646,13 +646,13 @@ function analyzeLog(log, report) {
       ...[...text.matchAll(/['"]([A-Z][\w]+)['"] was not found/g)].map((m) => m[1]),
     ])];
     if (has(/was not found|node type.*not found|Cannot find reference|When loading the graph/i)) {
-      // report가 있으면 미매핑·추정 pack과 교차해 구체적으로
+      // report가 있으면 node_repo_map으로 정확한 repo 안내
       const ctx = [];
       if (report) {
         for (const t of missingTypes) {
           const u = report.unmapped?.find((x) => x.type === t);
-          if (u && u.repo) ctx.push(`${t} → ${u.repo}에서 설치(추정)`);
-          else if (u) ctx.push(`${t} → 출처 미상, Manager의 Install Missing으로 확인`);
+          if (u && u.clone_url) ctx.push(`${t} → git clone ${u.clone_url}`);
+          else if (u && u.repo) ctx.push(`${t} → ${u.repo}에서 설치`);
         }
       }
       found.push({
@@ -660,7 +660,7 @@ function analyzeLog(log, report) {
       cause: "워크플로가 참조하는 커스텀 노드가 현재 컴파일에 설치되어 있지 않습니다.",
         fixes: [
           "ComfyUI-Manager → Install Missing Custom Nodes 실행",
-          ...(ctx.length ? ctx : ["아래 Findings의 패키지·출처 추정 목록에서 해당 노드의 저장소를 확인해 git clone"]),
+          ...(ctx.length ? ctx : ["Solution의 커스텀 노드 설치 단계에서 clone URL 확인"]),
         ],
       });
     }
@@ -744,12 +744,14 @@ function buildPrescription(r, envGpu) {
   }
   const cloneList = [...cloneSet.keys()];
   const unknown = r.unmapped.filter((u) => !u.repo && !u.clone_url).length;
+  const installNotes = r.unmapped.filter((u) => u.install_note).map((u) => ({ file: u.type, desc: u.install_note }));
   if (cloneList.length) steps.push({
     key: "install",
     title: `커스텀 노드 ${cloneList.length}개 pack 설치`,
     desc: "custom_nodes 폴더에서 git clone (또는 Manager의 Git URL 설치).",
     command: cloneList.map((url) => `git clone ${url}`).join("\n"),
     warn: unknown ? `출처 미상 ${unknown}개는 web_search 확인 필요.` : null,
+    installNotes: installNotes.length ? installNotes : null,
   });
   const dl = r.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)));
   if (dl.length) steps.push({
@@ -955,10 +957,6 @@ function buildMarkdown(report, summary, rx) {
     L.push(`- \`${p.id}\`${repo} — ${p.vers.join(", ") || "버전 미기록"}${conf} (${p.nodeTypes.length}종)`);
   }
   L.push(``);
-  L.push(`### 3. 출처 추정 노드 (${report.unmapped.length})`);
-  if (report.unmapped.length === 0) L.push(`- 없음`);
-  else for (const u of report.unmapped) L.push(`- \`${u.type}\` — ${u.repo ? `${u.repo} · 추정` : "출처 미상 (Manager로 확인)"}`);
-  L.push(``);
 
   // Inventory
   L.push(`## Inventory`);
@@ -1125,7 +1123,6 @@ export default function Teardown() {
   const [aiErr, setAiErr] = useState(null);
   const [briefingBusy, setBriefingBusy] = useState(false); // 브리핑 복사 처리 중 표시(딤+스피너)
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
-  const [nodeResearch, setNodeResearch] = useState({});    // 모르는 노드 자동 조사 결과 { [nodeType]: {loading, result, error} }
   const [envOpen, setEnvOpen] = useState(false);
   const [envLog, setEnvLog] = useState("");
   const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", modelRoot: "" });
@@ -1253,24 +1250,12 @@ export default function Teardown() {
     }
   };
 
-  // 모르는 노드 자동 조사 — 로컬에서 web_search로 출처·주의사항을 찾는다. 결과는 추후 정적 DB에 반영 후보.
-  const researchUnknownNode = async (nodeType) => {
-    setNodeResearch((s) => ({ ...s, [nodeType]: { loading: true } }));
-    try {
-      const r = await researchNode(nodeType);
-      setNodeResearch((s) => ({ ...s, [nodeType]: { loading: false, result: r } }));
-    } catch (e) {
-      setNodeResearch((s) => ({ ...s, [nodeType]: { loading: false, error: e.message || "조사 실패" } }));
-    }
-  };
-
   const rx = report ? buildPrescription(report, env.gpu) : [];
 
   // 진단 요약 계산
   let summary = null;
   if (report) {
     const conflictPacks = report.packs.filter((p) => p.conflict);
-    const unknownNodes = report.unmapped.filter((u) => !u.repo);
     const weightCount = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e))).length;
     const issues = [];
     if (report.broken?.length) issues.push({ head: `깨진 노드 ${report.broken.length}개`, severity: "high",
@@ -1279,8 +1264,6 @@ export default function Teardown() {
       body: `${conflictPacks.map((p) => p.id).join(", ")} — 같은 pack이 여러 버전으로 기록돼 재현이 불안정합니다.` });
     if (report.portability.length) issues.push({ head: `이식 위험 ${report.portability.length}건`,
       body: "flash_attn·경로 등 다른 PC로 옮기면 깨질 값이 있습니다." });
-    if (unknownNodes.length) issues.push({ head: `출처 미상 ${unknownNodes.length}개`,
-      body: "자동 매핑이 안 된 노드입니다. Manager의 Install Missing으로 확인하세요." });
     if (report.muted.length) issues.push({ head: `비활성 노드 ${report.muted.length}개`,
       body: "bypass/muted 상태입니다. 단계별로 켜고 끄는 워크플로면 정상이고, 의도와 다르면 점검하세요." });
     summary = {
@@ -1536,6 +1519,16 @@ export default function Teardown() {
                           {step.warn && <div style={{ marginTop: 7, fontSize: 12, color: C.amber, lineHeight: 1.45 }}>⚠ {step.warn}</div>}
                         </div>
                       )}
+                      {step.installNotes && (
+                        <div style={{ marginTop: 12, background: "rgba(239,83,80,0.06)", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 16px" }}>
+                          <div style={{ fontSize: 13, fontWeight: 650, color: C.red, marginBottom: 6 }}>설치 후 주의</div>
+                          {step.installNotes.map((n, ni) => (
+                            <div key={ni} style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.6, marginTop: ni > 0 ? 6 : 0 }}>
+                              <span style={{ fontFamily: MONO, fontWeight: 600, color: C.text }}>{n.file}</span> — {n.desc}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       {step.models && (
                         <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 8 }}>
                           {step.models.map((m, k) => {
@@ -1723,58 +1716,6 @@ export default function Teardown() {
                         <span><b style={{ color: C.green }}>{s.ids.join(" + ")}</b> 는 모두 <span style={{ fontFamily: MONO, color: C.green }}>{s.repo}</span> 하나에서 나옵니다. 한 번만 설치하면 됩니다.</span>
                       </div>))}
                   </div>)}
-              </>)}</div>
-            </div>
-
-            {/* 3 출처 추정 노드 — 간격 규칙 동일(상단 60 / 하단 60) */}
-            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
-              <BlockHead num="3" label="출처 추정 노드" count={report.unmapped.length} open={open.f3} onToggle={() => toggle("f3")}
-                role="메타데이터가 없어 이름으로 출처를 추측한 노드입니다. 설치 후 반드시 Manager에서 한번 더 확인하세요." />
-              <div style={{ marginTop: open.f3 ? 32 : 0, paddingBottom: open.f3 ? 36 : 36 }}>{open.f3 && (<>
-                {report.unmapped.length === 0 ? <Empty text="cnr_id 없는 노드가 모두 출처로 해소됩니다." /> : (
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    {report.unmapped.map((u, i) => {
-                      const nr = nodeResearch[u.type];
-                      const rr = nr?.result;
-                      return (
-                      <div key={u.id} style={{ paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: MONO, fontSize: 18.5, color: C.text, minWidth: 0, flex: 1 }}>
-                            <ChevronRight size={16} color={C.amber} style={{ flexShrink: 0 }} /><span style={{ overflowWrap: "anywhere" }}>{u.type}</span></div>
-                          {u.repo ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, maxWidth: "45%", justifyContent: "flex-end" }}>
-                              <GitBranch size={11} color={u.manager_searchable === false ? C.red : C.green} style={{ flexShrink: 0 }} />
-                              <span style={{ fontFamily: MONO, fontSize: 12, color: u.manager_searchable === false ? C.red : C.green, overflowWrap: "anywhere", textAlign: "right" }}>{u.repo}{u.clone_url ? "" : " · 추정"}</span></div>
-                          ) : rr?.found && rr?.repo ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: 5, flexShrink: 0, maxWidth: "55%", justifyContent: "flex-end" }}>
-                              <GitBranch size={11} color={C.violet} style={{ flexShrink: 0 }} /><span style={{ fontFamily: MONO, fontSize: 12, color: C.violet, overflowWrap: "anywhere", textAlign: "right" }}>{rr.repo} · 검색됨</span></div>
-                          ) : rr && !rr.found ? (
-                            <div style={{ fontSize: 12, color: C.faint, flexShrink: 0, textAlign: "right" }}>검색해도 못 찾음 — Manager로 확인</div>
-                          ) : nr?.error ? (
-                            <div style={{ fontSize: 12, color: C.red, flexShrink: 0, textAlign: "right" }}>검색 실패 · 다시 시도</div>
-                          ) : nr?.loading ? (
-                            <div style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0, color: C.faint, fontSize: 12 }}><Loader2 size={12} className="td-spin" /> 검색 중…</div>
-                          ) : AI_KEY ? (
-                            <button onClick={() => researchUnknownNode(u.type)} style={{ display: "inline-flex", alignItems: "center", gap: 5, flexShrink: 0, background: "#28222E", border: "none", borderRadius: 999, padding: "5px 12px", cursor: "pointer", color: C.dim, fontFamily: SANS, fontSize: 12, fontWeight: 600 }}>
-                              <ScanSearch size={12} /> 이 노드 검색</button>
-                          ) : (
-                            <div style={{ fontSize: 12, color: C.faint, flexShrink: 0, textAlign: "right" }}>출처 미상 — Manager로 확인</div>
-                          )}
-                        </div>
-                        {u.manager_searchable === false && <div style={{ marginTop: 6, marginLeft: 24, fontSize: 12, color: C.red, fontWeight: 600, lineHeight: 1.5 }}>Manager 검색 안 됨, 수동 clone 필요</div>}
-                        {!u.repo && !u.clone_url && !rr?.found && <div style={{ marginTop: 6, marginLeft: 24, fontSize: 12, color: C.amber, lineHeight: 1.5 }}>web_search 확인 필요</div>}
-                        {u.clone_url && <div style={{ marginTop: 5, marginLeft: 24, fontFamily: MONO, fontSize: 11, color: C.dim, lineHeight: 1.5, overflowWrap: "anywhere" }}>git clone {u.clone_url}</div>}
-                        {u.install_note && <div style={{ marginTop: 4, marginLeft: 24, fontSize: 12, color: C.dim, lineHeight: 1.5, opacity: 0.8 }}>{u.install_note}</div>}
-                        {rr?.found && rr?.installNote ? (
-                          <div style={{ marginTop: 8, marginLeft: 24, fontSize: 12.5, color: C.dim, lineHeight: 1.55, paddingRight: 8 }}>
-                            <span style={{ color: C.violet, fontWeight: 700 }}>설치 메모</span> · {rr.installNote}{rr.confidence ? <span style={{ color: C.faint }}> (확신 {rr.confidence === "high" ? "높음" : rr.confidence === "mid" ? "보통" : "낮음"})</span> : null}</div>
-                        ) : null}
-                      </div>);
-                    })}
-                  </div>)}
-                {report.frontendOnly.length > 0 && (
-                  <div style={{ marginTop: 16, paddingTop: 16, borderTop: `1px solid ${C.divider}`, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
-                    프론트엔드 전용(설치 불필요)으로 제외: <span style={{ fontFamily: MONO }}>{report.frontendOnly.join(", ")}</span></div>)}
               </>)}</div>
             </div>
           </div>
