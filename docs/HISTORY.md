@@ -6,6 +6,79 @@
 
 ---
 
+## 2026-06-27 (노이즈정리: 미확인 모델 접힘 + 검색 링크)
+**한 일**
+- Inventory 모델 목록을 confirmed/unconfirmed로 분리
+- unconfirmed는 기본 접힘 "확인 필요 N개" 토글, 펼치면 카드 표시
+- 모든 미확인 모델에 HuggingFace 검색 + Google 검색 링크 (추측 URL 생성 금지)
+- renderCard 추출로 confirmed/unconfirmed 동일 카드 구조 공유
+
+## 2026-06-27 (경로 재작성: 절대경로를 내 PC 경로로 치환 표시)
+**한 일**
+- env에 modelRoot 상태 추가 + 환경 입력에 "내 모델 루트 경로(선택)" 입력칸
+- rewritePath(): 절대경로(Windows X:\, Unix /) 감지 → models/custom_nodes/input/output 세그먼트 기준 분할 → 사용자 루트로 치환
+- 코드에 특정 드라이브명/경로 하드코딩 없음 (placeholder도 일반 예시만)
+- Solution/Inventory 모델 카드 + Findings 이식 위험 값에 "내 경로: ..." 병기
+- 원본 경로 + 이식 위험 경고 유지, 미입력 시 기존 동작 그대로
+
+## 2026-06-27 (설치위치 안전장치: .bat/.sh 실행 위치 검증)
+**한 일**
+- buildInstallScript 상단 주석에 "반드시 custom_nodes 폴더 안에서 실행" 강조
+- 현재 디렉토리명이 custom_nodes인지 검사 (.bat=`%CD%` basename, .sh=`basename $(pwd)`)
+- 아니면 에러 메시지("ComfyUI custom_nodes 폴더에서 실행하세요") 출력 후 중단
+- clone 명령에서 불필요한 `cd custom_nodes`/`cd ..` 제거 (이미 custom_nodes 안)
+- 모델 다운로드 전 `cd ..`로 루트 이동 (models/ 경로 기준)
+
+## 2026-06-27 (패턴사전: 에러 로그 → 알려진 문제 자동 감지)
+**한 일**
+- troubleshooting_patterns.json import + matchTroubleshootingPatterns() 함수 (키워드 OR 매칭)
+- Diagnose 섹션 textarea 아래 "감지된 알려진 문제 N건" 블록: 매칭된 패턴의 증상/원인/해결/자가확인 표시
+- 매칭 없으면 섹션 미표시 (회귀 없음)
+
+## 2026-06-27 (B-무결성: 모델 다운로드 무결성 체크 안내)
+**한 일**
+- Solution 모델 카드: 예상 정상 용량 표시 (curated=size_gb, Manager=size_label, 없으면 "용량 확인 필요")
+- Solution 모델 목록 하단: 무결성 확인 경고 박스 (용량 확인 + 재부팅 금지 + JSONDecodeError 안내)
+- Inventory 모델 카드: 동일한 용량 표시 + 가중치 파일에 "용량 확인 필요" 폴백
+- buildInstallScript: 모델 섹션 상단에 재부팅 금지 + 용량 확인 경고, 각 모델에 정상 용량 주석
+
+## 2026-06-27 (맥작업패키지 v2 진행 현황)
+**완료**
+- A-4 노드→repo 매핑: node_repo_map.json 통합, class_type exact match, manager_searchable 경고, clone_url 우선
+- A-3 서브그래프 모델 추출: definitions.subgraphs[].nodes 순회, origin 태깅, 중복 병합
+- 깨진 노드 감지: type=null 노드 빨간 경고
+- 출력구조: buildBriefing 형식 강제 + TL;DR 박스
+- C효용: 설치 스크립트 .sh/.bat 생성 + 경로 중복 버그 수정
+
+**남은 작업 (맥작업패키지 #2~#7)**
+- B-무결성: 모델 다운로드 예상 용량 표기 + 재부팅 금지 경고
+- 패턴사전: troubleshooting_patterns.json → 에러 로그 매칭 → 알려진 문제 자동 감지
+- 경로재작성: 하드코딩 경로(D:\)를 사용자 루트로 치환 표시
+- 설치위치 안전장치: .bat/.sh 실행 위치 검증 (custom_nodes 확인)
+- 노이즈정리: 미확인 모델 접힘 처리 + 검색 링크
+
+## 2026-06-27 (node_repo_map 통합: 노드→repo 정밀 매핑)
+**한 일**
+- node_repo_map.json import + NODE_REPO_INDEX 인덱스 빌드 (class_type exact match)
+- repoForUnmapped()에 node_repo_map 최우선 조회 추가
+- analyze()에서 unmapped에 clone_url/manager_searchable/install_note 부착
+- buildPrescription/buildInstallScript: clone_url 우선 + pack_repo_index 활용
+- Findings 출처 추정 노드: manager_searchable=false → 빨간 "수동 clone 필요", repo=null → "web_search 확인 필요"
+
+## 2026-06-27 (서브그래프 모델 스캔 + 깨진 노드 감지)
+**한 일**
+- normalize()에서 definitions.subgraphs[].nodes 순회 → normalizeNode()로 통일, subgraph 인덱스 태깅
+- analyze()에서 서브그래프 모델에 origin "서브그래프 #N에서 발견" 부착
+- 동일 파일 중복 모델 병합 (Map by lowercase filepath, origin 합침)
+- Inventory 모델 카드에 origin 표시 (C.dim, 서브그래프 출처)
+
+## 2026-06-27 (깨진 노드 감지: type=null 노드 빨간 경고)
+**한 일**
+- normalize()에서 API 포맷 null type 노드 유지(기존은 필터링됨)
+- analyze()에서 broken[] 수집 (type이 null/undefined/빈값)
+- Summary issues에 "깨진 노드 N개" 빨간(#EF5350) 경고 추가
+- Findings 최상단 "깨진 노드" 블록: 노드별 경고문 + CircleAlert 아이콘
+
 ## 2026-06-27 (출력구조: buildBriefing 형식 강제 + TL;DR 박스)
 **한 일**
 - buildBriefing: LLM 출력 형식 지시 추가 (해결요약→단계표→환경설정→원인 짧게)

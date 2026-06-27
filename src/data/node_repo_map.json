@@ -1,0 +1,88 @@
+{
+  "_meta": {
+    "purpose": "노드 class_type → 정확한 GitHub repo 매핑. Manager 검색으로 안 잡히거나 동명 노드가 여럿일 때 '정답 하나'를 지목하기 위한 큐레이션 DB.",
+    "why": "2026-06-27 LTX2.3 실증에서 증명됨. RIFEInterpolation 노드를 깔려는데 Manager 검색 실패 + 비슷한 VFI 6개 중 정답이 GACLove/ComfyUI-VFI 하나뿐이라 헤맴. 설치 스크립트도 이 repo를 clone 목록에서 누락함.",
+    "schema": {
+      "class_type": "워크플로 JSON의 노드 class_type (정확히 일치)",
+      "repo": "정답 GitHub repo (owner/name)",
+      "clone_url": "git clone 주소",
+      "manager_searchable": "Manager 검색으로 잡히는지 (false면 수동 clone 필요 = 이 DB의 핵심 가치)",
+      "install": "manual_clone | manager | pip_extra",
+      "notes": "설치 시 주의(의존성, import 체인 등)",
+      "verified_on": "이 매핑을 실증/확인한 날짜",
+      "source": "manual_curation | empirical(실제 막혀서 확인) | manager_list"
+    },
+    "matching_rule": "class_type 완전일치 우선. 못 찾으면 노드 title/display name 보조 매칭. 절대 추측 URL 생성 금지 — 미확인은 repo=null로 두고 'web_search 필요' 플래그.",
+    "last_updated": "2026-06-27"
+  },
+
+  "mappings": [
+    {
+      "class_type": "RIFEInterpolation",
+      "display_name": "RIFE Frame Interpolation",
+      "repo": "GACLove/ComfyUI-VFI",
+      "clone_url": "https://github.com/GACLove/ComfyUI-VFI.git",
+      "manager_searchable": false,
+      "install": "manual_clone",
+      "notes": "Manager 'GACLove' 검색 결과 없음. 비슷한 VFI 팩 6개 중 이 노드명을 등록하는 건 이 repo 하나뿐. 의존성은 torch/torchvision/numpy/requests(이미 충족). import 체인이 깊음(nodes.py→rife/rife_comfyui_wrapper→train_log/RIFE_HDv3→model/loss+IFNet_HDv3) → 폴더 전체 온전성 필요. ComfyUI Desktop 실제 custom_nodes 경로에 넣어야 함(Documents\\ComfyUI 아님).",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "class_type": "DenoLTX23PresetLoader",
+      "display_name": "(Deno) LTX Model Loader",
+      "repo": "deno-custom-nodes",
+      "clone_url": null,
+      "manager_searchable": false,
+      "install": "manual_clone",
+      "notes": "비공개/커스텀 pack 추정 — 정확한 공개 repo URL 미확인. web_search 필요. GGUF Style/Checkpoint/KJ Style 3모드. VAE 로드 시 KJNodes load_vae 경유 → VAE 파일 손상(0바이트/HTML 저장) 시 json.decoder.JSONDecodeError 발생.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "class_type": "DenoMultiImageLoader",
+      "display_name": "(Deno) Multi Image Loader",
+      "repo": "deno-custom-nodes",
+      "clone_url": null,
+      "manager_searchable": false,
+      "install": "manual_clone",
+      "notes": "deno-custom-nodes 소속. 선택 이미지가 input 폴더에 없으면 'Selected image file(s) are missing' 검증 실패. URL 미확인.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "class_type": "PatchTritonVAE",
+      "display_name": "Patch Triton VAE",
+      "repo": "kijai/ComfyUI-KJNodes",
+      "clone_url": "https://github.com/kijai/ComfyUI-KJNodes.git",
+      "manager_searchable": true,
+      "install": "pip_extra",
+      "notes": "KJNodes 소속이나 'triton' 모듈 필요(Windows는 triton-windows). triton 없으면 이 노드만 비활성(나머지 KJNodes는 정상). 대부분 워크플로에서 불필요 → 무시 가능한 import 경고.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "class_type": "VHS_LoadVideo",
+      "display_name": "Load Video (Upload)",
+      "repo": "Kosinkadink/ComfyUI-VideoHelperSuite",
+      "clone_url": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
+      "manager_searchable": true,
+      "install": "manager",
+      "notes": "이전 출력 영상을 미리보기로 부르는 용도일 때, 그 mp4가 현재 PC에 없으면 'Invalid video file' 검증 실패 → 본 생성과 무관한 잔가지. bypass 가능.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    }
+  ],
+
+  "pack_repo_index": {
+    "_comment": "노드 단위가 아닌 pack 단위 매핑. 설치 스크립트 생성 시 정확한 clone URL 공급용.",
+    "comfyui-kjnodes": "https://github.com/kijai/ComfyUI-KJNodes.git",
+    "comfyui-videohelpersuite": "https://github.com/Kosinkadink/ComfyUI-VideoHelperSuite.git",
+    "comfyui_memory_cleanup": "https://github.com/LAOGOU-666/Comfyui-Memory_Cleanup.git",
+    "ComfyUI-VFI": "https://github.com/GACLove/ComfyUI-VFI.git",
+    "ComfyUI-LTXVideo": "https://github.com/Lightricks/ComfyUI-LTXVideo.git",
+    "deno-custom-nodes": null,
+    "ComfyMath": null,
+    "comfyui_nvidia_rtx_nodes": null
+  }
+}

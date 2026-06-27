@@ -1,0 +1,71 @@
+{
+  "_meta": {
+    "purpose": "ComfyUI 트러블슈팅 증상→원인→해결 패턴 사전. '시행착오 데이터화' 비전의 핵심. 쓸수록 쌓여 도구가 똑똑해짐.",
+    "why_this_not_model_db": "정적 모델 DB는 최신 못 따라가서 못 키움. 하지만 '증상-원인 패턴'은 모델이 바뀌어도 안 변함 → 데이터화의 정답.",
+    "schema": {
+      "id": "패턴 식별자",
+      "match": "에러 로그/증상에 포함되면 매칭되는 키워드들 (OR 조건)",
+      "symptom": "사용자가 보는 증상",
+      "cause": "진짜 원인",
+      "fix": "해결법 (단계)",
+      "check": "자가확인 방법",
+      "verified_on": "실증 날짜",
+      "source": "empirical | manual"
+    },
+    "accumulation": "1)지금=수동추가 2)중기='이거맞았어'버튼으로 반자동 3)장기=사용자 제보 집계",
+    "last_updated": "2026-06-27"
+  },
+
+  "patterns": [
+    {
+      "id": "safetensors_corrupted_download",
+      "match": ["json.decoder.JSONDecodeError", "Expecting value: line 1 column 1", "load_safetensors", "load_torch_file"],
+      "symptom": "safetensors/VAE 로드 시 JSONDecodeError. 모델 칸은 채워졌는데 실행하면 터짐.",
+      "cause": "모델 파일이 깨진 껍데기(0바이트~수백KB). 다운로드가 중간에 끊겼거나, HTML 에러페이지가 저장됨. 특히 큰 모델 받는 중 ComfyUI/PC 재부팅하면 발생.",
+      "fix": "1) 해당 파일을 탐색기에서 열어 용량 확인 2) 정상 용량보다 현저히 작으면 삭제 3) 재다운로드(받는 동안 재부팅 금지) 4) 같은 모델의 정상본이 이미 있으면 그걸로 교체",
+      "check": "파일 용량이 KB/작은 MB 단위면 깨진 것. 정상은 보통 수백MB~수십GB.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "id": "node_wrong_custom_nodes_folder",
+      "match": ["has no class_type", "missing_node_type", "custom node is missing", "IMPORT FAILED"],
+      "symptom": "노드를 git clone 했는데도 ComfyUI에서 계속 '누락'으로 빨강.",
+      "cause": "ComfyUI Desktop의 실제 custom_nodes가 아닌 다른 폴더(예: 옛 포터블 Documents\\ComfyUI\\custom_nodes)에 설치함. 또는 한 겹 더 들어간 이중중첩(custom_nodes\\X\\X\\).",
+      "fix": "1) comfyui.log의 'Import times' 목록에서 실제 로드되는 custom_nodes 경로 확인 2) 그 경로에 노드 폴더 재clone 3) 폴더 바로 아래에 __init__.py/nodes.py가 보이는지 확인(이중중첩 아님)",
+      "check": "comfyui.log의 'Import times for custom nodes' 목록에 그 노드가 떠야 정상. 없으면 다른 폴더.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "id": "quantization_ampere_unsupported",
+      "match": ["fp4", "fp8_scaled", "fp4_mixed", "nvfp4"],
+      "symptom": "fp4/fp8 모델이 Ampere(30xx) GPU에서 안 돌거나 불안정.",
+      "cause": "fp4_mixed/fp8_scaled 같은 양자화는 Ampere에서 네이티브 미지원. (Ada/Blackwell/Hopper는 지원)",
+      "fix": "GGUF(Q4_K_M 등) 또는 bf16 버전으로 교체. 로더에서 GGUF Style 탭 사용.",
+      "check": "GPU가 30xx면 fp4/fp8 피하고 GGUF/bf16. comfy-kitchen이 fp8 dequantize 커널을 가지면 dequantize 경로로는 돌 수도 있음(불확실).",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "id": "ignorable_import_warnings",
+      "match": ["No module named 'triton'", "No module named 'tsc_utils'", "No module named 'llama_cpp'", "PatchTritonVAE"],
+      "symptom": "시작 로그에 빨간 import 에러/경고가 떠서 불안.",
+      "cause": "특정 노드(또는 그 안의 일부 기능)만 의존성 부족으로 비활성. 대부분 현재 워크플로와 무관.",
+      "fix": "현재 워크플로가 그 노드를 안 쓰면 무시. 쓰면 해당 패키지만 설치(triton→triton-windows, llama_cpp→pip).",
+      "check": "에러 난 노드가 내 워크플로에 실제로 있는지 확인. 없으면 무시 가능.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    },
+    {
+      "id": "hardcoded_path_mismatch",
+      "match": ["D:\\\\", "ComfyUI_Shared", "extra_model_paths", "지정된 파일을 찾을 수 없습니다", "WinError 2"],
+      "symptom": "워크플로/노드가 내 PC에 없는 드라이브·경로(D:\\ 등)를 찾음.",
+      "cause": "워크플로 JSON에 만든 사람 PC 기준 경로가 하드코딩됨. 내 PC는 다른 드라이브(예: N:\\).",
+      "fix": "1) 모델을 내 search path 폴더(extra_model_paths.yaml에 등록된 곳)에 두기 2) 또는 노드의 경로 값을 내 경로로 수정 3) 입력 mp4/이미지는 input 폴더에 다시 추가",
+      "check": "에러의 경로 드라이브가 내 PC에 실제 있는지. 다르면 경로 불일치.",
+      "verified_on": "2026-06-27",
+      "source": "empirical"
+    }
+  ]
+}
