@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "purpose": "알려진 모델의 정상 용량(GB) 사전. B-무결성 체크가 '정상 X GB여야 하는데 작으면 깨진 것'을 더 정확히 안내하게 함.",
+    "rule": "키=파일명 stem(확장자 제거, 소문자). 값=정상 용량 GB(숫자). 확인된 파일명만. 추측 금지. 매칭은 정확 일치만(부분일치 안 함 → 오판 방지).",
+    "pending_need_exact_filename": {
+      "_comment": "용량은 확인됐으나 정확한 파일명 stem 미확정. 부분일치로 넣으면 다른 모델을 오판할 위험이 있어 보류. 정확한 파일명 확인되면 sizes로 이동.",
+      "ltx_2.3_audio_vae": { "gb": 0.348, "hint": "LTX 2.3 audio VAE (~348MB)" },
+      "ltx_2.3_distilled_gguf": { "gb": 16.5, "hint": "LTX 2.3 distilled GGUF (~16.5GB)" }
+    },
+    "source": "empirical (사용자 실측, 2026-06-28)",
+    "last_updated": "2026-06-28"
+  },
+  "sizes": {
+    "ltx-2.3-22b-dev_video_vae": 1.35,
+    "ltx23_video_vae_bf16": 1.35
+  }
+}

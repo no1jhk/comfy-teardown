@@ -9,6 +9,8 @@ import compat from "./data/compatibility.json";
 import mgrList from "./data/manager-model-list.json";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
+import modelAliases from "./data/model_aliases.json";
+import modelSizes from "./data/model_sizes.json";
 
 /* ──────────────────────────────────────────────────────────────
    Teardown — ComfyUI 무거운 파이프라인 환경 진단 (MVP v1.0)
@@ -129,6 +131,26 @@ function compatModelInfo(file) {
   return hfLink(file);
 }
 
+// model_aliases.json → 같은 모델의 다른 이름(별칭) 안내. 확실한 그룹만(추측 금지).
+function modelAliasInfo(file) {
+  const stem = file.replace(/\\/g, "/").split("/").pop().replace(/\.[^.]+$/, "").toLowerCase();
+  for (const g of (modelAliases.groups || [])) {
+    const norms = (g.aliases || []).map((a) => a.toLowerCase());
+    if (norms.includes(stem)) {
+      const others = g.aliases.filter((a) => a.toLowerCase() !== stem);
+      if (others.length) return { others, note: g.note };
+    }
+  }
+  return null;
+}
+
+// model_sizes.json → 알려진 정상 용량(GB). 정확 일치만(오판 방지). 모르면 null.
+function knownModelSize(file) {
+  const stem = file.replace(/\\/g, "/").split("/").pop().replace(/\.[^.]+$/, "").toLowerCase();
+  const gb = modelSizes.sizes?.[stem];
+  return typeof gb === "number" ? gb : null;
+}
+
 // ComfyUI 시작 로그에서 GPU/torch/CUDA 추출
 function parseComfyLog(text) {
   const out = { gpu: "", torch: "", cuda: "" };
@@ -230,7 +252,7 @@ function normalize(wf) {
         }
       }
     }
-    return { format: "UI", nodes };
+    return { format: "UI", nodes, links: Array.isArray(wf.links) ? wf.links : [] };
   }
   if (wf && typeof wf === "object") {
     const e = Object.entries(wf).filter(([, v]) => v && typeof v === "object");
@@ -256,16 +278,25 @@ function guessFolder(file, type) {
   }
   return "확인 필요";
 }
+// 절대경로 판정: Windows 드라이브(X:\) 또는 Unix 절대경로(/dir/...). rewritePath와 같은 기준.
+function isAbsPath(s) {
+  if (typeof s !== "string") return false;
+  const norm = s.replace(/\\/g, "/");
+  return /^[A-Za-z]:\//.test(norm) || /^\/[^/].*\//.test(norm);
+}
 function portabilityScan(nodes) {
   const hits = [];
   for (const n of nodes) for (const w of n.widgets) {
     if (typeof w !== "string") continue;
     if (w === "flash_attn") hits.push({ node: n.type, value: w, risk: "flash_attn 어텐션 — Windows 빌드가 까다롭습니다. 설치가 막히면 sdpa로 변경하세요." });
+    else if (isAbsPath(w)) hits.push({ node: n.type, value: w, kind: "abspath", risk: "이 경로는 워크플로를 만든 사람의 PC 폴더예요. 당신 PC엔 이 폴더가 없을 수 있으니, 이 경로는 무시하고 같은 파일을 당신 ComfyUI 폴더에 두면 됩니다." });
     else if (/[A-Za-z0-9._-]+\\[A-Za-z0-9._\\-]+/.test(w)) {
       if (/_\d{8}_/.test(w) && /\.(fbx|glb|obj)$/i.test(w))
         hits.push({ node: n.type, value: w, risk: "워크플로에 박힌 과거 파일 경로입니다. 내 입력 파일을 다시 넣거나 해당 단계를 다시 실행하면 됩니다 (다른 PC엔 이 경로가 없습니다)." });
       else hits.push({ node: n.type, value: w, risk: "Windows 경로 구분자(\\)입니다. Mac/Linux에선 / 로 바꿔야 합니다." });
     }
+    else if (/\.(png|jpe?g|webp|bmp|gif|tiff?|mp4|mov|webm|mkv|avi|wav|mp3|flac|ogg)$/i.test(w) && !/[\\/]/.test(w))
+      hits.push({ node: n.type, value: w, risk: "워크플로에 박힌 입력 파일명입니다. 다른 PC엔 이 파일이 없을 수 있으니 내 입력 파일을 input 폴더에 다시 넣으세요." });
   }
   return hits;
 }
@@ -286,6 +317,33 @@ function rewritePath(original, modelRoot) {
   // Fallback: keep filename only
   const fname = norm.split("/").pop();
   return fname ? `${root}/${fname}` : null;
+}
+// Detect bypass/muted nodes whose output feeds an ACTIVE node → downstream input may break.
+// bypass(4) with an upstream link is skipped (ComfyUI may passthrough); muted(2) always cuts the chain.
+function detectBypassBreaks(norm) {
+  const links = norm.links || [];
+  if (!links.length) return [];
+  const byId = {};
+  for (const n of norm.nodes) byId[String(n.id)] = n;
+  const isOff = (m) => m === 2 || m === 4;
+  const out = [];
+  for (const n of norm.nodes) {
+    if (!isOff(n.mode)) continue;
+    const targets = links.filter((l) => Array.isArray(l) && String(l[1]) === String(n.id))
+      .map((l) => byId[String(l[3])]).filter((t) => t && !isOff(t.mode));
+    if (!targets.length) continue;
+    if (n.mode === 4 && links.some((l) => Array.isArray(l) && String(l[3]) === String(n.id))) continue;
+    out.push({ id: n.id, type: n.type, mode: n.mode, targets: [...new Set(targets.map((t) => t.type).filter(Boolean))] });
+  }
+  return out;
+}
+// troubleshooting_patterns의 ignorable_import_warnings → 노드 타입 매칭 힌트(모듈/노드명 소문자).
+const IGNORABLE_HINTS = (tsPatterns.patterns?.find((p) => p.id === "ignorable_import_warnings")?.match || [])
+  .map((m) => (m.match(/named '([^']+)'/)?.[1] || m).toLowerCase());
+function isIgnorableNode(type) {
+  if (!type) return false;
+  const t = type.toLowerCase();
+  return IGNORABLE_HINTS.some((h) => t.includes(h));
 }
 function analyze(norm) {
   const packVers = {}, packNodes = {}, unmappedRaw = [], frontendOnly = [], muted = [], models = [], broken = [];
@@ -337,6 +395,8 @@ function analyze(norm) {
     customPackCount: packs.filter((p) => !p.isCore).length,
     packs, unmapped: unmappedRaw, frontendOnly: [...new Set(frontendOnly)],
     muted, models: dedupModels, sameRepo, broken, portability: portabilityScan(norm.nodes),
+    bypassBreaks: detectBypassBreaks(norm),
+    ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
   };
 }
 
@@ -852,7 +912,8 @@ function buildInstallScript(report, os) {
       const folder = (info && info.folder) || m.folder || "models";
       const folderWin = folder.replace(/\//g, "\\");
       const fname = m.file.replace(/\\/g, "/").split("/").pop();
-      const sizeNote = info?.size_gb ? `정상 약 ${info.size_gb}GB` : info?.size_label ? `정상 약 ${info.size_label}` : "용량 확인 필요";
+      const ks = knownModelSize(m.file);
+      const sizeNote = info?.size_gb ? `정상 약 ${info.size_gb}GB` : info?.size_label ? `정상 약 ${info.size_label}` : ks ? `정상 약 ${ks}GB` : "용량 확인 필요";
       if (info && info.exact && info.url) {
         L.push(isWin ? `if not exist "${folderWin}" mkdir "${folderWin}"` : `mkdir -p "${folder}"`);
         L.push(isWin
@@ -933,6 +994,7 @@ function buildMarkdown(report, summary, rx) {
       }
       if (step.warn) L.push(`- ⚠ ${step.warn}`);
       if (step.models) {
+        L.push(`> 다운로드 전, 해당 폴더에 같은 파일이나 비슷한 이름(별칭)이 이미 있는지 먼저 확인하세요.`);
         for (const m of step.models) {
           const dlUrl = directDownloadUrl(m.compat, m.file);
           const link = dlUrl ? ` — [다운로드](${dlUrl})` : " — (다운로드 링크 확인 필요)";
@@ -1566,6 +1628,7 @@ export default function Teardown() {
                       </>)}
                       {step.models && (
                         <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 8 }}>
+                          <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5 }}>다운로드 전, 해당 폴더에 같은 파일이나 비슷한 이름(별칭)이 이미 있는지 먼저 확인하세요. 있으면 다시 받을 필요 없습니다.</div>
                           {step.models.map((m, k) => {
                             const live = liveCompat[m.file];
                             const eff = m.compat || live;
@@ -1582,9 +1645,10 @@ export default function Teardown() {
                                 </div>
                                 <div style={{ fontFamily: MONO, fontSize: 12, color: C.point, marginTop: 8, paddingLeft: 26 }}>{m.folder}</div>
                                 {env.modelRoot && rewritePath(m.file, env.modelRoot) && <div style={{ fontSize: 12, color: C.point, opacity: 0.7, marginTop: 4, paddingLeft: 26 }}>내 경로: <span style={{ fontFamily: MONO }}>{rewritePath(m.file, env.modelRoot)}</span></div>}
-                                {(() => { const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || null; return (eff?.vram_gb || sz) ? <div style={{ fontSize: 12, color: C.dim, marginTop: 5, paddingLeft: 26 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</div> : null; })()}
-                                {!eff?.size_gb && !eff?.size_label && <div style={{ fontSize: 12, color: C.faint, marginTop: 5, paddingLeft: 26 }}>용량 확인 필요</div>}
+                                {(() => { const ks = knownModelSize(m.file); const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : null); return (eff?.vram_gb || sz) ? <div style={{ fontSize: 12, color: C.dim, marginTop: 5, paddingLeft: 26 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</div> : null; })()}
+                                {!eff?.size_gb && !eff?.size_label && !knownModelSize(m.file) && <div style={{ fontSize: 12, color: C.faint, marginTop: 5, paddingLeft: 26 }}>용량 확인 필요</div>}
                                 {m.rename && <div style={{ fontSize: 12, color: C.amber, marginTop: 6, lineHeight: 1.4, paddingLeft: 26 }}>⤷ {m.rename}</div>}
+                                {(() => { const al = modelAliasInfo(m.file); return al ? <div style={{ fontSize: 12, color: C.dim, marginTop: 6, lineHeight: 1.45, paddingLeft: 26 }}>다른 이름으로 이미 있을 수 있어요: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div> : null; })()}
                               </div>
                               {dlUrl ? (
                                 <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>다운로드</a>
@@ -1600,7 +1664,7 @@ export default function Teardown() {
                           {step.integrity && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 12.5, color: C.text, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
-                              <div>받은 뒤 용량 확인 — 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운로드.</div>
+                              <div>받은 뒤 용량 확인 — 위에 표시된 “정상 용량”과 비교해 현저히 작으면(수 KB/MB) 깨진 것이니 삭제 후 재다운로드.</div>
                               <div style={{ marginTop: 4 }}>큰 모델 다운로드 중에는 ComfyUI/PC를 재부팅하지 마세요. 끊기면 빈 파일이 됩니다.</div>
                               <div style={{ marginTop: 4, color: C.dim }}>.safetensors가 비정상적으로 작으면 <span style={{ fontFamily: MONO }}>JSONDecodeError</span>가 발생합니다.</div>
                             </div>
@@ -1653,11 +1717,13 @@ export default function Teardown() {
                 간격 규칙: 제목↔내용 60(상단 marginTop) / 내용↔다음 순번 60(하단 paddingBottom). 모든 블록 동일. */}
             <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 32 : 0 }}>
               <BlockHead num="1" label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
-                role="다른 PC로 옮길때 깨질 수 있는 값입니다. 입력/산출 파일 경로는 내 파일을 다시 넣으면 되고, flash_attn은 환경 우회가 필요합니다." />
+                role="이 값들은 당신 PC로 옮기면 안 맞을 수 있어요. 제작자 PC의 절대경로는 무시하고 당신 폴더 기준으로 보면 되고, 입력 파일은 다시 넣으면 됩니다." />
               <div style={{ marginTop: open.f1 ? 32 : 0, paddingBottom: open.f1 ? 36 : 36 }}>{open.f1 && (
                 report.portability.length === 0 ? <Empty text="이식 시 깨질 위험 값이 없습니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    {report.portability.map((h, i) => (
+                    {report.portability.map((h, i) => {
+                      const rw = env.modelRoot && rewritePath(h.value, env.modelRoot);
+                      return (
                       <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, paddingTop: i > 0 ? 16 : 0, marginTop: i > 0 ? 16 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -1665,10 +1731,12 @@ export default function Teardown() {
                             <span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere" }}>{h.value}</span>
                           </div>
                           <div style={{ fontSize: 12.5, color: C.green, opacity: 0.6, marginTop: 6, lineHeight: 1.5, paddingLeft: 24 }}>{h.risk}</div>
-                          {(() => { const rw = env.modelRoot && rewritePath(h.value, env.modelRoot); return rw ? <div style={{ fontSize: 12, color: C.point, marginTop: 5, lineHeight: 1.4, paddingLeft: 24 }}>내 경로: <span style={{ fontFamily: MONO }}>{rw}</span></div> : null; })()}
+                          {rw && <div style={{ fontSize: 12, color: C.point, marginTop: 5, lineHeight: 1.4, paddingLeft: 24 }}>내 경로: <span style={{ fontFamily: MONO }}>{rw}</span></div>}
+                          {h.kind === "abspath" && !rw && <div style={{ fontSize: 12, color: C.point, opacity: 0.7, marginTop: 5, lineHeight: 1.4, paddingLeft: 24 }}>↳ 위 환경설정에 ‘내 모델 루트’를 적으면 당신 경로로 바꿔 보여드려요 (안 적어도 됩니다).</div>}
                         </div>
                         <div style={{ fontFamily: MONO, fontSize: 12, color: C.faint, flexShrink: 0, maxWidth: "32%", textAlign: "right", overflowWrap: "anywhere" }}>{h.node}</div>
-                      </div>))}
+                      </div>);
+                    })}
                   </div>)
               )}</div>
             </div>
@@ -1712,8 +1780,16 @@ export default function Teardown() {
                     </div>))}
                 </div>
                 {/* 점버전 설명 + 한 저장소 안내 — 한 묶음 `-` 개조식. gap 0 + 줄간격만으로 붙임(알트엔터처럼). 위 여백 2배(36) + 좌측 들여쓰기(indent)로 탭 들어간 느낌. */}
-                {(report.packs.some((p) => p.vers.some((v) => /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v))) || report.sameRepo.length > 0) && (
+                {(report.packs.some((p) => p.conflict) || report.packs.some((p) => p.vers.some((v) => /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v))) || report.sameRepo.length > 0) && (
                   <div style={{ marginTop: 36, paddingTop: 36, paddingLeft: 24, borderTop: `1px solid ${C.divider}` }}>
+                    {report.packs.filter((p) => p.conflict).map((p) => {
+                      const hasCommit = p.vers.some((v) => /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v));
+                      return (
+                      <div key={`cf-${p.id}`} style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.6, color: C.dim, marginBottom: 6 }}>
+                        <span style={{ color: C.red, flexShrink: 0 }}>-</span>
+                        <span><b style={{ color: C.text }}>{p.id}</b> 버전 충돌 → {hasCommit ? "재현이 목적이면 기록된 커밋으로 git checkout, 아니면 최신 한 버전으로 통일 설치하세요." : "최신 한 버전으로 통일해 재설치하세요."}</span>
+                      </div>);
+                    })}
                     {report.packs.some((p) => p.vers.some((v) => /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v))) && (
                       <div style={{ display: "flex", gap: 7, fontSize: 12.5, lineHeight: 1.6, color: C.dim }}>
                         <span style={{ color: C.green, flexShrink: 0 }}>-</span>
@@ -1759,9 +1835,10 @@ export default function Teardown() {
                       <span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
                       <span style={{ fontFamily: SANS, fontSize: 14, color: /추정/.test(m.folder) ? C.green : C.point, opacity: /추정/.test(m.folder) ? 0.6 : 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
                       {env.modelRoot && rewritePath(m.file, env.modelRoot) && <span style={{ fontFamily: MONO, fontSize: 11, color: C.point, opacity: 0.7, marginTop: 4 }}>내 경로: {rewritePath(m.file, env.modelRoot)}</span>}
-                      {(() => { const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || null; return (eff?.vram_gb || sz) ? <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</span> : null; })()}
-                      {!eff?.size_gb && !eff?.size_label && WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint, marginTop: 4 }}>용량 확인 필요</span>}
+                      {(() => { const ks = knownModelSize(m.file); const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : null); return (eff?.vram_gb || sz) ? <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</span> : null; })()}
+                      {!eff?.size_gb && !eff?.size_label && !knownModelSize(m.file) && WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint, marginTop: 4 }}>용량 확인 필요</span>}
                       {m.rename && <span style={{ fontSize: 12, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}
+                      {(() => { const al = modelAliasInfo(m.file); return al ? <span style={{ fontFamily: SANS, fontSize: 11, color: C.dim, marginTop: 6, lineHeight: 1.4 }}>다른 이름으로 이미 있을 수 있음: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></span> : null; })()}
                       {m.origin && <span style={{ fontFamily: SANS, fontSize: 11, color: C.dim, opacity: 0.7, marginTop: 4 }}>{m.origin}</span>}
                       {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.7, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
                       {dlUrl ? (
@@ -1807,13 +1884,27 @@ export default function Teardown() {
               <div style={{ marginTop: open.i2 ? 32 : 0, paddingBottom: open.i2 ? 36 : 36 }}>{open.i2 && (
                 report.muted.length === 0 ? <Empty text="muted/bypass된 노드가 없습니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
-                    {report.muted.map((m, i) => (<div key={m.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                        <ChevronRight size={16} color={C.amber} style={{ flexShrink: 0 }} /><span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere" }}>{m.type}</span></div>
-                      <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint, flexShrink: 0 }}>{m.mode === 4 ? "bypass" : "muted"}</span></div>))}
+                    {report.muted.map((m, i) => {
+                      const brk = report.bypassBreaks.find((b) => String(b.id) === String(m.id));
+                      const ign = isIgnorableNode(m.type);
+                      return (
+                      <div key={m.id} style={{ paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                            <ChevronRight size={16} color={ign ? C.faint : C.amber} style={{ flexShrink: 0 }} /><span style={{ fontFamily: MONO, fontSize: 18.5, color: ign ? C.faint : C.text, overflowWrap: "anywhere" }}>{m.type}</span>{ign && <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint, flexShrink: 0 }}>· 안 써도 됨</span>}</div>
+                          <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint, flexShrink: 0 }}>{m.mode === 4 ? "bypass" : "muted"}</span>
+                        </div>
+                        {brk && <div style={{ marginTop: 6, paddingLeft: 24, fontSize: 12, color: C.amber, lineHeight: 1.45 }}>⚠ 이 노드가 {m.mode === 4 ? "bypass" : "muted"}라 뒤 노드{brk.targets.length ? ` (${brk.targets.join(", ")})` : ""} 입력이 끊길 수 있습니다.</div>}
+                      </div>);
+                    })}
                   </div>)
               )}</div>
             </div>
+            {report.ignorable.length > 0 && (
+              <div style={{ marginTop: 20, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
+                import 경고 무시 가능: <span style={{ fontFamily: MONO, color: C.dim }}>{report.ignorable.join(", ")}</span> — 이 노드를 안 쓰면 시작 로그의 빨간 import 에러는 무시해도 됩니다.
+              </div>
+            )}
           </div>
 
           {/* ───────── Diagnose (에러 로그 → AI 진단 / 브리핑) ─────────

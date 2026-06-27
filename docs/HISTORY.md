@@ -10,24 +10,52 @@
 
 **완료**
 - T1: Findings "출처 추정 노드" 섹션 삭제 (A-4 repo 매핑으로 대체)
+- T2: Solution 3번 모델 다운로드 검색떠넘기기 제거 + directDownloadUrl 확정 URL만 표시
+- T3: Solution 4번 끊어진 경로 강등 → Findings 이식 위험에 통합
 - T5+T6: Solution 2번 "노드 설치 허브" 재구성 (방법A 직접 clone + 방법B 자동 스크립트)
 - P1: install_note 경고 강화 (Findings+Solution 양쪽)
+- T4: Findings 1 이식 위험 값 — 절대경로(제작자 PC) 감지 + 초보 친화 문구 + modelRoot 안내
+- P3: model_aliases.json — 같은 모델 다른 이름 "이미 있을 수 있음" 안내 (확실한 것만)
+- P4: model_sizes.json — 정상 용량 사전, 카드/무결성/스크립트 연결 (정확 일치만)
 
 **남은 과제**
-- T2: Solution 3번 "모델 다운로드" 똥개훈련 제거 — HF 검색→직링크로 바꾸거나 표시 안 함, 버튼명 "다운로드"로 통일, 아이콘 삭제
-- T3: Solution 4번 "끊어진 경로·입력 파일 정리" 필요성 재검토 (경로재작성 기능과 중복?)
-- T4: Findings 1번 "이식 위험 값" — 잘못된 경로 정리 + 초보 친화적 문구로 개선
 - T7: Findings 2번 "버전 충돌" — "그래서 다음은" 액션 추가 (충돌 시 뭘 해야 하는지)
 - P9: 어제 JSON 10개 회귀테스트 (오늘 변경으로 깨진 게 없는지)
 - P2: bypass 노드 입력 끊김 경고
-- P3: 모델 alias 매칭 (같은 모델 다른 이름)
-- P4: 모델 용량 사전 확장
 - P5: 이미 받은 파일 우선 표시
 - P6: 무시 가능 경고 회색 처리
 - P7: 패턴사전 자동 적립 루프 ("이거 맞았어" 버튼)
 - P8: Manager model-list 월간 갱신 스크립트
 
 ---
+
+## 2026-06-28 (T4·P3·P4: 이식위험 친화화 + 모델 별칭/용량 사전)
+**한 일**
+- T4: Findings 1 "이식 위험 값" — 절대경로(제작자 PC 경로)를 isAbsPath로 별도 감지 → "당신 PC엔 없으니 무시하고 같은 파일을 당신 폴더에" 초보 문구. modelRoot 미입력 시 "환경설정에 적으면 내 경로로 보여줌(안 적어도 됨)" 안내. 헤더 role 친화화.
+- P3: model_aliases.json 신설 + modelAliasInfo() → 모델 카드(Solution·Inventory)에 "다른 이름으로 이미 있을 수 있음" 안내. 확실한 그룹만(LTX 2.3 video VAE 별칭 2개). 정확 일치.
+- P4: model_sizes.json 신설 + knownModelSize() → 카드 "정상 N GB"·무결성 박스·설치스크립트 주석 연결. 정확 일치만(오판 방지). 확인된 파일명만(LTX video VAE 1.35GB); audio(348MB)/distilled_gguf(16.5GB)는 정확한 파일명 미확정이라 _meta.pending 보류.
+
+**어떻게**
+- 세 작업 모두 추측 데이터 0. stem 정확 일치 매칭 → false positive 없음(틀린 키는 매칭 안 되고 기존 폴백 유지). 데이터는 src/data 별도 json(하드코딩 0).
+
+**다음 할 일**
+- audio/distilled_gguf 정확한 파일명 확인되면 model_sizes.json sizes로 이동.
+- 정답지 5단계 테스트(T1~T9) 성공률 실측.
+
+## 2026-06-27 (진단 정밀화 5종: 충돌액션·bypass끊김·ignorable·입력파일·중복확인)
+**한 일**
+- (1) Findings 2 충돌 pack마다 다음 행동 1줄: commit 섞임→"커밋 checkout 또는 최신 통일", 점버전만→"최신 통일".
+- (2) bypass/muted 노드가 활성 노드 입력을 끊는 경우 감지(detectBypassBreaks) → 비활성 노드에 "뒤 노드 입력 끊길 수 있음" 경고. normalize가 wf.links 보존하도록 확장(이전엔 버림). bypass+상류연결은 passthrough 가능성으로 오탐 제외.
+- (3) troubleshooting_patterns.ignorable_import_warnings 힌트로 노드 판정(isIgnorableNode) → 비활성 목록에서 회색+"안 써도 됨", Inventory에 "import 경고 무시 가능" 안내.
+- (4) portabilityScan 확대: 경로 구분자 없는 단순 입력 파일명(png/mp4/wav 등) 감지 → "내 입력 파일을 input 폴더에 다시 넣으세요".
+- (5) 모델 다운로드 안내에 "받기 전 같은/비슷한 파일 이미 있는지 확인" 1줄(화면+md).
+
+**어떻게**
+- (2) UI 포맷 wf.links([id,src,srcSlot,dst,dstSlot,type])로 src=off·dst=active 링크 탐지. API 포맷은 links 없어 경고 미발생(안전).
+
+**다음 할 일**
+- 실제 워크플로(T2 bypass, LTX triton 등)로 (2)(3) 오탐/누락 확인.
+- 정답지 5단계 테스트(T1~T9) 성공률 실측.
 
 ## 2026-06-27 (Solution 4번 강등: 끊어진 경로 → 이식 위험에 통합)
 **한 일**

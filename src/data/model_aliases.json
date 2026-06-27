@@ -1,0 +1,17 @@
+{
+  "_meta": {
+    "purpose": "같은 모델 파일인데 배포처/버전마다 이름이 다른 경우의 별칭 그룹. '다른 이름으로 이미 갖고 있을 수 있음' 안내용.",
+    "rule": "확실히 동일 파일인 경우만 넣는다(추측 금지). 비교는 파일명 stem(확장자 제거, 소문자) 정확 일치.",
+    "accumulation": "실측·확인으로 동일성이 검증된 것만 그룹에 추가.",
+    "source": "empirical (사용자 실측·확인)",
+    "last_updated": "2026-06-28"
+  },
+  "groups": [
+    {
+      "id": "ltx-2.3-video-vae",
+      "display": "LTX 2.3 Video VAE",
+      "aliases": ["ltx-2.3-22b-dev_video_vae", "ltx23_video_vae_bf16"],
+      "note": "LTX 2.3 비디오 VAE. 배포처/버전 표기가 달라 이름이 여러 가지입니다."
+    }
+  ]
+}
