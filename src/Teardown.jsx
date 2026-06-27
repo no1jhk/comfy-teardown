@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from "react";
+import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, Boxes, ChevronRight, GitBranch,
   CircleAlert, Copy, Check, ExternalLink, Plus, Minus, Download,
@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
+import mgrList from "./data/manager-model-list.json";
 
 /* ──────────────────────────────────────────────────────────────
    Teardown — ComfyUI 무거운 파이프라인 환경 진단 (MVP v1.0)
@@ -96,18 +97,24 @@ function compatModelInfo(file) {
   const parts = file.replace(/\\/g, "/").split("/");
   const base = parts[parts.length - 1];
   const stem = base.toLowerCase().replace(/\.[^.]+$/, "");
+  // 1층: 내 compat (최우선 — 양자화·VRAM·대안 큐레이션)
   if (compat.models[stem]) {
     const m = compat.models[stem];
-    return { url: m.url, exact: true, folder: m.folder, vram_gb: m.vram_gb, size_gb: m.size_gb, alternatives: m.alternatives, name: m.name };
+    return { url: m.url, exact: true, source: "curated", folder: m.folder, vram_gb: m.vram_gb, size_gb: m.size_gb, alternatives: m.alternatives, name: m.name };
   }
-  // path segment match (e.g. "hymotion/HY-Motion-1.0-Lite/latest.ckpt")
   for (let i = parts.length - 2; i >= 0; i--) {
     const seg = parts[i].toLowerCase();
     if (compat.models[seg]) {
       const m = compat.models[seg];
-      return { url: m.url, exact: true, folder: m.folder, vram_gb: m.vram_gb, size_gb: m.size_gb, alternatives: m.alternatives, name: m.name };
+      return { url: m.url, exact: true, source: "curated", folder: m.folder, vram_gb: m.vram_gb, size_gb: m.size_gb, alternatives: m.alternatives, name: m.name };
     }
   }
+  // 2층: Manager model-list (광범위 직링크)
+  if (mgrList?.models?.[stem]) {
+    const m = mgrList.models[stem];
+    return { url: m.url, exact: true, source: "manager", folder: m.folder, size_label: m.size, name: m.name };
+  }
+  // 3층: 검색 폴백
   return hfLink(file);
 }
 
@@ -359,6 +366,83 @@ async function researchNode(nodeType) {
   return JSON.parse(m ? m[0] : clean);
 }
 
+// 3층: Manager 실시간 fetch (raw URL, 세션 1회, 내장본 보강/교차검증)
+let liveMgrCache = null;
+let liveMgrPromise = null;
+const MGR_RAW_URL = "https://raw.githubusercontent.com/Comfy-Org/ComfyUI-Manager/main/model-list.json";
+
+async function fetchLiveManager() {
+  if (liveMgrCache) return liveMgrCache;
+  if (liveMgrPromise) return liveMgrPromise;
+  liveMgrPromise = (async () => {
+    try {
+      const res = await fetch(MGR_RAW_URL);
+      if (!res.ok) throw new Error(`${res.status}`);
+      const data = await res.json();
+      const map = {};
+      for (const m of (data.models || [])) {
+        const fn = m.filename || "";
+        if (!fn) continue;
+        const stem = fn.toLowerCase().replace(/\.[^.]+$/, "");
+        map[stem] = { url: m.url || "", folder: m.save_path || "", size: m.size || "", name: m.name || "" };
+      }
+      liveMgrCache = map;
+      return map;
+    } catch {
+      liveMgrCache = {};
+      return {};
+    }
+  })();
+  return liveMgrPromise;
+}
+
+async function liveModelInfo(file) {
+  const stem = file.replace(/\\/g, "/").split("/").pop().toLowerCase().replace(/\.[^.]+$/, "");
+  const live = await fetchLiveManager();
+  if (live[stem]) {
+    const m = live[stem];
+    return { url: m.url, exact: true, source: "manager_live", folder: m.folder, size_label: m.size, name: m.name };
+  }
+  return null;
+}
+
+// web_search로 모델 다운로드 URL 검색 (researchNode 패턴 확장)
+async function researchModel(filename) {
+  if (!AI_KEY) return { _noKey: true };
+  const prompt = `ComfyUI 모델 파일 "${filename}"의 다운로드 링크를 웹에서 찾아주세요.
+HuggingFace·GitHub·CivitAI 등에서 이 파일을 직접 다운로드할 수 있는 URL을 찾으세요.
+확실하지 않으면 솔직하게 found를 false로 하세요. 없는 URL을 지어내지 마세요.
+
+다음 JSON으로만 답하세요. 마크다운·코드펜스 없이 순수 JSON만:
+{
+  "found": true,
+  "url": "직접 다운로드 가능한 URL (찾았으면, 못 찾으면 빈 문자열)",
+  "folder": "ComfyUI models/ 아래 어디에 넣을지 (알면, 모르면 빈 문자열)",
+  "confidence": "high|mid|low"
+}`;
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-api-key": AI_KEY,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({
+      model: AI_MODEL,
+      max_tokens: 1024,
+      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+      messages: [{ role: "user", content: prompt }],
+    }),
+  });
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  const data = await res.json();
+  const textOut = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+  const clean = textOut.replace(/```json|```/g, "").trim();
+  const mm = clean.match(/\{[\s\S]*\}/);
+  return JSON.parse(mm ? mm[0] : clean);
+}
+
 // 에러 로그(텍스트)를 패턴 매칭해 진단 항목으로 변환 (룰 기반 v1.1 초기 버전, LLM 불필요)
 // report가 있으면 컨텍스트(노드명·pack)를 결합해 더 구체적인 제안을 붙인다.
 function analyzeLog(log, report) {
@@ -562,7 +646,8 @@ function buildPrescription(r, envGpu) {
       title: `양자화 비호환 ${qw.length}건 — 이 GPU에서 안 돌아갈 수 있음`,
       severity: "high",
       items: qw.map((w) => ({
-        action: `${w.file}: ${w.quant}은 ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "지원 안 됨" : "부분 지원(불안정)"} → ${w.alt}(으)로 교체하세요`,
+        file: w.file,
+        desc: `${w.quant}은 ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "지원 안 됨" : "부분 지원(불안정)"} → ${w.alt}(으)로 교체하세요`,
       })),
     });
   }
@@ -605,6 +690,65 @@ function buildPrescription(r, envGpu) {
 
 // 진단 결과(report)를 사람이 읽는 Markdown으로 변환 → 복기·기록용 .md 저장
 // (의존성 없이 순수 문자열 조립. 노션/GitHub에 그대로 붙여넣기 가능)
+// 처방 정보 → OS별 설치 스크립트 문자열. 확정 URL만 실행문, 미확인은 주석. (PRD_v1.1 §2)
+function buildInstallScript(report, envGpu, os) {
+  const isWin = os === "bat";
+  const L = [];
+  const cmt = isWin ? "REM" : "#";
+
+  L.push(isWin ? "@echo off" : "#!/bin/bash");
+  L.push(`${cmt} Teardown 설치 스크립트 — ${report.source}`);
+  L.push(`${cmt} 생성: ${new Date().toISOString().slice(0, 10)}`);
+  L.push(`${cmt} 주의: ComfyUI 루트에서 실행. 한 줄씩 확인 권장.`);
+  L.push("");
+
+  const repos = new Set();
+  for (const p of report.packs) if (!p.isCore && p.repo) repos.add(p.repo);
+  for (const u of report.unmapped) if (u.repo) repos.add(u.repo);
+  if (repos.size) {
+    L.push(`${cmt} === 커스텀 노드 ${repos.size}개 ===`);
+    L.push(isWin ? "cd custom_nodes" : "cd custom_nodes || exit 1");
+    for (const rp of repos) L.push(`git clone https://github.com/${rp}`);
+    L.push("cd ..");
+    L.push("");
+  }
+  const unknownNodes = report.unmapped.filter((u) => !u.repo).length;
+  if (unknownNodes) {
+    L.push(`${cmt} 출처 미상 노드 ${unknownNodes}개: Manager의 "Install Missing Custom Nodes"로 설치.`);
+    L.push("");
+  }
+
+  const dl = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)));
+  if (dl.length) {
+    L.push(`${cmt} === 모델 ${dl.length}개 ===`);
+    for (const m of dl) {
+      const info = m.compat;
+      const folder = (info && info.folder) || m.folder || "models";  // 이미 "models/checkpoints" 형태
+      const folderWin = folder.replace(/\//g, "\\");
+      const fname = m.file.replace(/\\/g, "/").split("/").pop();
+      if (info && info.exact && info.url) {
+        L.push(isWin ? `if not exist "${folderWin}" mkdir "${folderWin}"` : `mkdir -p "${folder}"`);
+        L.push(isWin
+          ? `curl -L -o "${folderWin}\\${fname}" "${info.url}"`
+          : `curl -L -o "${folder}/${fname}" "${info.url}"`);
+      } else {
+        L.push(`${cmt} [수동] ${fname} → ${folder} (URL 미확인. "이 모델 검색"으로 찾으세요)`);
+      }
+    }
+    L.push("");
+  }
+
+  const flash = report.portability.filter((h) => h.value === "flash_attn");
+  if (flash.length) {
+    L.push(`${cmt} === 환경 우회 (수동) ===`);
+    for (const h of flash) L.push(`${cmt} ${h.node}: attention을 flash_attn → sdpa 로 변경 (노드 설정 또는 코드).`);
+    L.push("");
+  }
+
+  L.push(`${cmt} 완료. ComfyUI 재시작 후 워크플로 로드.`);
+  return L.join(isWin ? "\r\n" : "\n");
+}
+
 function buildMarkdown(report, summary, rx) {
   const L = [];
   const now = new Date();
@@ -839,6 +983,7 @@ export default function Teardown() {
   const [err, setErr] = useState(null);
   const [drag, setDrag] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
+  const [scriptOs, setScriptOs] = useState(null); // null=숨김, "sh"|"bat"=표시
   const [open, setOpen] = useState({}); // 전부 기본 닫힘(스크롤 절약) — Solution/Findings/Inventory/AI 모두
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
@@ -946,6 +1091,34 @@ export default function Teardown() {
       setBriefingInfo({ lines, shots: errShots.length, chars: text.length });
       setBriefingBusy(false);
     }, 650);
+  };
+
+  // 3층: 실시간 Manager fetch 결과 (비동기 교차검증)
+  const [liveCompat, setLiveCompat] = useState({});  // { [filename]: { url, source:"manager_live", ... } }
+  useEffect(() => {
+    if (!report?.models?.length) return;
+    const unmatched = report.models.filter((m) => !m.compat);
+    if (unmatched.length === 0) return;
+    let cancelled = false;
+    (async () => {
+      const results = {};
+      for (const m of unmatched) {
+        const info = await liveModelInfo(m.file);
+        if (info) results[m.file] = info;
+      }
+      if (!cancelled && Object.keys(results).length > 0) setLiveCompat(results);
+    })();
+    return () => { cancelled = true; };
+  }, [report]);
+  const [modelResearch, setModelResearch] = useState({});
+  const researchUnknownModel = async (filename) => {
+    setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
+    try {
+      const r = await researchModel(filename);
+      setModelResearch((s) => ({ ...s, [filename]: { loading: false, result: r } }));
+    } catch (e) {
+      setModelResearch((s) => ({ ...s, [filename]: { loading: false, error: e.message || "조사 실패" } }));
+    }
   };
 
   // 모르는 노드 자동 조사 — 로컬에서 web_search로 출처·주의사항을 찾는다. 결과는 추후 정적 DB에 반영 후보.
@@ -1215,16 +1388,20 @@ export default function Teardown() {
                       {step.models && (
                         <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 8 }}>
                           {step.models.map((m, k) => {
-                            const hf = m.compat ? { url: m.compat.url, exact: true } : hfLink(m.file);
+                            const live = liveCompat[m.file];
+                            const eff = m.compat || live;
+                            const hf = eff ? { url: eff.url, exact: true } : hfLink(m.file);
+                            const src = eff?.source;
                             return (
                             <div key={k} style={{ background: C.surfaceHi, borderRadius: 10, padding: "14px 34px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
                               <div style={{ minWidth: 0, flex: 1 }}>
                                 <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
                                   <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 4 }} />
                                   <span style={{ fontFamily: MONO, fontSize: 20, color: C.text, overflowWrap: "anywhere" }}>{m.file}</span>
+                                  {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.7, flexShrink: 0, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
                                 </div>
                                 <div style={{ fontFamily: MONO, fontSize: 12, color: C.point, marginTop: 8, paddingLeft: 26 }}>{m.folder}</div>
-                                {m.compat && <div style={{ fontSize: 12, color: C.dim, marginTop: 5, paddingLeft: 26 }}>VRAM {m.compat.vram_gb} GB · {m.compat.size_gb} GB</div>}
+                                {eff?.vram_gb && <div style={{ fontSize: 12, color: C.dim, marginTop: 5, paddingLeft: 26 }}>VRAM {eff.vram_gb} GB · {eff.size_gb} GB</div>}
                                 {m.rename && <div style={{ fontSize: 12, color: C.amber, marginTop: 6, lineHeight: 1.4, paddingLeft: 26 }}>⤷ {m.rename}</div>}
                               </div>
                               {hf && <a className="td-hf" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>{hf.exact ? "HuggingFace에서 받기" : "HuggingFace에서 검색"} <ExternalLink size={12} /></a>}
@@ -1237,13 +1414,54 @@ export default function Teardown() {
                           {step.items.map((it, k) => (
                             <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.surfaceHi, borderRadius: 10, padding: "12px 14px" }}>
                               <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 3 }} />
-                              <span style={{ fontSize: 20, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.action}</span></div>))}
+                              {it.file ? (
+                                <div style={{ minWidth: 0, flex: 1 }}>
+                                  <div style={{ fontSize: 20, fontWeight: 600, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.file}</div>
+                                  <div style={{ fontSize: 20, fontWeight: 400, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere", marginTop: 4 }}>{it.desc}</div>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: 20, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.action}</span>
+                              )}</div>))}
                         </div>
                       )}
                     </div>}
                   </div>);
                 })}
               </div>
+            </div>
+          )}
+
+          {/* 설치 스크립트 생성 — Solution 아래, Findings 위 */}
+          {rx.length > 0 && (
+            <div style={{ marginTop: 24 }}>
+              <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
+                <button onClick={() => setScriptOs(scriptOs === "sh" ? null : "sh")}
+                  style={{ background: scriptOs === "sh" ? C.point : "transparent", color: scriptOs === "sh" ? INK : C.point, border: `1px solid ${C.point}`, borderRadius: 8, padding: "6px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Terminal size={14} />.sh (Mac/Linux)</button>
+                <button onClick={() => setScriptOs(scriptOs === "bat" ? null : "bat")}
+                  style={{ background: scriptOs === "bat" ? C.point : "transparent", color: scriptOs === "bat" ? INK : C.point, border: `1px solid ${C.point}`, borderRadius: 8, padding: "6px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                  <Terminal size={14} />.bat (Windows)</button>
+              </div>
+              {scriptOs && (() => {
+                const script = buildInstallScript(report, env.gpu, scriptOs);
+                const manualCount = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && !(m.compat && m.compat.exact && m.compat.url)).length;
+                const fname = `install.${scriptOs}`;
+                return (
+                <div style={{ marginTop: 12 }}>
+                  {manualCount > 0 && <div style={{ fontSize: 12, color: C.amber, marginBottom: 8 }}>⚠ URL 미확인 {manualCount}개는 주석 처리됨 — 직접 확인 필요.</div>}
+                  <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
+                    <div style={{ position: "absolute", top: 8, right: 8, display: "flex", gap: 6 }}>
+                      <button className="td-copy" onClick={() => copy(script, "script")} title="복사"
+                        style={{ background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
+                        {copiedKey === "script" ? <Check size={16} /> : <Copy size={16} />}</button>
+                      <button className="td-copy" onClick={() => downloadText(fname, script)} title="다운로드"
+                        style={{ background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
+                        <Download size={16} /></button>
+                    </div>
+                    <pre style={{ margin: 0, fontFamily: MONO, fontSize: 12, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 56 }}>{script}</pre>
+                  </div>
+                </div>);
+              })()}
             </div>
           )}
 
@@ -1390,14 +1608,25 @@ export default function Teardown() {
                 report.models.length === 0 ? <Empty text="참조된 모델 파일을 찾지 못했습니다." /> : (
                   <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
                     {report.models.map((m, i) => {
-                      const hf = m.compat ? { url: m.compat.url, exact: true } : hfLink(m.file);
+                      const live = liveCompat[m.file];
+                      const eff = m.compat || live;  // effective compat: 1·2층 → 3층(실시간) 폴백
+                      const hf = eff ? { url: eff.url, exact: true } : hfLink(m.file);
+                      const src = eff?.source;
+                      const mr = modelResearch[m.file];
                       return (
                       <div key={i} style={{ minHeight: 150, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                         <span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
                         <span style={{ fontFamily: SANS, fontSize: 14, color: /추정/.test(m.folder) ? C.green : C.point, opacity: /추정/.test(m.folder) ? 0.6 : 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
-                        {m.compat && <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>VRAM {m.compat.vram_gb} GB · {m.compat.size_gb} GB</span>}
+                        {eff?.vram_gb && <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>VRAM {eff.vram_gb} GB · {eff.size_gb} GB</span>}
                         {m.rename && <span style={{ fontSize: 12, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}
-                        {hf && <a className="td-hf-sm" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ marginTop: 20 }}>{hf.exact ? "다운로드" : "찾아보기"}</a>}
+                        {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : C.green, opacity: src === "curated" ? 1 : 0.8, marginTop: 6 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : "Manager"}</span>}
+                        {hf?.exact && <a className="td-hf-sm" href={hf.url} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>{src === "manager" || src === "manager_live" ? "Manager 링크" : "다운로드"}</a>}
+                        {!hf?.exact && !mr && AI_KEY && <button onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14, background: "none", border: `1px solid ${C.violet || C.point}`, borderRadius: 8, padding: "5px 12px", color: C.violet || C.point, fontSize: 12, fontFamily: SANS, cursor: "pointer" }}>이 모델 검색</button>}
+                        {!hf?.exact && !mr && !AI_KEY && <a className="td-hf-sm" href={hfLink(m.file)?.url || "#"} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>찾아보기</a>}
+                        {mr?.loading && <span style={{ fontSize: 12, color: C.dim, marginTop: 10 }}>검색 중…</span>}
+                        {mr?.result?.found && <a href={mr.result.url} target="_blank" rel="noopener noreferrer" style={{ marginTop: 10, fontSize: 12, color: C.violet || C.point, textDecoration: "underline" }}>{mr.result.url.length > 50 ? mr.result.url.slice(0, 50) + "…" : mr.result.url} · 검색됨</a>}
+                        {mr?.result && !mr.result.found && <span style={{ fontSize: 12, color: C.dim, marginTop: 10 }}>검색해도 못 찾음 — 직접 확인</span>}
+                        {mr?.error && <span style={{ fontSize: 12, color: C.amber, marginTop: 10 }}>조사 실패</span>}
                       </div>);
                     })}
                   </div>)

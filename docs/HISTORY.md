@@ -6,6 +6,43 @@
 
 ---
 
+## 2026-06-27 (버그수정: 설치 스크립트 models/ 경로 중복)
+**한 일**
+- buildInstallScript에서 models/ 접두사 제거 (folder가 이미 models/ 포함)
+- Windows용 folderWin 역슬래시 변환 추가
+
+## 2026-06-27 (C효용: 설치 스크립트 .sh/.bat 생성)
+**한 일**
+- buildInstallScript(report, envGpu, os) 함수: 처방→OS별 스크립트 문자열 생성
+- Solution 하단 ".sh (Mac/Linux)" / ".bat (Windows)" 토글 버튼 + 코드블록 표시
+- 확정 URL만 curl 실행문, 미확인은 주석 처리 (가짜 URL 0)
+- flash_attn 우회는 주석 안내만 (자동 실행 안 함)
+- 복사(Copy) + 다운로드(install.sh/install.bat) 동작
+- 미확인 모델 있으면 상단 경고 "URL 미확인 N개는 주석 처리됨"
+- npm run build 통과
+
+**어떻게**: buildPrescription 결과(report.packs/models/portability) 재사용. 새 데이터 수집 0.
+
+## 2026-06-27 (UI: 양자화 경고 카드 위계 분리)
+**한 일**
+- 양자화 경고 items에서 file/desc 분리 + 렌더에서 파일명(600) / 설명(400) 두 줄 표시
+- 색·크기·폰트 변경 없음. 기존 action 항목은 그대로 폴백.
+
+## 2026-06-27 (v2 5단계 — 데이터 소스 4층 통합)
+**한 일**
+- 4층 모델 조회 완성: curated(57) → Manager내장(498) → Manager실시간fetch → web_search
+- fetchLiveManager(): raw.githubusercontent.com에서 세션 1회 fetch, 캐시, 실패 시 조용히 폴백
+- liveModelInfo(): 1·2층 미매칭 모델을 3층(실시간)에서 비동기 보강
+- useEffect로 report 변경 시 unmatched 모델 자동 실시간 조회 → liveCompat 상태 갱신
+- 출처 뱃지 3종: "큐레이션"(C.point) / "Manager"(C.green dim) / "Manager(실시간)"(C.green)
+- researchModel() web_search + "이 모델 검색" 버튼(AI_KEY only, 4층)
+- Inventory·Solution 양쪽에서 liveCompat 교차 적용
+- npm run build 통과, 회귀 없음
+
+**어떻게**: fetchLiveManager 모듈스코프 캐시 + useEffect 비동기 트리거 + eff(=m.compat||live) 패턴으로 UI 통합.
+
+**다음 할 일**: git 커밋 + 실제 워크플로 JSON으로 실시간 매칭 확인 / C효용(설치 스크립트) 착수
+
 ## 2026-06-27 (v2 5단계 — 테스트 세트 양자화 진단 성공률 측정)
 **한 일**
 - 테스트 JSON 10개 전체로 양자화↔GPU 진단 정확도 측정 (env=RTX 3090 Ampere 기준)
