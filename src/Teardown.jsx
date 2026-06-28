@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, Boxes, ChevronRight, GitBranch,
   CircleAlert, Copy, Check, Plus, Minus, Download,
-  Terminal, ImagePlus, X, Loader2,
+  Terminal, ImagePlus, X, Loader2, FolderOpen,
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
@@ -1043,7 +1043,7 @@ function ggufLines(gguf) {
   if (gguf.node) L.push(`    - 필요 노드: ${gguf.node.name} (${gguf.node.repo})`);
   return L;
 }
-function buildMarkdown(report, summary, rx) {
+function buildMarkdown(report, summary, rx, env) {
   const L = [];
   const now = new Date();
   const stamp = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")} ${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
@@ -1138,6 +1138,22 @@ function buildMarkdown(report, summary, rx) {
   }
   L.push(``);
 
+  // 양자화 호환성 + GGUF 대체
+  const mdQw = quantWarnings(report.models, env?.gpu);
+  if (mdQw.length) {
+    L.push(`### 3. 양자화 호환성 (${mdQw.length})`);
+    for (const w of mdQw) L.push(`- \`${w.file}\`: ${w.quant} → ${GEN_LABEL[w.gen] || w.gen} ${w.support === false ? "미지원" : "부분지원"} → ${w.alt} 권장`);
+    const seen = new Set();
+    for (const w of mdQw) {
+      if (!w.gguf) continue;
+      const key = w.gguf.note;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      for (const ln of ggufLines(w.gguf)) L.push(ln);
+    }
+    L.push(``);
+  }
+
   // Inventory
   L.push(`## Inventory`);
   L.push(``);
@@ -1183,8 +1199,14 @@ function buildBriefing(report, errlog, env) {
   if (qw.length) {
     L.push(`## 이미 발견된 양자화 호환성 문제 (Teardown 룰)`);
     for (const w of qw) L.push(`- ${w.file}: ${w.quant} 형식 → ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "미지원" : "부분지원"} → ${w.alt} 권장`);
-    const bAlt = qw.find((w) => w.gguf)?.gguf;
-    if (bAlt) for (const ln of ggufLines(bAlt)) L.push(ln);
+    const seen = new Set();
+    for (const w of qw) {
+      if (!w.gguf) continue;
+      const key = w.gguf.note;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      for (const ln of ggufLines(w.gguf)) L.push(ln);
+    }
     L.push(``);
   }
   if (rx.length) {
@@ -1342,7 +1364,7 @@ export default function Teardown() {
   const copy = (text, key) => { navigator.clipboard?.writeText(text); setCopiedKey(key); setTimeout(() => setCopiedKey(null), 1500); };
   const saveReport = () => {
     if (!report) return;
-    const md = buildMarkdown({ ...report, errlog }, summary, rx);
+    const md = buildMarkdown({ ...report, errlog }, summary, rx, env);
     const safe = (report.source || "workflow").replace(/\.[^.]+$/, "").replace(/[^\w가-힣.-]+/g, "_").slice(0, 40);
     const d = new Date();
     const day = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
@@ -1623,9 +1645,33 @@ export default function Teardown() {
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>내 모델 루트 경로 (선택)</div>
                 <div style={{ fontSize: 12, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>워크플로에 하드코딩된 절대경로를 내 PC 경로로 치환해 보여줍니다.</div>
-                <input type="text" value={env.modelRoot} onChange={(e) => setEnv((p) => ({ ...p, modelRoot: e.target.value }))}
-                  placeholder="내 ComfyUI 루트 경로"
-                  style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
+                <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
+                  <input type="text" value={env.modelRoot} onChange={(e) => setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false }))}
+                    placeholder="내 ComfyUI 루트 경로"
+                    style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
+                  <button onClick={async () => {
+                    try {
+                      if (window.showDirectoryPicker) {
+                        const handle = await window.showDirectoryPicker();
+                        setEnv((p) => ({ ...p, modelRoot: handle.name, modelRootPartial: true }));
+                      } else {
+                        const input = document.createElement("input");
+                        input.type = "file"; input.webkitdirectory = true;
+                        input.onchange = () => {
+                          const f = input.files?.[0];
+                          if (f?.webkitRelativePath) {
+                            const root = f.webkitRelativePath.split("/")[0];
+                            if (root) setEnv((p) => ({ ...p, modelRoot: root, modelRootPartial: true }));
+                          }
+                        };
+                        input.click();
+                      }
+                    } catch { /* user cancelled */ }
+                  }} title="폴더 선택" style={{ background: C.surfaceHi, border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 9px", cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0 }}>
+                    <FolderOpen size={16} color={C.point} />
+                  </button>
+                </div>
+                {env.modelRootPartial && <div style={{ fontSize: 11, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>브라우저 보안상 전체 경로는 직접 입력해 주세요.</div>}
               </div>
 
               {/* ③ 명령어 안내 */}
@@ -1740,6 +1786,24 @@ export default function Teardown() {
                         <div style={{ marginTop: 14 }}>
                           <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요.</div>
 
+                          {/* custom_nodes 경로 안내 */}
+                          <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 16px", marginBottom: 12, fontSize: 12, color: C.dim, lineHeight: 1.6 }}>
+                            <div style={{ fontWeight: 650, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 빠르게 열기</div>
+                            <div style={{ marginBottom: 6 }}>파일탐색기 주소창에 아래 경로를 붙여넣으면 바로 열립니다.</div>
+                            {[
+                              { label: "Desktop 버전", path: "%LOCALAPPDATA%\\Comfy-Desktop\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\custom_nodes" },
+                              { label: "직접 설치", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
+                            ].map((p) => (
+                              <div key={p.label} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                                <span style={{ fontSize: 11, color: C.faint, flexShrink: 0, minWidth: 70 }}>{p.label}:</span>
+                                <code style={{ fontFamily: MONO, fontSize: 11.5, color: C.text, overflowWrap: "anywhere", flex: 1 }}>{p.path}</code>
+                                <button className="td-copy" onClick={() => copy(p.path, `cn-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                                  {copiedKey === `cn-${p.label}` ? <Check size={13} /> : <Copy size={13} />}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+
                           {/* 방법 A — 직접 */}
                           <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginBottom: 12 }}>
                             <div style={{ fontSize: 13, fontWeight: 700, color: C.point, marginBottom: 8 }}>방법 A — 직접</div>
@@ -1765,6 +1829,12 @@ export default function Teardown() {
                                 <Download size={14} /> install.sh (Mac/Linux)</button>
                             </div>
                             <div style={{ marginTop: 8, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>초보자는 이 방법 권장. 반드시 custom_nodes 폴더 안에서 실행하세요.</div>
+                            <div style={{ marginTop: 12, fontSize: 12, color: C.dim, lineHeight: 1.65, borderTop: `1px solid ${C.divider}`, paddingTop: 10 }}>
+                              <div style={{ fontWeight: 650, color: C.text, marginBottom: 4 }}>설치 확인하는 법</div>
+                              <div>· 실행하면 터미널에 "Cloning into …" 또는 "Successfully installed" 메시지가 뜹니다. 에러 시 빨간 글씨가 나옵니다.</div>
+                              <div>· 가장 확실한 확인: ComfyUI를 완전히 재시작한 뒤 워크플로를 다시 로드해서 빨간 노드가 사라졌는지 보세요. 빨간 노드가 없어졌으면 설치 성공.</div>
+                              <div style={{ color: C.faint }}>· 설치했는데도 빨간 노드가 남아 있으면 → custom_nodes 폴더 안에 해당 노드 폴더가 실제로 생겼는지 확인하세요.</div>
+                            </div>
                           </div>
 
                           {step.installNotes && (
@@ -1908,7 +1978,10 @@ export default function Teardown() {
           <div style={{ marginTop: 44, paddingBottom: 48 }}>
             <SectionTitle>Findings</SectionTitle>
 
-            {/* 0 깨진 노드 — type이 null인 노드. 있을 때만 표시. 빨간 경고. */}
+            {/* ── 문제 블록: 번호 1,2,3 동적. 펼친 상태로 또렷하게. ── */}
+            {(() => { let fnum = 0; return (<>
+
+            {/* 깨진 노드 — type이 null인 노드. 있을 때만 표시. 빨간 경고. */}
             {report.broken?.length > 0 && (
             <div style={{ borderTop: "none", paddingTop: 0 }}>
               <BlockHead num="!" label="깨진 노드" count={report.broken.length} open={open.fb} onToggle={() => toggle("fb")}
@@ -1924,9 +1997,9 @@ export default function Teardown() {
               )}</div>
             </div>)}
 
-            {report.anomalous?.length > 0 && (
+            {report.anomalous?.length > 0 && (() => { fnum++; return (
             <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 32 : 0 }}>
-              <BlockHead num="1" label="이상 노드" count={report.anomalous.length} open={open.fa} onToggle={() => toggle("fa")}
+              <BlockHead num={String(fnum)} label="이상 노드" count={report.anomalous.length} open={open.fa} onToggle={() => toggle("fa")}
                 role="type이 정상 노드 이름이 아니라 UUID 형태입니다. 노드 정의 누락·내보내기 오류일 수 있어 점검 대상입니다." />
               <div style={{ marginTop: open.fa ? 32 : 0, paddingBottom: open.fa ? 36 : 36 }}>{open.fa && (
                 <div style={{ display: "flex", flexDirection: "column" }}>
@@ -1937,12 +2010,12 @@ export default function Teardown() {
                     </div>))}
                 </div>
               )}</div>
-            </div>)}
+            </div>); })()}
 
-            {/* 1 이식 위험 값 — Findings 제목 바로 아래 구분선 제거(borderTop 없음, 깨진 노드 있으면 구분선 추가)
-                간격 규칙: 제목↔내용 60(상단 marginTop) / 내용↔다음 순번 60(하단 paddingBottom). 모든 블록 동일. */}
+            {/* 이식 위험 값 — 간격 규칙: 제목↔내용 60(상단 marginTop) / 내용↔다음 순번 60(하단 paddingBottom). 모든 블록 동일. */}
+            {(() => { fnum++; return (
             <div style={{ borderTop: (report.broken?.length || report.anomalous?.length) ? `1px solid ${C.divider}` : "none", paddingTop: (report.broken?.length || report.anomalous?.length) ? 32 : 0 }}>
-              <BlockHead num={report.anomalous?.length ? "2" : "1"} label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
+              <BlockHead num={String(fnum)} label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
                 role="이 값들은 당신 PC로 옮기면 안 맞을 수 있어요. 제작자 PC의 절대경로는 무시하고 당신 폴더 기준으로 보면 되고, 입력 파일은 다시 넣으면 됩니다." />
               <div style={{ marginTop: open.f1 ? 32 : 0, paddingBottom: open.f1 ? 36 : 36 }}>{open.f1 && (
                 report.portability.length === 0 ? <Empty text="이식 시 깨질 위험 값이 없습니다." /> : (
@@ -1965,11 +2038,12 @@ export default function Teardown() {
                     })}
                   </div>)
               )}</div>
-            </div>
+            </div>); })()}
 
-            {/* 2 패키지 · 버전 — 간격 규칙 동일(상단 60 / 하단 60) */}
+            {/* 패키지 · 버전 — 간격 규칙 동일(상단 60 / 하단 60) */}
+            {(() => { fnum++; return (
             <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
-              <BlockHead num={report.anomalous?.length ? "3" : "2"} label="패키지 · 버전" count={report.packs.length} open={open.f2} onToggle={() => toggle("f2")}
+              <BlockHead num={String(fnum)} label="패키지 · 버전" count={report.packs.length} open={open.f2} onToggle={() => toggle("f2")}
                 role="이 워크플로가 쓰는 노드팩과 기록된 버전입니다. 처방 1단계(설치)에 들어갈 저장소의 근거입니다." />
               <div style={{ marginTop: open.f2 ? 32 : 0, paddingBottom: open.f2 ? 36 : 36 }}>{open.f2 && (<>
                 <div style={{ display: "flex", flexDirection: "column" }}>
@@ -2029,11 +2103,12 @@ export default function Teardown() {
                       </div>))}
                   </div>)}
               </>)}</div>
-            </div>
+            </div>); })()}
 
-            {/* ── 위는 문제, 아래부터 전체 현황(참고). 구분선으로 한 흐름 안에서 분리 ── */}
-            {/* 모델 · 자산 인벤토리 — Inventory를 Findings로 통합. 문제 영역과 굵은 구분선으로 구획. */}
-            <div style={{ borderTop: `2px solid ${C.divider}`, marginTop: 40, paddingTop: 28 }}>
+            </>); })()}
+
+            {/* ── 참고 토글: 모델 인벤토리 + 비활성 노드를 접힌 토글 하나로 ── */}
+            <div style={{ marginTop: 40, paddingTop: 28 }}>
               <button onClick={() => toggle("inv")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", background: C.surfaceHi, border: `1px solid ${C.line}`, borderRadius: 12, padding: "16px 20px", cursor: "pointer" }}>
                 <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.text }}>전체 현황 보기 <span style={{ fontWeight: 400, color: C.faint, fontSize: 13.5 }}>(모델 {report.models.length} · 비활성 {report.muted.length})</span></span>
                 {open.inv ? <Minus size={20} color={C.faint} /> : <Plus size={20} color={C.faint} />}
