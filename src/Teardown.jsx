@@ -335,19 +335,34 @@ function normalize(wf) {
   }
   return null;
 }
+// 노드 타입 → 모델 폴더 매핑 (ComfyUI 표준). 노드가 로드하는 위치가 곧 정답.
+const NODE_FOLDER_MAP = [
+  [/CLIPLoader|DualCLIPLoader|TripleCLIPLoader/i, "models/text_encoders"],
+  [/UNETLoader|UnetLoader/i, "models/unet"],
+  [/VAELoader/i, "models/vae"],
+  [/LoraLoader/i, "models/loras"],
+  [/LatentUpscaleModelLoader/i, "models/latent_upscale_models"],
+  [/UpscaleModelLoader/i, "models/upscale_models"],
+  [/ControlNetLoader|ControlNetApply/i, "models/controlnet"],
+  [/CheckpointLoader|CheckpointSave/i, "models/checkpoints"],
+  [/StyleModelLoader/i, "models/style_models"],
+  [/GLIGENLoader/i, "models/gligen"],
+  [/HypernetworkLoader/i, "models/hypernetworks"],
+  [/motion|dit|hymotion/i, "models/hymotion"],
+];
+function folderByNodeType(type) {
+  if (!type) return null;
+  for (const [re, folder] of NODE_FOLDER_MAP) if (re.test(type)) return folder;
+  return null;
+}
 function guessFolder(file, type) {
+  // 1. 노드 타입 기준 (ComfyUI 표준 — 확정)
+  const byNode = folderByNodeType(type);
+  if (byNode) return byNode;
+  // 2. 파일 확장자/이름 보조 (노드 타입으로 못 잡을 때만)
   const f = file.toLowerCase(), ext = "." + f.split(".").pop();
   if ([".glb",".fbx",".obj",".vrm",".gltf"].includes(ext)) return "3D 메시·리그 입출력 자산";
-  if (f.includes("clip")) return "models/text_encoders";
-  if (f.includes("vae")) return "models/vae";
-  if (f.includes("lora")) return "models/loras";
-  if (f.includes("control")) return "models/controlnet";
-  if (ext === ".gguf") return "models/text_encoders";
   if (ext === ".onnx") return "models/onnx";
-  if ([".ckpt",".safetensors",".pt",".pth",".bin"].includes(ext)) {
-    if (/motion|dit|hymotion/i.test(type)) return "models/hymotion";
-    return "models/checkpoints";
-  }
   return "확인 필요";
 }
 // 절대경로 판정: Windows 드라이브(X:\) 또는 Unix 절대경로(/dir/...). rewritePath와 같은 기준.
@@ -688,196 +703,6 @@ HuggingFace·GitHub·CivitAI 등에서 이 파일을 직접 다운로드할 수 
 
 // 에러 로그(텍스트)를 패턴 매칭해 진단 항목으로 변환 (룰 기반 v1.1 초기 버전, LLM 불필요)
 // report가 있으면 컨텍스트(노드명·pack)를 결합해 더 구체적인 제안을 붙인다.
-function analyzeLog(log, report) {
-  if (!log || !log.trim()) return [];
-  const text = log;
-  const low = text.toLowerCase();
-  const found = [];
-  const has = (re) => re.test(text);
-
-  // 1) ModuleNotFoundError / ImportError — 빠진 패키지
-  const modMatches = [...text.matchAll(/(?:ModuleNotFoundError|ImportError)[^\n]*?No module named ['"]([\w.]+)['"]/g)];
-  const mods = [...new Set(modMatches.map((m) => m[1].split(".")[0]))];
-  for (const mod of mods) {
-    // 특수 케이스: flash_attn은 빌드가 까다로워 별도 안내
-    if (/flash[_-]?attn/i.test(mod)) {
-      found.push({
-        key: `mod-flash`, sev: "high", title: "flash_attn 모듈이 설치되지 않음",
-        cause: "flash-attn은 CUDA 빌드가 필요해 Windows·일부 환경에서 설치가 자주 실패합니다.",
-        fixes: [
-          "우선 설치 시도: pip install flash-attn --no-build-isolation",
-          "설치가 계속 막히면 해당 노드의 attention 옵션을 flash_attn → sdpa(또는 pytorch)로 변경",
-        ],
-        command: "pip install flash-attn --no-build-isolation",
-      });
-    } else {
-      found.push({
-        key: `mod-${mod}`, sev: "high", title: `파이썬 모듈 없음: ${mod}`,
-        cause: `의존 패키지 ${mod} 가 현재 파이썬 환경에 설치되어 있지 않습니다.`,
-        fixes: [
-          `해당 노드팩 폴더의 requirements.txt 설치: pip install -r requirements.txt`,
-          `또는 개별 설치: pip install ${mod}`,
-        ],
-        command: `pip install ${mod}`,
-      });
-    }
-  }
-
-  // 2) CUDA out of memory
-  if (has(/CUDA out of memory|OutOfMemoryError|CUDA error: out of memory/i)) {
-    const want = (text.match(/Tried to allocate\s+([\d.]+\s*[MG]iB)/i) || [])[1];
-    found.push({
-      key: "oom", sev: "high", title: "CUDA 메모리 부족 (VRAM OOM)",
-      cause: `GPU VRAM이 모델·해상도를 감당하지 못했습니다${want ? ` (할당 시도: ${want})` : ""}.`,
-      fixes: [
-        "해상도·배치 크기·프레임 수를 낮추기",
-        "VRAM 정리 노드(VRAMCleanup 등)를 중간에 배치하거나, 모델을 단계별로 언로드",
-        "가능하면 fp16/bf16·양자화(GGUF) 모델 사용으로 메모리 절감",
-        "다른 프로세스가 VRAM을 점유 중인지 확인(nvidia-smi)",
-      ],
-    });
-  }
-
-  // 2-b) xformers 미설치/불일치 — flash_attn과 유사한 어텐션 라이브러리
-  if (has(/No module named ['"]xformers['"]|xformers.*not (?:installed|available)|WARNING.*xformers|Cannot import xformers/i)) {
-    found.push({
-      key: "xformers", sev: "mid", title: "xformers 미설치·비호환",
-      cause: "xformers는 torch 버전에 맞는 휠이 필요해, 버전이 엇갈리면 import가 실패합니다.",
-      fixes: [
-        "현재 torch에 맞는 xformers 설치: pip install -U xformers --index-url https://download.pytorch.org/whl/cu121",
-        "설치가 계속 막히면 해당 노드의 attention을 sdpa(또는 pytorch)로 변경 — xformers 없이도 동작",
-      ],
-      command: "pip install -U xformers --index-url https://download.pytorch.org/whl/cu121",
-    });
-  }
-
-  // 2-c) numpy 2.x ABI 충돌 — 컴파일된 패키지와 numpy 2.x 호환성 깨짐
-  if (has(/numpy\.dtype size changed|_ARRAY_API not found|A module that was compiled using NumPy 1\.x|numpy\.core\.multiarray failed to import/i)) {
-    found.push({
-      key: "numpy2", sev: "mid", title: "NumPy 2.x ABI 충돌",
-      cause: "NumPy 1.x로 빌드된 패키지가 설치된 NumPy 2.x와 충돌합니다. 많은 ComfyUI 노드가 아직 numpy<2 전제입니다.",
-      fixes: [
-        "numpy를 1.x로 다운그레이드: pip install \"numpy<2\"",
-        "이후에도 남으면 해당 패키지를 numpy 2.x 호환 버전으로 업데이트",
-      ],
-      command: "pip install \"numpy<2\"",
-    });
-  }
-
-  // 3) torch / CUDA 버전 불일치
-  if (has(/The detected CUDA version|CUDA version.*mismatch|not compatible with the current PyTorch|requires CUDA/i) ||
-      (has(/torch/i) && has(/CUDA capability|sm_\d+|kernel image/i))) {
-    found.push({
-      key: "torch-cuda", sev: "mid", title: "PyTorch — CUDA 버전 불일치",
-      cause: "설치된 torch가 현재 GPU·CUDA 드라이버와 맞지 않습니다.",
-      fixes: [
-        "GPU에 맞는 CUDA 빌드의 torch 설치 (예: cu121). https://pytorch.org/get-started/locally 참고",
-        "nvidia-smi로 드라이버 CUDA 버전 확인 후 맞는 휠 설치",
-      ],
-    });
-  }
-
-  // 4) 가중치 파일 로드 — 경로/파일 없음
-  if (has(/FileNotFoundError|No such file or directory|Error\(s\) in loading state_dict|size mismatch for/i)) {
-    found.push({
-      key: "weights", sev: "mid", title: "모델·가중치 로드 실패",
-      cause: "참조하는 파일이 없거나 경로·이름이 맞지 않거나, 다른 버전의 가중치입니다.",
-      fixes: [
-        "Inventory·Solution의 모델 경로·리네임 안내를 따라 파일명·위치 확인",
-        "size mismatch면 모델 버전이 다른 경우니 워크플로에 맞는 체크포인트를 받기",
-      ],
-    });
-  }
-
-  // 4-b) 텐서 shape 불일치 — 해상도·차원 불일치
-  if (has(/Sizes of tensors must match|mat1 and mat2 shapes cannot be multiplied|The size of tensor a \(\d+\) must match|Expected.*dimension|RuntimeError:.*shape/i)) {
-    found.push({
-      key: "shape", sev: "mid", title: "텐서 shape 불일치",
-      cause: "노드 간 입·출력 텐서 차원이 안 맞습니다. 해상도·채널 수·모델 조합이 원인일 때가 많습니다.",
-      fixes: [
-        "해상도를 모델 권장값(예: 8의 배수)으로 맞추기",
-        "서로 다른 모델·인코더를 섞은 경우 호환되는 쌍으로 교체(예: VAE·CLIP 버전 일치)",
-      ],
-    });
-  }
-
-  // 4-c) 노드 미등록(설치 안 됨) — report.packs와 교차해 어떤 pack인지 연결
-  {
-    const nodeMatches = [...text.matchAll(/(?:was not found|does not exist|Cannot (?:find|execute) node|Node type ['"]?([\w.]+)['"]?(?: was)? not found)/gi)];
-    const missingTypes = [...new Set([
-      ...nodeMatches.map((m) => m[1]).filter(Boolean),
-      ...[...text.matchAll(/['"]([A-Z][\w]+)['"] was not found/g)].map((m) => m[1]),
-    ])];
-    if (has(/was not found|node type.*not found|Cannot find reference|When loading the graph/i)) {
-      // report가 있으면 node_repo_map으로 정확한 repo 안내
-      const ctx = [];
-      if (report) {
-        for (const t of missingTypes) {
-          const u = report.unmapped?.find((x) => x.type === t);
-          if (u && u.clone_url) ctx.push(`${t} → git clone ${u.clone_url}`);
-          else if (u && u.repo) ctx.push(`${t} → ${u.repo}에서 설치`);
-        }
-      }
-      found.push({
-        key: "missing-node", sev: "high", title: "설치되지 않은 노드가 있음" + (missingTypes.length ? `: ${missingTypes.slice(0, 4).join(", ")}` : ""),
-      cause: "워크플로가 참조하는 커스텀 노드가 현재 컴파일에 설치되어 있지 않습니다.",
-        fixes: [
-          "ComfyUI-Manager → Install Missing Custom Nodes 실행",
-          ...(ctx.length ? ctx : ["Solution의 커스텀 노드 설치 단계에서 clone URL 확인"]),
-        ],
-      });
-    }
-  }
-
-  // 4-d) HuggingFace 다운로드 실패 — 토큰·gated repo
-  if (has(/401 Client Error|403 Client Error|Repository Not Found|Cannot access gated repo|GatedRepoError|Invalid user token|Unauthorized.*huggingface/i)) {
-    found.push({
-      key: "hf-auth", sev: "mid", title: "HuggingFace 다운로드 권한 실패",
-      cause: "비공개(gated) 모델이거나, HF 토큰이 없거나 해당 모델 약관에 동의하지 않은 상태입니다.",
-      fixes: [
-        "HF 페이지에서 모델 약관 동의(Agree) 후 재시도",
-        "토큰 로그인: huggingface-cli login (또는 HF_TOKEN 환경변수 설정)",
-      ],
-      command: "huggingface-cli login",
-    });
-  }
-
-  // 4-e) AttributeError — 노드팩·의존 라이브러리 버전 불일치 신호(구체 원인은 불확실 → sev low)
-  if (has(/AttributeError: (?:module ['"][\w.]+['"] has no attribute|['"]?\w+['"]? object has no attribute)/i)) {
-    const attr = (text.match(/has no attribute ['"]([\w]+)['"]/) || [])[1];
-    found.push({
-      key: "attr", sev: "low", title: "AttributeError — 노드팩 버전 불일치 가능성" + (attr ? ` (${attr})` : ""),
-      cause: "코드가 기대한 속성이 없습니다. 노드팩·의존 라이브러리 버전이 서로 안 맞을 때 자주 나타납니다.",
-      fixes: [
-        "해당 노드팩을 최신으로 업데이트(git pull) 후 ComfyUI 재시작",
-        "그래도 남으면 Traceback 최하단의 파일·줄을 근거로 해당 pack의 issues 검색",
-      ],
-    });
-  }
-
-  // report 컨텍스트 결합: 로그에 flash_attn 언급 + 워크플로에도 flash_attn이 있으면 연결 멘트
-  if (report && found.some((f) => f.key === "mod-flash")) {
-    const hit = report.portability?.find((h) => h.value === "flash_attn");
-    if (hit) {
-      const f = found.find((x) => x.key === "mod-flash");
-      f.fixes.push(`이 워크플로의 ${hit.node} 노드가 flash_attn을 쓰고 있습니다 — 여기서 sdpa로 바꾸면 해결됩니다.`);
-    }
-  }
-
-  // 탐지된 게 없고 로그는 있는 경우
-  if (found.length === 0) {
-    found.push({
-      key: "unknown", sev: "low", title: "알려진 패턴과 일치하는 오류를 찾지 못함",
-      cause: "현재 룰(v1.1 초기)이 인식하는 패턴(ModuleNotFound·flash_attn·xformers·numpy 2.x·CUDA OOM·torch·cuda 불일치·가중치·shape·미등록 노드·HF 권한)과 달라요.",
-      fixes: [
-        "에러의 마지막 줄(Traceback 최하단)을 중심으로 메시지를 확인하세요.",
-        "이 유형의 정밀 진단은 v1.1 AI 진단(LLM)에서 다룰 예정입니다.",
-      ],
-    });
-  }
-  return found;
-}
-
 // 분석 결과(report)를 순서 있는 "처방" 액션으로 변환 (룰 기반, LLM 불필요)
 function buildPrescription(r, envGpu) {
   const steps = [];
@@ -1786,22 +1611,24 @@ export default function Teardown() {
                         <div style={{ marginTop: 14 }}>
                           <div style={{ fontSize: 13, color: C.text, fontWeight: 600, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요.</div>
 
-                          {/* custom_nodes 경로 안내 */}
+                          {/* custom_nodes 경로 안내 — OS/설치유형별 */}
                           <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 16px", marginBottom: 12, fontSize: 12, color: C.dim, lineHeight: 1.6 }}>
-                            <div style={{ fontWeight: 650, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 빠르게 열기</div>
-                            <div style={{ marginBottom: 6 }}>파일탐색기 주소창에 아래 경로를 붙여넣으면 바로 열립니다.</div>
+                            <div style={{ fontWeight: 650, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
+                            <div style={{ marginBottom: 8 }}>내 설치 유형에 맞는 경로를 탐색기/터미널 주소창에 붙여넣으세요.</div>
                             {[
-                              { label: "Desktop 버전", path: "%LOCALAPPDATA%\\Comfy-Desktop\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\custom_nodes" },
-                              { label: "직접 설치", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
+                              { os: "Windows", label: "Desktop 앱", path: "%LOCALAPPDATA%\\Comfy-Desktop\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\custom_nodes" },
+                              { os: "Windows", label: "Portable/일반", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
+                              { os: "macOS/Linux", label: "일반 설치", path: "~/ComfyUI/custom_nodes" },
                             ].map((p) => (
-                              <div key={p.label} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
-                                <span style={{ fontSize: 11, color: C.faint, flexShrink: 0, minWidth: 70 }}>{p.label}:</span>
+                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 6 }}>
+                                <span style={{ fontSize: 10.5, color: C.faint, flexShrink: 0, minWidth: 110 }}>{p.os} · {p.label}:</span>
                                 <code style={{ fontFamily: MONO, fontSize: 11.5, color: C.text, overflowWrap: "anywhere", flex: 1 }}>{p.path}</code>
-                                <button className="td-copy" onClick={() => copy(p.path, `cn-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                  {copiedKey === `cn-${p.label}` ? <Check size={13} /> : <Copy size={13} />}
+                                <button className="td-copy" onClick={() => copy(p.path, `cn-${p.os}-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                                  {copiedKey === `cn-${p.os}-${p.label}` ? <Check size={13} /> : <Copy size={13} />}
                                 </button>
                               </div>
                             ))}
+                            <div style={{ marginTop: 8, fontSize: 11, color: C.faint, lineHeight: 1.5 }}>macOS/Linux Desktop 앱은 설치 경로가 다를 수 있습니다 — 앱 설정에서 ComfyUI 경로를 확인하세요.</div>
                           </div>
 
                           {/* 방법 A — 직접 */}
@@ -1870,6 +1697,11 @@ export default function Teardown() {
                               ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
                               : <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 10 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""}</div>;
                           })()}
+                          {(() => {
+                            // 양자화 비호환 모델 lookup (파일명 → warning+gguf)
+                            const qwMap = {};
+                            for (const w of quantWarnings(report.models, env.gpu)) qwMap[w.file.toLowerCase()] = w;
+                            return (
                           <div style={{ background: C.surfaceHi, borderRadius: 12, overflow: "hidden" }}>
                             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "11px 20px", borderBottom: `1px solid ${C.divider}` }}>
                               {["받을 파일", "어디에 둘지", "정상 용량", "받기"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: "0.03em" }}>{h}</span>)}
@@ -1885,26 +1717,30 @@ export default function Teardown() {
                               const dest = (env.modelRoot && rewritePath(m.file, env.modelRoot)) || m.folder;
                               const al = modelAliasInfo(m.file);
                               const have = haveModels.has(m.file);
-                              return (
-                              <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 20px", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : 1 }}>
+                              const qwHit = qwMap[m.file.toLowerCase()];
+                              return (<React.Fragment key={k}>
+                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 20px", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : qwHit ? 0.5 : 1 }}>
                                 <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontFamily: MONO, fontSize: 14.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
-                                  {src && <span style={{ fontFamily: SANS, fontSize: 10.5, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
+                                  <div style={{ fontFamily: MONO, fontSize: 14.5, color: qwHit ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
+                                  {qwHit && <span style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.red }}>⚠ 이 GPU에선 안 돌 수 있음</span>}
+                                  {src && !qwHit && <span style={{ fontFamily: SANS, fontSize: 10.5, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
                                   {m.rename && <div style={{ fontSize: 11.5, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>⤷ {m.rename}</div>}
                                   {al && <div style={{ fontSize: 11.5, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>다른 이름: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div>}
                                 </div>
-                                <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 12, color: C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{dest}</div>
+                                <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 12, color: qwHit ? C.faint : C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{dest}</div>
                                 <div style={{ minWidth: 0 }}>
                                   {sz ? (
                                     <>
-                                      <div style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 700, color: C.text }}>{sz}</div>
-                                      <div style={{ fontSize: 10.5, color: C.faint, marginTop: 3, lineHeight: 1.4 }}>받은 뒤 이 용량과 비교 — 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운</div>
+                                      <div style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 700, color: qwHit ? C.faint : C.text }}>{sz}</div>
+                                      {!qwHit && <div style={{ fontSize: 10.5, color: C.faint, marginTop: 3, lineHeight: 1.4 }}>받은 뒤 이 용량과 비교 — 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운</div>}
                                     </>
                                   ) : <span style={{ fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>}
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
                                   {have ? (
                                     <button onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.green, background: "transparent", border: `1px solid ${C.green}55`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>✓ 있음 (취소)</button>
+                                  ) : qwHit?.gguf ? (
+                                    <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.faint }}>원본 (이 GPU 비권장)</span>
                                   ) : (
                                     <>
                                       {dlUrl ? (
@@ -1924,9 +1760,26 @@ export default function Teardown() {
                                     </>
                                   )}
                                 </div>
-                              </div>);
+                              </div>
+                              {/* GGUF 대체 행 — 비호환 모델 바로 아래 */}
+                              {qwHit?.gguf && (qwHit.gguf.components || []).map((comp) => comp.files.map((gf, gi) => (
+                                <div key={`gguf-${k}-${comp.role}-${gi}`} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "10px 20px", alignItems: "start", background: "rgba(244,255,117,0.04)", borderTop: `1px solid ${C.divider}` }}>
+                                  <div style={{ minWidth: 0 }}>
+                                    <div style={{ fontFamily: MONO, fontSize: 13.5, color: C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{gf.name}</div>
+                                    <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.point }}>대신 받기 · {comp.role}</span>
+                                    {gf.note && <div style={{ fontSize: 10.5, color: C.dim, marginTop: 2 }}>{gf.note}</div>}
+                                  </div>
+                                  <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 12, color: C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{comp.folder}</div>
+                                  <div style={{ minWidth: 0 }}>
+                                    {gf.size ? <div style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 700, color: C.text }}>{gf.size}</div> : <span style={{ fontSize: 12, color: C.faint }}>—</span>}
+                                  </div>
+                                  <div><a className="td-hf" href={gf.url} target="_blank" rel="noopener noreferrer">받기</a></div>
+                                </div>
+                              )))}
+                              </React.Fragment>);
                             })}
-                          </div>
+                          </div>);
+                          })()}
                           {step.integrity && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 12.5, color: C.text, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>

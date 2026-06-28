@@ -105,6 +105,72 @@
       "check": "제작자 메모의 'divisible by N' 규칙과 현재 입력값 비교.",
       "verified_on": "2026-06-28",
       "source": "empirical"
+    },
+    {
+      "id": "module_flash_attn",
+      "match": ["No module named 'flash_attn'", "flash_attn", "flash-attn"],
+      "category": "설치",
+      "symptom": "flash_attn 모듈이 없다는 에러. 워크플로의 attention 옵션이 flash_attn으로 되어 있을 때.",
+      "cause": "flash-attn은 CUDA 빌드가 필요해 Windows·일부 환경에서 설치가 자주 실패합니다.",
+      "fix": "1) pip install flash-attn --no-build-isolation 시도 2) 설치 실패 시 해당 노드의 attention 옵션을 flash_attn → sdpa(또는 pytorch)로 변경",
+      "check": "sdpa로 바꾼 뒤 정상 실행되면 flash_attn 없이도 됩니다.",
+      "verified_on": "2026-06-28",
+      "source": "analyzeLog_migration"
+    },
+    {
+      "id": "module_xformers",
+      "match": ["No module named 'xformers'", "xformers", "Cannot import xformers"],
+      "category": "설치",
+      "symptom": "xformers 미설치 또는 torch 버전과 불일치.",
+      "cause": "xformers는 torch 버전에 맞는 휠이 필요해, 버전이 엇갈리면 import가 실패합니다.",
+      "fix": "1) pip install -U xformers --index-url https://download.pytorch.org/whl/cu121 2) 설치 실패 시 attention을 sdpa로 변경 — xformers 없이도 동작",
+      "check": "sdpa로 바꿔서 실행되면 xformers는 불필요.",
+      "verified_on": "2026-06-28",
+      "source": "analyzeLog_migration"
+    },
+    {
+      "id": "numpy2_abi",
+      "match": ["numpy.dtype size changed", "_ARRAY_API not found", "compiled using NumPy 1.x", "numpy.core.multiarray failed to import"],
+      "category": "설치",
+      "symptom": "NumPy 관련 ABI 충돌 에러. import 시 dtype/multiarray 실패.",
+      "cause": "NumPy 1.x로 빌드된 패키지가 설치된 NumPy 2.x와 충돌. 많은 ComfyUI 노드가 아직 numpy<2 전제.",
+      "fix": "1) pip install \"numpy<2\" 로 다운그레이드 2) 그래도 남으면 해당 패키지를 numpy 2.x 호환 버전으로 업데이트",
+      "check": "python -c \"import numpy; print(numpy.__version__)\" — 2.x면 다운그레이드 시도.",
+      "verified_on": "2026-06-28",
+      "source": "analyzeLog_migration"
+    },
+    {
+      "id": "torch_cuda_mismatch",
+      "match": ["detected CUDA version", "CUDA version", "not compatible with the current PyTorch", "requires CUDA", "CUDA capability", "no kernel image"],
+      "category": "설치",
+      "symptom": "PyTorch와 CUDA 버전 불일치. torch import 또는 실행 시 에러.",
+      "cause": "설치된 torch가 현재 GPU·CUDA 드라이버와 맞지 않습니다.",
+      "fix": "1) nvidia-smi로 드라이버 CUDA 버전 확인 2) https://pytorch.org/get-started/locally 에서 GPU에 맞는 CUDA 빌드의 torch 설치 (예: cu121)",
+      "check": "python -c \"import torch; print(torch.__version__, torch.version.cuda)\" — CUDA 버전이 nvidia-smi와 호환되는지 확인.",
+      "verified_on": "2026-06-28",
+      "source": "analyzeLog_migration"
+    },
+    {
+      "id": "hf_auth_failure",
+      "match": ["401 Client Error", "403 Client Error", "Repository Not Found", "Cannot access gated repo", "GatedRepoError", "Unauthorized"],
+      "category": "다운로드",
+      "symptom": "HuggingFace에서 모델 다운로드 시 401/403/Gated 에러.",
+      "cause": "비공개(gated) 모델이거나, HF 토큰이 없거나 해당 모델 약관에 동의하지 않은 상태.",
+      "fix": "1) HF 모델 페이지에서 약관 동의(Agree) 후 재시도 2) huggingface-cli login (또는 HF_TOKEN 환경변수 설정)",
+      "check": "브라우저에서 해당 모델 페이지 접속 → 'Agree' 버튼이 있으면 누르기.",
+      "verified_on": "2026-06-28",
+      "source": "analyzeLog_migration"
+    },
+    {
+      "id": "weights_load_failure",
+      "match": ["FileNotFoundError", "No such file or directory", "Error(s) in loading state_dict", "size mismatch for"],
+      "category": "로드",
+      "symptom": "모델·가중치 파일을 못 찾거나, 찾았는데 구조가 안 맞아 로드 실패.",
+      "cause": "파일이 없거나 경로·이름이 틀리거나, 다른 버전의 가중치(체크포인트 구조 불일치).",
+      "fix": "1) Solution의 모델 경로·리네임 안내로 파일명·위치 확인 2) size mismatch면 모델 버전이 다르므로 워크플로에 맞는 정확한 체크포인트 재다운로드",
+      "check": "에러 메시지의 파일 경로가 실제로 존재하는지, 용량이 정상인지 확인.",
+      "verified_on": "2026-06-28",
+      "source": "analyzeLog_migration"
     }
   ]
 }
