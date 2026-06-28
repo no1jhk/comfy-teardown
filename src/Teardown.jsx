@@ -337,7 +337,7 @@ function normalize(wf) {
 }
 // 노드 타입 → 모델 폴더 매핑 (ComfyUI 표준). 노드가 로드하는 위치가 곧 정답.
 const NODE_FOLDER_MAP = [
-  [/CLIPLoader|DualCLIPLoader|TripleCLIPLoader/i, "models/text_encoders"],
+  [/CLIPLoader|DualCLIPLoader|TripleCLIPLoader|TextEncoderLoader/i, "models/text_encoders"], // TextEncoderLoader: LTXAVTextEncoderLoader 등 — 이름의 TextEncoder가 폴더 단서
   [/UNETLoader|UnetLoader/i, "models/unet"],
   [/VAELoader/i, "models/vae"],
   [/LoraLoader/i, "models/loras"],

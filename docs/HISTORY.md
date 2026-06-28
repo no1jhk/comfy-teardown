@@ -29,6 +29,19 @@
 
 ---
 
+## 2026-06-28 (LTX 전용 로더 폴더 매핑 + 통짜 모델 폴더 충돌 진단)
+**한 일**
+- NODE_FOLDER_MAP에 TextEncoderLoader 패턴 추가 → LTXAVTextEncoderLoader가 text_encoders로 확정(기존 CLIPLoader 패턴에 안 걸려 "확인 필요"였음).
+- LTXVAudioVAELoader는 기존 /VAELoader/로 이미 vae 매칭 확인. MelBandRoFormerModelLoader는 표준 폴더 불확실 → 미등록(확인 필요 유지, 추측 금지). node로 4종 매핑 검증.
+
+**막힌 점/진단 (별개, 미수정)**
+- LTX 통짜 모델(ltx-2.3-22b-dev-fp8.safetensors)이 CheckpointLoaderSimple + LTXAVTextEncoderLoader + LTXVAudioVAELoader에 동시 연결 → 같은 파일에 폴더 후보 3개(checkpoints/text_encoders/vae). dedup(modelMap)이 첫 노드 folder만 유지 → JSON 노드 순서 의존 오분류. (1)의 TextEncoder 매핑이 통짜엔 text_encoders로 오분류 가능.
+- 권장: 통짜 감지(같은 파일 + 다중 로더 type) → 단일 폴더(CheckpointLoader 우선) + "통짜 모델 공유" 안내. 사용자 요청대로 따로 다룰 예정.
+
+**다음 할 일**
+- LTX 통짜 모델 폴더 충돌 처리(통짜 감지 + 단일 폴더 우선순위).
+- P9 회귀테스트.
+
 ## 2026-06-28 전면 감사 — 어긋난 점 4개 + 수정 우선순위
 
 **어긋난 점**
