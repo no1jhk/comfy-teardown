@@ -29,6 +29,18 @@
 
 ---
 
+## 2026-06-28 (추정 제거 · GGUF 자동대체 · Findings+Inventory 통합)
+**한 일**
+- (1) "추정" 전면 제거: guessFolder "· 추정" 라벨 삭제(폴더명은 ComfyUI 표준이라 유지), Inventory 색분기·node_repo_map notes 정리. 화면 노출 "추정" 0건. (코드/데이터의 "추측 금지" 가이드 주석은 추측 방지 의도라 유지.)
+- (2) GGUF 자동 대체: compatibility.json gguf_alternatives 신설(LTX 2.3 → unsloth/LTX-2.3-GGUF Q6_K · unet 폴더 · city96/ComfyUI-GGUF 노드, web_search 확정). ggufAlternative() → quant 경고에 직링크 박스(fp8+Ampere 시).
+- (3) Findings+Inventory 통합: Inventory SectionTitle/wrapper 제거 → Findings 한 영역. 문제(깨진/이상/이식위험/패키지) 위, "— 전체 현황 —" 굵은 구분선 아래 현황(모델/비활성/ignorable).
+
+**어떻게**
+- (1) 폴더 추측은 라벨만 삭제, 진짜 모름은 "확인 필요" 유지. (2) 데이터 json·하드코딩 0. (3) 2개 섹션 div→1개 병합, 굵은 구분선+소제목으로 문제/현황 구획.
+
+**다음 할 일**
+- P9 회귀테스트. 통합 후 간격 시각 점검(dev).
+
 ## 2026-06-28 (다운로드 표 vs Inventory 역할 분리 — 할 일 vs 현황)
 **한 일**
 - 다운로드 표(Solution)를 "받아야 할 후보"로 재프레이밍 + 각 행 "이미 있음" 토글. 도구는 PC를 못 보므로 "없는 모델"을 단정하지 않고 사용자가 체크 → 후보에서 제외(행 흐림 + 받기 숨김 + "✓ 있음(취소)").

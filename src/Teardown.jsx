@@ -218,6 +218,17 @@ function gpuGeneration(gpuStr) {
   }
   return null;
 }
+// fp8/fp4 모델 → GGUF 대체본·노드 직링크(compatibility.json gguf_alternatives, web_search 확정). 모르면 null.
+function ggufAlternative(file) {
+  const low = file.toLowerCase();
+  const alts = compat.gguf_alternatives || {};
+  for (const k of Object.keys(alts)) {
+    if (k === "_desc") continue;
+    const a = alts[k];
+    if ((a.match || []).some((mm) => low.includes(mm.toLowerCase()))) return a;
+  }
+  return null;
+}
 function quantWarnings(models, gpuStr) {
   const gen = gpuGeneration(gpuStr);
   if (!gen) return [];
@@ -229,7 +240,7 @@ function quantWarnings(models, gpuStr) {
     if (!rule) continue;
     const support = rule[gen];
     if (support === false || support === "partial") {
-      out.push({ file: m.file, quant: q, gen, support, alt: rule.alt || "GGUF" });
+      out.push({ file: m.file, quant: q, gen, support, alt: rule.alt || "GGUF", gguf: ggufAlternative(m.file) });
     }
   }
   return out;
@@ -853,6 +864,7 @@ function buildPrescription(r, envGpu) {
       items: qw.map((w) => ({
         file: w.file,
         desc: `${w.quant}은 ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "지원 안 됨" : "부분 지원(불안정)"} → ${w.alt}(으)로 교체하세요`,
+        gguf: w.gguf,
       })),
     });
   }
@@ -1818,6 +1830,14 @@ export default function Teardown() {
                                 <div style={{ minWidth: 0, flex: 1 }}>
                                   <div style={{ fontSize: 20, fontWeight: 600, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.file}</div>
                                   <div style={{ fontSize: 20, fontWeight: 400, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere", marginTop: 4 }}>{it.desc}</div>
+                                  {it.gguf && (
+                                    <div style={{ marginTop: 10, background: C.bg, border: `1px solid ${C.point}55`, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
+                                      <div style={{ fontWeight: 700, color: C.point, marginBottom: 6, fontSize: 13.5 }}>GGUF 대체 (이 GPU에서 동작)</div>
+                                      <div>{it.gguf.note}</div>
+                                      <div style={{ marginTop: 8 }}>① 모델: <a href={it.gguf.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.repo}</a> → <span style={{ fontFamily: MONO, color: C.text }}>{it.gguf.files.join(", ")}</span> (<span style={{ fontFamily: MONO }}>models/{it.gguf.folder}</span> 폴더)</div>
+                                      <div style={{ marginTop: 4 }}>② 노드: <a href={it.gguf.node.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.node.name}</a> 설치 필요</div>
+                                    </div>
+                                  )}
                                 </div>
                               ) : (
                                 <span style={{ fontSize: 20, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.action}</span>
@@ -1957,14 +1977,11 @@ export default function Teardown() {
                   </div>)}
               </>)}</div>
             </div>
-          </div>
 
-          {/* Inventory — Findings와 동일한 BlockHead 헤더 사용 (푸터 위 구분선 제거) */}
-          <div style={{ marginTop: 44, paddingBottom: 48 }}>
-            <SectionTitle>Inventory</SectionTitle>
-
-            {/* 1 모델 · 자산 인벤토리 — 간격 규칙 Findings와 동일. 제목 바로 아래 구분선 제거(borderTop 없음). 하단 여백은 펼침/닫힘 무관 항상 60. */}
-            <div style={{ borderTop: "none", paddingTop: 0 }}>
+            {/* ── 위는 문제, 아래부터 전체 현황(참고). 구분선으로 한 흐름 안에서 분리 ── */}
+            {/* 모델 · 자산 인벤토리 — Inventory를 Findings로 통합. 문제 영역과 굵은 구분선으로 구획. */}
+            <div style={{ borderTop: `2px solid ${C.divider}`, marginTop: 40, paddingTop: 36 }}>
+              <div style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.faint, letterSpacing: "0.04em", marginBottom: 20 }}>— 전체 현황 (참고) —</div>
               <BlockHead num="1" label="모델 · 자산 인벤토리" count={report.models.length} open={open.i1} onToggle={() => toggle("i1")}
                 role="워크플로가 참조하는 모델·자산 전체 현황입니다 (VRAM·출처 포함, 참고용). 실제 받기(할 일)는 위 Solution '받아야 할 모델' 표에서 하세요." />
               <div style={{ marginTop: open.i1 ? 32 : 0, paddingBottom: open.i1 ? 36 : 36 }}>{open.i1 && (
@@ -1986,7 +2003,7 @@ export default function Teardown() {
                     return (
                     <div key={i} style={{ minHeight: 150, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                       <span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
-                      <span style={{ fontFamily: SANS, fontSize: 14, color: /추정/.test(m.folder) ? C.green : C.point, opacity: /추정/.test(m.folder) ? 0.6 : 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
+                      <span style={{ fontFamily: SANS, fontSize: 14, color: m.folder === "확인 필요" ? C.faint : C.point, opacity: 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
                       {env.modelRoot && rewritePath(m.file, env.modelRoot) && <span style={{ fontFamily: MONO, fontSize: 11, color: C.point, opacity: 0.7, marginTop: 4 }}>내 경로: {rewritePath(m.file, env.modelRoot)}</span>}
                       {(() => { const ks = knownModelSize(m.file); const sz = eff?.size_gb ? fmtSize(eff.size_gb) : eff?.size_label || (ks ? fmtSize(ks) : null); return (eff?.vram_gb || sz) ? <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</span> : null; })()}
                       {!eff?.size_gb && !eff?.size_label && !knownModelSize(m.file) && WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint, marginTop: 4 }}>용량 확인 필요</span>}

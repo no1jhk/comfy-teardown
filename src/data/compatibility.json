@@ -199,5 +199,19 @@
     },
     "detect_hint": "모델 파일명 소문자화 후 부분일치: 'fp8'→fp8, 'fp4'→fp4_mixed, 'mxfp8'→mxfp8, '.gguf'/'q4'/'q8'→gguf, 'bf16'→bf16",
     "verdict": "Ampere GPU + (fp8/fp4/mxfp8) 모델 → 위험. alt(GGUF/bf16)로 교체 권장."
+  },
+  "gguf_alternatives": {
+    "_desc": "fp8/fp4 모델이 미지원 GPU(Ampere 등)에서 안 돌 때, web_search로 확정된 GGUF 대체본 + 필요한 노드 직링크. 추측 아님.",
+    "ltx-2.3": {
+      "match": ["ltx-2.3", "ltx23", "ltxv-2.3", "ltx_2.3"],
+      "applies_to_quant": ["fp8_scaled", "fp8_e4m3fn", "fp4_mixed"],
+      "repo": "https://huggingface.co/unsloth/LTX-2.3-GGUF",
+      "files": ["ltx-2.3-22b-dev-Q6_K.gguf"],
+      "folder": "unet",
+      "node": { "name": "ComfyUI-GGUF", "repo": "https://github.com/city96/ComfyUI-GGUF" },
+      "note": "fp8 diffusion 모델은 Ampere(3090 등)에서 안 돌아갑니다. GGUF 버전 + ComfyUI-GGUF 노드로 교체하세요.",
+      "verified_on": "2026-06-28",
+      "source": "web_search"
+    }
   }
 }
