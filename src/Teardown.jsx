@@ -1158,7 +1158,7 @@ export default function Teardown() {
   const [err, setErr] = useState(null);
   const [drag, setDrag] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
-  const [open, setOpen] = useState({ fb: true, fa: true, f1: true, f2: true }); // 문제 블록(깨진·이상·이식위험·패키지)은 기본 펼침(주인공). 참고 토글(inv)·나머지는 닫힘
+  const [open, setOpen] = useState({ fb: false, fa: false, f1: false, f2: false }); // 문제 블록 기본 닫힘 — Solution이 주인공, Findings는 필요시 펼침
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
@@ -1539,9 +1539,6 @@ export default function Teardown() {
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 24px" }}>
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
                 <MetricBox value={report.customPackCount} label="커스텀 pack" unit="개" />
-                <MetricBox value={summary.weightCount} label="모델" unit="개" />
-                <MetricBox value={report.packs.filter((p) => p.conflict).length} label="버전 충돌" unit="건" />
-                <MetricBox value={report.portability.length} label="이식 위험" unit="건" />
               </div>
               {summary.issues.length > 0 && (
                 <div style={{ borderTop: `1px solid ${C.divider}` }}>
@@ -1571,26 +1568,26 @@ export default function Teardown() {
           {rx.length > 0 && (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <SectionTitle>Solution</SectionTitle>
-              {report.authorNotes?.length > 0 && (
-                <div style={{ background: "rgba(193,191,186,0.06)", border: `1px solid ${C.amber}55`, borderRadius: 14, padding: "16px 22px", marginBottom: 16 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                    <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
-                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber }}>제작자 주의사항 (워크플로 메모 · 실행 전 확인)</span>
-                  </div>
-                  {report.authorNotes.map((t, i) => (
-                    <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
+              <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)` }}>
+                <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 14, padding: "14px 24px", marginBottom: 16 }}>
+                  <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>이것만 하면 됨</div>
+                  {rx.map((step, i) => (
+                    <div key={step.key} style={{ fontFamily: SANS, fontSize: 14, color: step.severity === "high" ? C.red : C.text, lineHeight: 1.6, paddingLeft: 4 }}>
+                      {i + 1}. {step.title}
+                    </div>
                   ))}
                 </div>
-              )}
-              <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 14, padding: "14px 24px", marginBottom: 16 }}>
-                <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>이것만 하면 됨</div>
-                {rx.map((step, i) => (
-                  <div key={step.key} style={{ fontFamily: SANS, fontSize: 14, color: step.severity === "high" ? C.red : C.text, lineHeight: 1.6, paddingLeft: 4 }}>
-                    {i + 1}. {step.title}
+                {report.authorNotes?.length > 0 && (
+                  <div style={{ background: "rgba(193,191,186,0.06)", border: `1px solid ${C.amber}55`, borderRadius: 14, padding: "16px 22px", marginBottom: 16 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                      <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
+                      <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber }}>제작자 주의사항 (워크플로 메모 · 실행 전 확인)</span>
+                    </div>
+                    {report.authorNotes.map((t, i) => (
+                      <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
+                    ))}
                   </div>
-                ))}
-              </div>
-              <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)` }}>
+                )}
                 {rx.map((step, i) => {
                   const sk = `s${i}`;
                   const sopen = !!open[sk]; // s0는 기본 펼침(useState 초기값)
@@ -1839,7 +1836,7 @@ export default function Teardown() {
             <div style={{ borderTop: "none", paddingTop: 0 }}>
               <BlockHead num="!" label="깨진 노드" count={report.broken.length} open={open.fb} onToggle={() => toggle("fb")}
                 role="type이 없는(null) 노드입니다. 해당 커스텀 노드가 설치되지 않으면 워크플로 실행이 불가합니다." />
-              <div style={{ marginTop: open.fb ? 32 : 0, paddingBottom: open.fb ? 36 : 36 }}>{open.fb && (
+              <div style={{ marginTop: open.fb ? 27 : 0, paddingBottom: open.fb ? 31 : 31 }}>{open.fb && (
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {report.broken.map((b, i) => (
                     <div key={b.id} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
@@ -1851,10 +1848,10 @@ export default function Teardown() {
             </div>)}
 
             {report.anomalous?.length > 0 && (() => { fnum++; return (
-            <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 32 : 0 }}>
+            <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 27 : 0 }}>
               <BlockHead num={String(fnum)} label="이상 노드" count={report.anomalous.length} open={open.fa} onToggle={() => toggle("fa")}
                 role="type이 정상 노드 이름이 아니라 UUID 형태입니다. 노드 정의 누락·내보내기 오류일 수 있어 점검 대상입니다." />
-              <div style={{ marginTop: open.fa ? 32 : 0, paddingBottom: open.fa ? 36 : 36 }}>{open.fa && (
+              <div style={{ marginTop: open.fa ? 27 : 0, paddingBottom: open.fa ? 31 : 31 }}>{open.fa && (
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {report.anomalous.map((a, i) => (
                     <div key={a.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
@@ -1867,10 +1864,10 @@ export default function Teardown() {
 
             {/* 이식 위험 값 — 간격 규칙: 제목↔내용 60(상단 marginTop) / 내용↔다음 순번 60(하단 paddingBottom). 모든 블록 동일. */}
             {(() => { fnum++; return (
-            <div style={{ borderTop: (report.broken?.length || report.anomalous?.length) ? `1px solid ${C.divider}` : "none", paddingTop: (report.broken?.length || report.anomalous?.length) ? 32 : 0 }}>
+            <div style={{ borderTop: (report.broken?.length || report.anomalous?.length) ? `1px solid ${C.divider}` : "none", paddingTop: (report.broken?.length || report.anomalous?.length) ? 27 : 0 }}>
               <BlockHead num={String(fnum)} label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
                 role="이 값들은 당신 PC로 옮기면 안 맞을 수 있어요. 제작자 PC의 절대경로는 무시하고 당신 폴더 기준으로 보면 되고, 입력 파일은 다시 넣으면 됩니다." />
-              <div style={{ marginTop: open.f1 ? 32 : 0, paddingBottom: open.f1 ? 36 : 36 }}>{open.f1 && (
+              <div style={{ marginTop: open.f1 ? 27 : 0, paddingBottom: open.f1 ? 31 : 31 }}>{open.f1 && (
                 report.portability.length === 0 ? <Empty text="이식 시 깨질 위험 값이 없습니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     {report.portability.map((h, i) => {
@@ -1895,10 +1892,10 @@ export default function Teardown() {
 
             {/* 패키지 · 버전 — 간격 규칙 동일(상단 60 / 하단 60) */}
             {(() => { fnum++; return (
-            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
+            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 27 }}>
               <BlockHead num={String(fnum)} label="패키지 · 버전" count={report.packs.length} open={open.f2} onToggle={() => toggle("f2")}
                 role="이 워크플로가 쓰는 노드팩과 기록된 버전입니다. 처방 1단계(설치)에 들어갈 저장소의 근거입니다." />
-              <div style={{ marginTop: open.f2 ? 32 : 0, paddingBottom: open.f2 ? 36 : 36 }}>{open.f2 && (<>
+              <div style={{ marginTop: open.f2 ? 27 : 0, paddingBottom: open.f2 ? 31 : 31 }}>{open.f2 && (<>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {report.packs.map((p, i) => (
                     <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 18, paddingTop: i > 0 ? 18 : 0, marginTop: i > 0 ? 18 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>

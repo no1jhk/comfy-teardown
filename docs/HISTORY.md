@@ -29,6 +29,15 @@
 
 ---
 
+## 2026-06-28 (UI 정리 — Summary·Solution·Findings 구조 변경)
+**한 일**
+- Summary 숫자 카드에서 "모델/버전 충돌/이식 위험" 3개 제거 — Findings와 중복이라 "전체 노드/커스텀 pack" 2개만 유지
+- TL;DR("이것만 하면 됨") + authorNotes("제작자 주의사항")를 Solution 아코디언 박스 안으로 이동 (TL;DR→authorNotes→단계 순)
+- Findings 문제 블록(fb/fa/f1/f2)을 기본 닫힘으로 변경 — Solution이 주인공
+- Findings 구분선 위아래 여백 각 5px 감소 (paddingTop 32→27, paddingBottom 36→31)
+
+---
+
 ## 2026-06-28 (LTX 전용 로더 폴더 매핑 + 통짜 모델 폴더 충돌 진단)
 **한 일**
 - NODE_FOLDER_MAP에 TextEncoderLoader 패턴 추가 → LTXAVTextEncoderLoader가 text_encoders로 확정(기존 CLIPLoader 패턴에 안 걸려 "확인 필요"였음).
