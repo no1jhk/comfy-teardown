@@ -1666,48 +1666,61 @@ export default function Teardown() {
                       )}
                       </>)}
                       {step.models && (
-                        <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 8 }}>
-                          <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5 }}>다운로드 전, 해당 폴더에 같은 파일이나 비슷한 이름(별칭)이 이미 있는지 먼저 확인하세요. 있으면 다시 받을 필요 없습니다.</div>
-                          {step.models.map((m, k) => {
-                            const live = liveCompat[m.file];
-                            const eff = m.compat || live || learnedModel(m.file);
-                            const src = eff?.source;
-                            const mr = modelResearch[m.file];
-                            const dlUrl = directDownloadUrl(eff, m.file, mr);
-                            return (
-                            <div key={k} style={{ background: C.surfaceHi, borderRadius: 10, padding: "14px 34px", display: "flex", alignItems: "center", justifyContent: "space-between", gap: 16 }}>
-                              <div style={{ minWidth: 0, flex: 1 }}>
-                                <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
-                                  <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 4 }} />
-                                  <span style={{ fontFamily: MONO, fontSize: 20, color: C.text, overflowWrap: "anywhere" }}>{m.file}</span>
-                                  {src && <span style={{ fontFamily: SANS, fontSize: 11, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7, flexShrink: 0, marginTop: 5 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
+                        <div style={{ marginTop: 11 }}>
+                          <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>다운로드 전, 해당 폴더에 같은 파일이나 비슷한 이름(별칭)이 이미 있는지 먼저 확인하세요. 있으면 다시 받을 필요 없습니다.</div>
+                          <div style={{ background: C.surfaceHi, borderRadius: 12, overflow: "hidden" }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "11px 20px", borderBottom: `1px solid ${C.divider}` }}>
+                              {["받을 파일", "어디에 둘지", "정상 용량", "받기"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: "0.03em" }}>{h}</span>)}
+                            </div>
+                            {step.models.map((m, k) => {
+                              const live = liveCompat[m.file];
+                              const eff = m.compat || live || learnedModel(m.file);
+                              const src = eff?.source;
+                              const mr = modelResearch[m.file];
+                              const dlUrl = directDownloadUrl(eff, m.file, mr);
+                              const ks = knownModelSize(m.file);
+                              const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : null);
+                              const dest = (env.modelRoot && rewritePath(m.file, env.modelRoot)) || m.folder;
+                              const al = modelAliasInfo(m.file);
+                              return (
+                              <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 20px", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none" }}>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontFamily: MONO, fontSize: 14.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
+                                  {src && <span style={{ fontFamily: SANS, fontSize: 10.5, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
+                                  {m.rename && <div style={{ fontSize: 11.5, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>⤷ {m.rename}</div>}
+                                  {al && <div style={{ fontSize: 11.5, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>다른 이름: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div>}
                                 </div>
-                                <div style={{ fontFamily: MONO, fontSize: 12, color: C.point, marginTop: 8, paddingLeft: 26 }}>{m.folder}</div>
-                                {env.modelRoot && rewritePath(m.file, env.modelRoot) && <div style={{ fontSize: 12, color: C.point, opacity: 0.7, marginTop: 4, paddingLeft: 26 }}>내 경로: <span style={{ fontFamily: MONO }}>{rewritePath(m.file, env.modelRoot)}</span></div>}
-                                {(() => { const ks = knownModelSize(m.file); const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : null); return (eff?.vram_gb || sz) ? <div style={{ fontSize: 12, color: C.dim, marginTop: 5, paddingLeft: 26 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</div> : null; })()}
-                                {!eff?.size_gb && !eff?.size_label && !knownModelSize(m.file) && <div style={{ fontSize: 12, color: C.faint, marginTop: 5, paddingLeft: 26 }}>용량 확인 필요</div>}
-                                {m.rename && <div style={{ fontSize: 12, color: C.amber, marginTop: 6, lineHeight: 1.4, paddingLeft: 26 }}>⤷ {m.rename}</div>}
-                                {(() => { const al = modelAliasInfo(m.file); return al ? <div style={{ fontSize: 12, color: C.dim, marginTop: 6, lineHeight: 1.45, paddingLeft: 26 }}>다른 이름으로 이미 있을 수 있어요: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div> : null; })()}
-                              </div>
-                              {dlUrl ? (
-                                <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 6, flexShrink: 0 }}>
-                                  <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
-                                  {!eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>이거 맞았어 (적립)</button>}
-                                  {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 11, color: C.amber }}>✓ 적립됨 (미확정)</span>}
+                                <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 12, color: C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{dest}</div>
+                                <div style={{ minWidth: 0 }}>
+                                  {sz ? (
+                                    <>
+                                      <div style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 700, color: C.text }}>{sz}</div>
+                                      <div style={{ fontSize: 10.5, color: C.faint, marginTop: 3, lineHeight: 1.4 }}>받은 뒤 이 용량과 비교 — 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운</div>
+                                    </>
+                                  ) : <span style={{ fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>}
                                 </div>
-                              ) : mr?.loading ? (
-                                <span style={{ flexShrink: 0, fontFamily: SANS, fontSize: 12, color: C.dim }}>검색 중…</span>
-                              ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
-                                <span style={{ flexShrink: 0, fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>
-                              ) : (
-                                <button className="td-hf" onClick={() => researchUnknownModel(m.file)} style={{ flexShrink: 0 }}>다운로드 링크 찾기</button>
-                              )}
-                            </div>);
-                          })}
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+                                  {dlUrl ? (
+                                    <>
+                                      <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">받기</a>
+                                      {!eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" }}>이거 맞았어</button>}
+                                      {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.amber }}>✓ 적립됨</span>}
+                                    </>
+                                  ) : mr?.loading ? (
+                                    <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim }}>검색 중…</span>
+                                  ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
+                                    <span style={{ fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>
+                                  ) : (
+                                    <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
+                                  )}
+                                </div>
+                              </div>);
+                            })}
+                          </div>
                           {step.integrity && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 12.5, color: C.text, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
-                              <div>받은 뒤 용량 확인 — 위에 표시된 “정상 용량”과 비교해 현저히 작으면(수 KB/MB) 깨진 것이니 삭제 후 재다운로드.</div>
+                              <div>위 표의 “정상 용량”과 받은 파일을 비교하세요. 용량을 모르는 파일도 수 KB/MB로 비정상적으로 작으면 깨진 것이니 삭제 후 재다운로드.</div>
                               <div style={{ marginTop: 4 }}>큰 모델 다운로드 중에는 ComfyUI/PC를 재부팅하지 마세요. 끊기면 빈 파일이 됩니다.</div>
                               <div style={{ marginTop: 4, color: C.dim }}>.safetensors가 비정상적으로 작으면 <span style={{ fontFamily: MONO }}>JSONDecodeError</span>가 발생합니다.</div>
                             </div>
