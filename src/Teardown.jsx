@@ -1100,6 +1100,23 @@ function buildBriefing(report, errlog, env) {
     rx.forEach((step, i) => L.push(`${i + 1}. ${step.title}`));
     L.push(``);
   }
+  // 받을 모델 표 — 파일명·폴더(내 경로)·정상 용량·직링크를 LLM에 같이 넘겨 왕복을 줄인다.
+  const dlModels = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)));
+  if (dlModels.length) {
+    L.push(`## 받을 모델 (파일명 · 폴더 · 정상 용량 · 직링크)`);
+    L.push(`| 받을 파일 | 어디에 둘지 | 정상 용량 | 직링크 |`);
+    L.push(`|---|---|---|---|`);
+    for (const m of dlModels) {
+      const eff = m.compat;
+      const ks = knownModelSize(m.file);
+      const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : "확인 필요");
+      const dest = (env?.modelRoot && rewritePath(m.file, env.modelRoot)) || m.folder;
+      const url = directDownloadUrl(m.compat, m.file) || "확인 필요";
+      L.push(`| ${m.file} | ${dest} | ${sz} | ${url} |`);
+    }
+    L.push(`> 받은 뒤 위 "정상 용량"과 비교 — 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운로드. 직링크가 "확인 필요"면 정확한 출처를 같이 찾아 주세요.`);
+    L.push(``);
+  }
   L.push(`## 에러 로그`);
   L.push("```");
   L.push(errlog.trim() || "(에러 로그 없음 — 구조·환경만 보고 점검해 주세요)");

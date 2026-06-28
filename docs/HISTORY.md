@@ -29,6 +29,19 @@
 
 ---
 
+## 2026-06-28 (브리핑에 받을 모델 표 추가 — LLM 왕복 감소)
+**한 일**
+- buildBriefing(복사 텍스트)에 "받을 모델" 마크다운 표 추가: 받을 파일 / 어디에 둘지(modelRoot 시 내 경로) / 정상 용량 / 직링크. 화면 4열 표와 동일 정보.
+- 이전엔 reportToContext의 "파일명 → 폴더"만 있고 용량·직링크·내 경로 없었음 → 사용자가 LLM에 또 묻던 왕복 제거.
+- 무결성 비교 + "직링크가 '확인 필요'면 출처도 같이 찾아달라" 한 줄 동봉.
+
+**어떻게**
+- 가중치(WEIGHT_EXTS)만 필터. 정적 compat/Manager(m.compat) 기준 — 실시간 fetch·개인 적립(learned)은 모듈 함수라 미반영(buildMarkdown과 일관). size=size_gb/size_label/knownModelSize, url=directDownloadUrl.
+
+**다음 할 일**
+- (선택) buildMarkdown(.md 저장)에도 정상 용량 추가 — 현재 VRAM+링크만.
+- P9 회귀테스트.
+
 ## 2026-06-28 (모델 다운로드 4열 표 정돈)
 **한 일**
 - Solution 모델 다운로드를 세로 카드 → 4열 grid 표: **받을 파일 / 어디에 둘지(modelRoot 시 내 경로) / 정상 용량 / 받기**. 한 줄에 정렬.
