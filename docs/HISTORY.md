@@ -29,6 +29,34 @@
 
 ---
 
+## 2026-06-28 (다운로드 표 vs Inventory 역할 분리 — 할 일 vs 현황)
+**한 일**
+- 다운로드 표(Solution)를 "받아야 할 후보"로 재프레이밍 + 각 행 "이미 있음" 토글. 도구는 PC를 못 보므로 "없는 모델"을 단정하지 않고 사용자가 체크 → 후보에서 제외(행 흐림 + 받기 숨김 + "✓ 있음(취소)").
+- 상단 요약 "받아야 할 후보 N개 · 이미 있음 M개", 전부 표시 시 "✓ 필요한 모델이 다 있습니다".
+- Inventory role을 "전체 현황(VRAM·출처 포함, 참고용) · 받기는 Solution에서"로 → 할 일(받기) vs 현황(전체) 구분 명확.
+- 합치지 않음: 다운로드 표=가중치+받기 액션, Inventory=전체 모델+VRAM+비활성/이상 노드 그대로 유지.
+
+**어떻게**
+- haveModels(Set) state + toggleHave. PC 미확인이라 자동 필터 불가 → 사용자 체크 기반(휘발, 세션). 무결성 박스는 공통이라 유지.
+
+**다음 할 일**
+- P9 회귀테스트(어제 JSON 10개로 오늘 변경 검증).
+
+## 2026-06-28 (Q8·P15·P16·P12·UUID·Q11: 용량표기·런타임진단·제작자메모·이상노드)
+**한 일**
+- Q8: fmtSize() — 용량 1GB 미만은 MB, 이상은 GB 자동(348MB·1.45GB·18GB). 화면 표·Inventory·브리핑·설치스크립트 4곳 통일.
+- P15(★): troubleshooting_patterns.json에 런타임 패턴 3종(CUDA OOM, 텐서 shape, 해상도 규칙) + quantization에 float8(dtype) + 전 패턴 category(로드/설치/경로/런타임). 매칭 렌더에 category 배지(런타임 강조). errlog 입력칸 그대로 재사용.
+- P16: MarkdownNote/Note 텍스트 → report.authorNotes → Solution 상단 "제작자 주의사항" 박스(원문 그대로, 실행 전 확인).
+- P12: MarkdownNote URL 추출(extractNoteLinks) → 파일명 정확 일치 시 m.noteUrl → directDownloadUrl 최우선(web_search·compat보다). 미매칭 URL은 제작자 메모 원문에 노출(메모-파일명 다름은 사용자가 직접 인지).
+- UUID: type이 UUID 형태 → report.anomalous("이상 노드") 별도 감지. broken(type=null)과 분리. Findings 블록 + Summary issue.
+- Q11: buildMarkdown(.md)에 정상 용량(fmtSize) 추가 — 화면 표와 통일.
+
+**어떻게**
+- 추측 0: 런타임 패턴은 확실한 에러 메시지만, noteUrl·용량은 정확 일치만. normalizeNode에 noteText 필드를 widgets와 분리(노트 텍스트가 모델/portability로 오탐되지 않게).
+
+**다음 할 일**
+- P9 회귀테스트(어제 JSON 10개로 오늘 변경 검증).
+
 ## 2026-06-28 (브리핑에 받을 모델 표 추가 — LLM 왕복 감소)
 **한 일**
 - buildBriefing(복사 텍스트)에 "받을 모델" 마크다운 표 추가: 받을 파일 / 어디에 둘지(modelRoot 시 내 경로) / 정상 용량 / 직링크. 화면 4열 표와 동일 정보.

@@ -98,7 +98,8 @@ function hfLink(file) {
 
 // 확정 다운로드 직링크만 반환. 검색 URL 떠넘기기 금지 → 못 구하면 null("확인 필요").
 // 우선순위: compat/Manager(eff) → web_search 확정 결과 → HF_EXACT 화이트리스트.
-function directDownloadUrl(eff, file, research) {
+function directDownloadUrl(eff, file, research, noteUrl) {
+  if (noteUrl) return noteUrl;
   if (eff?.url) return eff.url;
   if (research?.result?.found && research.result.url) return research.result.url;
   const hf = hfLink(file);
@@ -144,6 +145,11 @@ function modelAliasInfo(file) {
   return null;
 }
 
+// GB 숫자 → 사람이 읽기 쉬운 단위. 1GB 미만은 MB, 그 이상은 GB. (348MB · 1.45GB · 18GB)
+function fmtSize(gb) {
+  if (typeof gb !== "number" || !(gb > 0)) return null;
+  return gb < 1 ? `${Math.round(gb * 1000)}MB` : `${gb}GB`;
+}
 // model_sizes.json → 알려진 정상 용량(GB). 정확 일치만(오판 방지). 모르면 null.
 function knownModelSize(file) {
   const stem = file.replace(/\\/g, "/").split("/").pop().replace(/\.[^.]+$/, "").toLowerCase();
@@ -260,9 +266,12 @@ function matchTroubleshootingPatterns(log) {
 }
 
 function normalizeNode(n, subgraph) {
+  const wv = Array.isArray(n.widgets_values) ? n.widgets_values : [];
+  const isNote = n.type === "Note" || n.type === "MarkdownNote";
   return { id: n.id, type: n.type, cnr_id: n.properties?.cnr_id ?? null,
     ver: n.properties?.ver ?? null, mode: n.mode ?? 0,
-    widgets: Array.isArray(n.widgets_values) ? n.widgets_values : [],
+    widgets: wv,
+    noteText: isNote ? (typeof n.properties?.text === "string" && n.properties.text.trim() ? n.properties.text : wv.filter((w) => typeof w === "string").join("\n")) : null,
     subgraph: subgraph ?? null };
 }
 function normalize(wf) {
@@ -291,15 +300,15 @@ function normalize(wf) {
 function guessFolder(file, type) {
   const f = file.toLowerCase(), ext = "." + f.split(".").pop();
   if ([".glb",".fbx",".obj",".vrm",".gltf"].includes(ext)) return "3D 메시·리그 입출력 자산";
-  if (f.includes("clip")) return "models/text_encoders · 추정";
-  if (f.includes("vae")) return "models/vae · 추정";
-  if (f.includes("lora")) return "models/loras · 추정";
-  if (f.includes("control")) return "models/controlnet · 추정";
-  if (ext === ".gguf") return "models/text_encoders · 추정";
-  if (ext === ".onnx") return "models/onnx · 추정";
+  if (f.includes("clip")) return "models/text_encoders";
+  if (f.includes("vae")) return "models/vae";
+  if (f.includes("lora")) return "models/loras";
+  if (f.includes("control")) return "models/controlnet";
+  if (ext === ".gguf") return "models/text_encoders";
+  if (ext === ".onnx") return "models/onnx";
   if ([".ckpt",".safetensors",".pt",".pth",".bin"].includes(ext)) {
-    if (/motion|dit|hymotion/i.test(type)) return "models/hymotion/… · 추정";
-    return "models/checkpoints · 추정";
+    if (/motion|dit|hymotion/i.test(type)) return "models/hymotion";
+    return "models/checkpoints";
   }
   return "확인 필요";
 }
@@ -365,15 +374,35 @@ function detectBypassBreaks(norm) {
 // troubleshooting_patterns의 ignorable_import_warnings → 노드 타입 매칭 힌트(모듈/노드명 소문자).
 const IGNORABLE_HINTS = (tsPatterns.patterns?.find((p) => p.id === "ignorable_import_warnings")?.match || [])
   .map((m) => (m.match(/named '([^']+)'/)?.[1] || m).toLowerCase());
+// type이 정상 class_type이 아니라 UUID 형태 → 정의 누락 가능(이상 노드). broken(type=null)과 별개.
+function isUuidType(t) {
+  return typeof t === "string" && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(t);
+}
 function isIgnorableNode(type) {
   if (!type) return false;
   const t = type.toLowerCase();
   return IGNORABLE_HINTS.some((h) => t.includes(h));
 }
+// MarkdownNote/Note 텍스트에서 다운로드 URL 추출 → {url, stem}. 제작자가 박은 직링크 우선용.
+function extractNoteLinks(notes) {
+  const out = [];
+  for (const t of notes) {
+    const urls = t.match(/https?:\/\/[^\s)\]"'`]+/g) || [];
+    for (const u of urls) {
+      const fname = u.split("/").pop().split("?")[0];
+      const stem = fname.replace(/\.[^.]+$/, "").toLowerCase();
+      if (stem) out.push({ url: u, stem });
+    }
+  }
+  return out;
+}
 function analyze(norm) {
-  const packVers = {}, packNodes = {}, unmappedRaw = [], frontendOnly = [], muted = [], models = [], broken = [];
+  const packVers = {}, packNodes = {}, unmappedRaw = [], frontendOnly = [], muted = [], models = [], broken = [], anomalous = [];
+  const authorNotes = norm.nodes.map((n) => n.noteText).filter((t) => t && t.trim());
+  const noteLinks = extractNoteLinks(authorNotes);
   for (const n of norm.nodes) {
     if (!n.type) { broken.push({ id: n.id }); continue; }
+    if (isUuidType(n.type)) { anomalous.push({ id: n.id, type: n.type }); continue; }
     if (n.cnr_id) { (packVers[n.cnr_id] ||= new Set()).add(n.ver); (packNodes[n.cnr_id] ||= new Set()).add(n.type); }
     else if (FRONTEND_ONLY.has(n.type)) frontendOnly.push(n.type);
     else {
@@ -388,7 +417,8 @@ function analyze(norm) {
       const base = filePath.split("/").pop().toLowerCase();
       const ci = compatModelInfo(filePath);
       const origin = n.subgraph != null ? `서브그래프 #${n.subgraph}에서 발견` : null;
-      models.push({ node: n.type, file: filePath, folder: ci?.exact ? `models/${ci.folder}` : guessFolder(w, n.type), rename: RENAME_HINT[base] || null, compat: ci?.exact ? ci : null, origin });
+      const noteUrl = noteLinks.find((l) => l.stem === base.replace(/\.[^.]+$/, ""))?.url || null;
+      models.push({ node: n.type, file: filePath, folder: ci?.exact ? `models/${ci.folder}` : guessFolder(w, n.type), rename: RENAME_HINT[base] || null, compat: ci?.exact ? ci : null, origin, noteUrl });
     }
   }
   const packs = Object.keys(packVers).map((id) => {
@@ -419,9 +449,10 @@ function analyze(norm) {
     format: norm.format, totalNodes: norm.nodes.length,
     customPackCount: packs.filter((p) => !p.isCore).length,
     packs, unmapped: unmappedRaw, frontendOnly: [...new Set(frontendOnly)],
-    muted, models: dedupModels, sameRepo, broken, portability: portabilityScan(norm.nodes),
+    muted, models: dedupModels, sameRepo, broken, anomalous, portability: portabilityScan(norm.nodes),
     bypassBreaks: detectBypassBreaks(norm),
     ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
+    authorNotes,
   };
 }
 
@@ -938,7 +969,7 @@ function buildInstallScript(report, os) {
       const folderWin = folder.replace(/\//g, "\\");
       const fname = m.file.replace(/\\/g, "/").split("/").pop();
       const ks = knownModelSize(m.file);
-      const sizeNote = info?.size_gb ? `정상 약 ${info.size_gb}GB` : info?.size_label ? `정상 약 ${info.size_label}` : ks ? `정상 약 ${ks}GB` : "용량 확인 필요";
+      const sizeNote = info?.size_gb ? `정상 약 ${fmtSize(info.size_gb)}` : info?.size_label ? `정상 약 ${info.size_label}` : ks ? `정상 약 ${fmtSize(ks)}` : "용량 확인 필요";
       if (info && info.exact && info.url) {
         L.push(isWin ? `if not exist "${folderWin}" mkdir "${folderWin}"` : `mkdir -p "${folder}"`);
         L.push(isWin
@@ -1021,10 +1052,13 @@ function buildMarkdown(report, summary, rx) {
       if (step.models) {
         L.push(`> 다운로드 전, 해당 폴더에 같은 파일이나 비슷한 이름(별칭)이 이미 있는지 먼저 확인하세요.`);
         for (const m of step.models) {
-          const dlUrl = directDownloadUrl(m.compat, m.file);
+          const dlUrl = directDownloadUrl(m.compat, m.file, null, m.noteUrl);
           const link = dlUrl ? ` — [다운로드](${dlUrl})` : " — (다운로드 링크 확인 필요)";
+          const mks = knownModelSize(m.file);
+          const msz = m.compat?.size_gb ? fmtSize(m.compat.size_gb) : m.compat?.size_label || (mks ? fmtSize(mks) : null);
+          const szTxt = msz ? ` · 정상 ${msz}` : "";
           const vram = m.compat ? ` (VRAM ${m.compat.vram_gb}GB)` : "";
-          L.push(`- \`${m.file}\` → ${m.folder}${vram}${link}`);
+          L.push(`- \`${m.file}\` → ${m.folder}${szTxt}${vram}${link}`);
           if (m.rename) L.push(`  - ⤷ ${m.rename}`);
         }
       }
@@ -1109,9 +1143,9 @@ function buildBriefing(report, errlog, env) {
     for (const m of dlModels) {
       const eff = m.compat;
       const ks = knownModelSize(m.file);
-      const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : "확인 필요");
+      const sz = eff?.size_gb ? fmtSize(eff.size_gb) : eff?.size_label || (ks ? fmtSize(ks) : "확인 필요");
       const dest = (env?.modelRoot && rewritePath(m.file, env.modelRoot)) || m.folder;
-      const url = directDownloadUrl(m.compat, m.file) || "확인 필요";
+      const url = directDownloadUrl(m.compat, m.file, null, m.noteUrl) || "확인 필요";
       L.push(`| ${m.file} | ${dest} | ${sz} | ${url} |`);
     }
     L.push(`> 받은 뒤 위 "정상 용량"과 비교 — 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운로드. 직링크가 "확인 필요"면 정확한 출처를 같이 찾아 주세요.`);
@@ -1346,6 +1380,9 @@ export default function Teardown() {
     return () => { cancelled = true; };
   }, [report]);
   const [modelResearch, setModelResearch] = useState({});
+  // 다운로드 표 "이미 있음" 체크 — 도구가 PC를 못 보므로 사용자가 직접 표시(받아야 할 후보에서 제외).
+  const [haveModels, setHaveModels] = useState(() => new Set());
+  const toggleHave = (file) => setHaveModels((prev) => { const n = new Set(prev); n.has(file) ? n.delete(file) : n.add(file); return n; });
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1380,6 +1417,8 @@ export default function Teardown() {
     const issues = [];
     if (report.broken?.length) issues.push({ head: `깨진 노드 ${report.broken.length}개`, severity: "high",
       body: "type이 없는 노드입니다. 해당 커스텀 노드가 설치되지 않으면 워크플로 실행이 불가합니다." });
+    if (report.anomalous?.length) issues.push({ head: `이상 노드 ${report.anomalous.length}개`, severity: "high",
+      body: "type이 UUID 형태인 노드입니다. 노드 정의가 누락됐거나 내보내기가 잘못됐을 수 있어 점검이 필요합니다." });
     if (conflictPacks.length) issues.push({ head: `버전 충돌 ${conflictPacks.length}건`,
       body: `${conflictPacks.map((p) => p.id).join(", ")} — 같은 pack이 여러 버전으로 기록돼 재현이 불안정합니다.` });
     if (report.portability.length) issues.push({ head: `이식 위험 ${report.portability.length}건`,
@@ -1603,6 +1642,17 @@ export default function Teardown() {
           {rx.length > 0 && (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <SectionTitle>Solution</SectionTitle>
+              {report.authorNotes?.length > 0 && (
+                <div style={{ background: "rgba(193,191,186,0.06)", border: `1px solid ${C.amber}55`, borderRadius: 14, padding: "16px 22px", marginBottom: 16 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                    <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
+                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber }}>제작자 주의사항 (워크플로 메모 · 실행 전 확인)</span>
+                  </div>
+                  {report.authorNotes.map((t, i) => (
+                    <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
+                  ))}
+                </div>
+              )}
               <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 14, padding: "14px 24px", marginBottom: 16 }}>
                 <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>이것만 하면 됨</div>
                 {rx.map((step, i) => (
@@ -1684,7 +1734,14 @@ export default function Teardown() {
                       </>)}
                       {step.models && (
                         <div style={{ marginTop: 11 }}>
-                          <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>다운로드 전, 해당 폴더에 같은 파일이나 비슷한 이름(별칭)이 이미 있는지 먼저 확인하세요. 있으면 다시 받을 필요 없습니다.</div>
+                          <div style={{ fontSize: 12.5, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>도구는 PC를 보지 못합니다. 이미 받아둔 모델은 “있음”으로 표시해 건너뛰세요 — 표시 안 한 것이 <b style={{ color: C.text }}>받아야 할 후보</b>입니다.</div>
+                          {(() => {
+                            const need = step.models.filter((m) => !haveModels.has(m.file)).length;
+                            const haveN = step.models.length - need;
+                            return need === 0
+                              ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
+                              : <div style={{ fontSize: 12.5, color: C.dim, marginBottom: 10 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""}</div>;
+                          })()}
                           <div style={{ background: C.surfaceHi, borderRadius: 12, overflow: "hidden" }}>
                             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "11px 20px", borderBottom: `1px solid ${C.divider}` }}>
                               {["받을 파일", "어디에 둘지", "정상 용량", "받기"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.faint, letterSpacing: "0.03em" }}>{h}</span>)}
@@ -1694,13 +1751,14 @@ export default function Teardown() {
                               const eff = m.compat || live || learnedModel(m.file);
                               const src = eff?.source;
                               const mr = modelResearch[m.file];
-                              const dlUrl = directDownloadUrl(eff, m.file, mr);
+                              const dlUrl = directDownloadUrl(eff, m.file, mr, m.noteUrl);
                               const ks = knownModelSize(m.file);
-                              const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : null);
+                              const sz = eff?.size_gb ? fmtSize(eff.size_gb) : eff?.size_label || (ks ? fmtSize(ks) : null);
                               const dest = (env.modelRoot && rewritePath(m.file, env.modelRoot)) || m.folder;
                               const al = modelAliasInfo(m.file);
+                              const have = haveModels.has(m.file);
                               return (
-                              <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 20px", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none" }}>
+                              <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 20px", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : 1 }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontFamily: MONO, fontSize: 14.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
                                   {src && <span style={{ fontFamily: SANS, fontSize: 10.5, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
@@ -1717,18 +1775,25 @@ export default function Teardown() {
                                   ) : <span style={{ fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>}
                                 </div>
                                 <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
-                                  {dlUrl ? (
-                                    <>
-                                      <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">받기</a>
-                                      {!eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" }}>이거 맞았어</button>}
-                                      {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.amber }}>✓ 적립됨</span>}
-                                    </>
-                                  ) : mr?.loading ? (
-                                    <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim }}>검색 중…</span>
-                                  ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
-                                    <span style={{ fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>
+                                  {have ? (
+                                    <button onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.green, background: "transparent", border: `1px solid ${C.green}55`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>✓ 있음 (취소)</button>
                                   ) : (
-                                    <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
+                                    <>
+                                      {dlUrl ? (
+                                        <>
+                                          <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">받기</a>
+                                          {!eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" }}>이거 맞았어</button>}
+                                          {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.amber }}>✓ 적립됨</span>}
+                                        </>
+                                      ) : mr?.loading ? (
+                                        <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim }}>검색 중…</span>
+                                      ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
+                                        <span style={{ fontFamily: SANS, fontSize: 12, color: C.faint }}>확인 필요</span>
+                                      ) : (
+                                        <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
+                                      )}
+                                      <button onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 10.5, color: C.faint, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" }}>이미 있음</button>
+                                    </>
                                   )}
                                 </div>
                               </div>);
@@ -1786,9 +1851,24 @@ export default function Teardown() {
               )}</div>
             </div>)}
 
+            {report.anomalous?.length > 0 && (
+            <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 32 : 0 }}>
+              <BlockHead num="!" label="이상 노드" count={report.anomalous.length} open={open.fa} onToggle={() => toggle("fa")}
+                role="type이 정상 노드 이름이 아니라 UUID 형태입니다. 노드 정의 누락·내보내기 오류일 수 있어 점검 대상입니다." />
+              <div style={{ marginTop: open.fa ? 32 : 0, paddingBottom: open.fa ? 36 : 36 }}>{open.fa && (
+                <div style={{ display: "flex", flexDirection: "column" }}>
+                  {report.anomalous.map((a, i) => (
+                    <div key={a.id} style={{ display: "flex", alignItems: "flex-start", gap: 8, paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
+                      <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0, marginTop: 2 }} />
+                      <span style={{ fontSize: 14, color: C.text, lineHeight: 1.5, overflowWrap: "anywhere" }}>정의 누락 가능 (노드 #{a.id}, type=<span style={{ fontFamily: MONO, color: C.amber }}>{a.type}</span>)</span>
+                    </div>))}
+                </div>
+              )}</div>
+            </div>)}
+
             {/* 1 이식 위험 값 — Findings 제목 바로 아래 구분선 제거(borderTop 없음, 깨진 노드 있으면 구분선 추가)
                 간격 규칙: 제목↔내용 60(상단 marginTop) / 내용↔다음 순번 60(하단 paddingBottom). 모든 블록 동일. */}
-            <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 32 : 0 }}>
+            <div style={{ borderTop: (report.broken?.length || report.anomalous?.length) ? `1px solid ${C.divider}` : "none", paddingTop: (report.broken?.length || report.anomalous?.length) ? 32 : 0 }}>
               <BlockHead num="1" label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
                 role="이 값들은 당신 PC로 옮기면 안 맞을 수 있어요. 제작자 PC의 절대경로는 무시하고 당신 폴더 기준으로 보면 되고, 입력 파일은 다시 넣으면 됩니다." />
               <div style={{ marginTop: open.f1 ? 32 : 0, paddingBottom: open.f1 ? 36 : 36 }}>{open.f1 && (
@@ -1886,7 +1966,7 @@ export default function Teardown() {
             {/* 1 모델 · 자산 인벤토리 — 간격 규칙 Findings와 동일. 제목 바로 아래 구분선 제거(borderTop 없음). 하단 여백은 펼침/닫힘 무관 항상 60. */}
             <div style={{ borderTop: "none", paddingTop: 0 }}>
               <BlockHead num="1" label="모델 · 자산 인벤토리" count={report.models.length} open={open.i1} onToggle={() => toggle("i1")}
-                role="워크플로가 참조하는 모델·자산 전체입니다. 처방의 '다운로드' 단계는 이 중 가중치 파일만 추린 것입니다." />
+                role="워크플로가 참조하는 모델·자산 전체 현황입니다 (VRAM·출처 포함, 참고용). 실제 받기(할 일)는 위 Solution '받아야 할 모델' 표에서 하세요." />
               <div style={{ marginTop: open.i1 ? 32 : 0, paddingBottom: open.i1 ? 36 : 36 }}>{open.i1 && (
                 report.models.length === 0 ? <Empty text="참조된 모델 파일을 찾지 못했습니다." /> : (() => {
                   const confirmed = [];
@@ -1901,14 +1981,14 @@ export default function Teardown() {
                     const eff = m.compat || live || learnedModel(m.file);
                     const src = eff?.source;
                     const mr = modelResearch[m.file];
-                    const dlUrl = directDownloadUrl(eff, m.file, mr);
+                    const dlUrl = directDownloadUrl(eff, m.file, mr, m.noteUrl);
                     const isWeight = WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e));
                     return (
                     <div key={i} style={{ minHeight: 150, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                       <span style={{ fontFamily: MONO, fontSize: 18.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
                       <span style={{ fontFamily: SANS, fontSize: 14, color: /추정/.test(m.folder) ? C.green : C.point, opacity: /추정/.test(m.folder) ? 0.6 : 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
                       {env.modelRoot && rewritePath(m.file, env.modelRoot) && <span style={{ fontFamily: MONO, fontSize: 11, color: C.point, opacity: 0.7, marginTop: 4 }}>내 경로: {rewritePath(m.file, env.modelRoot)}</span>}
-                      {(() => { const ks = knownModelSize(m.file); const sz = eff?.size_gb ? `${eff.size_gb} GB` : eff?.size_label || (ks ? `${ks} GB` : null); return (eff?.vram_gb || sz) ? <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</span> : null; })()}
+                      {(() => { const ks = knownModelSize(m.file); const sz = eff?.size_gb ? fmtSize(eff.size_gb) : eff?.size_label || (ks ? fmtSize(ks) : null); return (eff?.vram_gb || sz) ? <span style={{ fontFamily: SANS, fontSize: 12, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</span> : null; })()}
                       {!eff?.size_gb && !eff?.size_label && !knownModelSize(m.file) && WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint, marginTop: 4 }}>용량 확인 필요</span>}
                       {m.rename && <span style={{ fontSize: 12, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}
                       {(() => { const al = modelAliasInfo(m.file); return al ? <span style={{ fontFamily: SANS, fontSize: 11, color: C.dim, marginTop: 6, lineHeight: 1.4 }}>다른 이름으로 이미 있을 수 있음: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></span> : null; })()}
@@ -2082,6 +2162,7 @@ export default function Teardown() {
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {hits.map((p) => (
                       <div key={p.id} style={{ background: C.surfaceHi, borderRadius: 10, padding: "14px 18px" }}>
+                        {p.category && <span style={{ display: "inline-block", fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: p.category === "런타임" ? INK : C.faint, background: p.category === "런타임" ? C.amber : "transparent", border: p.category === "런타임" ? "none" : `1px solid ${C.line}`, borderRadius: 5, padding: "2px 7px", marginBottom: 8, letterSpacing: "0.02em" }}>{p.category === "런타임" ? "런타임 · 실행 중" : `${p.category} 단계`}</span>}
                         <div style={{ fontSize: 14, fontWeight: 650, color: C.text, lineHeight: 1.5 }}>{p.symptom}</div>
                         <div style={{ fontSize: 13, color: C.dim, marginTop: 8, lineHeight: 1.6 }}><b style={{ color: C.text }}>원인:</b> {p.cause}</div>
                         <div style={{ fontSize: 13, color: C.dim, marginTop: 6, lineHeight: 1.6 }}><b style={{ color: C.text }}>해결:</b> {p.fix}</div>
