@@ -1568,26 +1568,26 @@ export default function Teardown() {
           {rx.length > 0 && (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <SectionTitle>Solution</SectionTitle>
-              <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)` }}>
-                <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 14, padding: "14px 24px", marginBottom: 16 }}>
-                  <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>이것만 하면 됨</div>
+              <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)`, overflow: "hidden" }}>
+                <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
+                  <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>※ 이렇게 하세요!</div>
                   {rx.map((step, i) => (
                     <div key={step.key} style={{ fontFamily: SANS, fontSize: 14, color: step.severity === "high" ? C.red : C.text, lineHeight: 1.6, paddingLeft: 4 }}>
                       {i + 1}. {step.title}
                     </div>
                   ))}
-                </div>
-                {report.authorNotes?.length > 0 && (
-                  <div style={{ background: "rgba(193,191,186,0.06)", border: `1px solid ${C.amber}55`, borderRadius: 14, padding: "16px 22px", marginBottom: 16 }}>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
-                      <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
-                      <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber }}>제작자 주의사항 (워크플로 메모 · 실행 전 확인)</span>
+                  {report.authorNotes?.length > 0 && (
+                    <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
+                        <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber }}>제작자 주의사항 (워크플로 메모 · 실행 전 확인)</span>
+                      </div>
+                      {report.authorNotes.map((t, i) => (
+                        <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
+                      ))}
                     </div>
-                    {report.authorNotes.map((t, i) => (
-                      <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
-                    ))}
-                  </div>
-                )}
+                  )}
+                </div>
                 {rx.map((step, i) => {
                   const sk = `s${i}`;
                   const sopen = !!open[sk]; // s0는 기본 펼침(useState 초기값)
