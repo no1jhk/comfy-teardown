@@ -29,6 +29,49 @@
 
 ---
 
+## 2026-06-28 (Value not in list 파싱 — PC에 있는 후보로 교체 안내 ★실전 빈틈)
+**한 일**
+- errlog 직접 파싱(troubleshooting_patterns와 별개): `{위젯}: '{요구파일}' not in [{후보목록}]` 정규식 → 배열(여러 노드 동시 처리).
+- Diagnose에 "파일 이름 불일치 N건" 박스: 요구 파일이 PC에 없음 + PC에 있는 후보 목록 + "이 중 비슷한 걸로 교체" 안내.
+- 토큰 유사도(Jaccard)로 1순위 후보 제시(예: gemma_3_12B_it_fp4_mixed → fp8_scaled, sim 0.5). 확신(sim≥0.4 & 2순위와 0.2+ 차이)일 때만 "유력" 표기, 아니면 후보만 나열(단정 금지).
+
+**어떻게**
+- parseValueNotInList() + tokenSim(). 정규식 g flag exec 루프로 여러 줄. best는 confident일 때만 강조. node로 예시 검증 완료.
+
+**다음 할 일**
+- P9 회귀테스트.
+
+## 2026-06-28 (Findings 행동 기준 재구성 — 문제 1,2,3 vs 참고 접힌 토글)
+**한 일**
+- 문제 블록(이상 노드/이식 위험/패키지·버전) 기본 펼침 + 번호 1,2,3(이상 없으면 이식위험=1로 동적). 깨진 노드는 "!"(치명, 번호 밖) 유지.
+- 참고(모델·자산 인벤토리/비활성 노드/ignorable)를 하나의 접힌 토글 "전체 현황 보기 (모델 N · 비활성 M)"로. 기본 닫힘, 안의 항목은 번호 없는 소제목.
+- 번호 1,2 / 1,2 꼬임 해결: 화면 열면 문제만 또렷, 참고는 개수 적힌 토글 하나로 인지.
+
+**어떻게**
+- open 초기값에 문제 블록(fb/fa/f1/f2) 기본 펼침 지정. 참고는 open.inv 단일 토글로 모델/비활성/ignorable 묶음(기존 i1/i2 BlockHead→번호 없는 소제목). 번호는 anomalous 유무로 동적.
+
+**다음 할 일**
+- P9 회귀테스트. 통합/토글 간격 시각 점검(dev).
+
+## 2026-06-28 (GGUF 대체를 브리핑·md에도 — LLM 왕복 감소)
+**한 일**
+- ggufLines() 공용 헬퍼: GGUF 대체 세트(역할→폴더→파일별 직링크 + 노드)를 마크다운 들여쓰기 텍스트로.
+- buildBriefing(복사): 양자화 문제 블록에 GGUF 대체 직링크 추가(fp8+Ampere 시) → LLM에 물어볼 때 같이 복사.
+- buildMarkdown(.md): step.items 처리에 quant(file/desc/gguf) 케이스 추가 → GGUF 직링크 포함. 부수: quant step이 `- undefined`로 깨지던 버그 수정(기존 it.action만 처리).
+- 이제 화면 quant 박스 + 브리핑 + .md 3곳 모두 GGUF 세트 노출.
+
+**다음 할 일**
+- P9 회귀테스트.
+
+## 2026-06-28 (gguf_alternatives 검증값 보강 — LTX 2.3 전체 GGUF 세트)
+**한 일**
+- compatibility.json gguf_alternatives.ltx-2.3를 단일 파일 → **컴포넌트별 세트**로 확장(web_search 확정): diffusion(Q4_K_M 14.3GB / Q6_K 17.8GB → models/unet), 텍스트 인코더(gemma-3-12b-it-qat-UD-Q4_K_XL + mmproj-BF16 → models/text_encoders), VAE(video/audio → models/vae).
+- 각 파일에 huggingface resolve 직링크(/resolve/main/…?download=true). VAE는 저장소 vae/ 하위. 노드 city96/ComfyUI-GGUF.
+- quant 경고 GGUF 박스 렌더를 components 순회(역할→폴더→파일별 직링크)로 교체.
+
+**다음 할 일**
+- P9 회귀테스트.
+
 ## 2026-06-28 (추정 제거 · GGUF 자동대체 · Findings+Inventory 통합)
 **한 일**
 - (1) "추정" 전면 제거: guessFolder "· 추정" 라벨 삭제(폴더명은 ComfyUI 표준이라 유지), Inventory 색분기·node_repo_map notes 정리. 화면 노출 "추정" 0건. (코드/데이터의 "추측 금지" 가이드 주석은 추측 방지 의도라 유지.)

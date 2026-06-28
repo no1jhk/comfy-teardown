@@ -205,11 +205,34 @@
     "ltx-2.3": {
       "match": ["ltx-2.3", "ltx23", "ltxv-2.3", "ltx_2.3"],
       "applies_to_quant": ["fp8_scaled", "fp8_e4m3fn", "fp4_mixed"],
-      "repo": "https://huggingface.co/unsloth/LTX-2.3-GGUF",
-      "files": ["ltx-2.3-22b-dev-Q6_K.gguf"],
-      "folder": "unet",
+      "note": "fp8 diffusion 모델은 Ampere(3090 등)에서 안 돌아갑니다. 아래 GGUF 세트 + ComfyUI-GGUF 노드로 교체하세요.",
       "node": { "name": "ComfyUI-GGUF", "repo": "https://github.com/city96/ComfyUI-GGUF" },
-      "note": "fp8 diffusion 모델은 Ampere(3090 등)에서 안 돌아갑니다. GGUF 버전 + ComfyUI-GGUF 노드로 교체하세요.",
+      "components": [
+        {
+          "role": "diffusion 모델 (둘 중 하나)",
+          "folder": "models/unet",
+          "files": [
+            { "name": "ltx-2.3-22b-dev-Q4_K_M.gguf", "size": "14.3GB", "note": "VRAM 여유 적을 때", "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/ltx-2.3-22b-dev-Q4_K_M.gguf?download=true" },
+            { "name": "ltx-2.3-22b-dev-Q6_K.gguf", "size": "17.8GB", "note": "품질 우선", "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/ltx-2.3-22b-dev-Q6_K.gguf?download=true" }
+          ]
+        },
+        {
+          "role": "텍스트 인코더",
+          "folder": "models/text_encoders",
+          "files": [
+            { "name": "gemma-3-12b-it-qat-UD-Q4_K_XL.gguf", "url": "https://huggingface.co/unsloth/gemma-3-12b-it-qat-GGUF/resolve/main/gemma-3-12b-it-qat-UD-Q4_K_XL.gguf?download=true" },
+            { "name": "mmproj-BF16.gguf", "url": "https://huggingface.co/unsloth/gemma-3-12b-it-qat-GGUF/resolve/main/mmproj-BF16.gguf?download=true" }
+          ]
+        },
+        {
+          "role": "VAE",
+          "folder": "models/vae",
+          "files": [
+            { "name": "ltx-2.3-22b-dev_video_vae.safetensors", "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/vae/ltx-2.3-22b-dev_video_vae.safetensors?download=true" },
+            { "name": "ltx-2.3-22b-dev_audio_vae.safetensors", "url": "https://huggingface.co/unsloth/LTX-2.3-GGUF/resolve/main/vae/ltx-2.3-22b-dev_audio_vae.safetensors?download=true" }
+          ]
+        }
+      ],
       "verified_on": "2026-06-28",
       "source": "web_search"
     }

@@ -264,6 +264,33 @@ function nodeRepoDetail(type) {
 }
 
 // troubleshooting_patterns.json → error log keyword matching (OR per pattern)
+// 파일명 토큰 유사도(Jaccard) — 'gemma_3_12B_it_fp4_mixed' vs 'gemma_3_12B_it_fp8_scaled' 처럼 공통 토큰 비율.
+function tokenSim(a, b) {
+  const tok = (s) => s.toLowerCase().replace(/\.[^.]+$/, "").split(/[_\-.\s]+/).filter(Boolean);
+  const A = new Set(tok(a)), B = new Set(tok(b));
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  for (const t of A) if (B.has(t)) inter++;
+  return inter / (A.size + B.size - inter);
+}
+// errlog의 "Value not in list" 직접 파싱(troubleshooting_patterns와 별개). 요구파일 없음 + PC에 있는 후보 목록.
+// 여러 노드가 동시에 안 맞을 수 있어 배열 반환. 유사도 1순위는 확신할 때만 best로(아니면 후보만).
+function parseValueNotInList(log) {
+  if (!log) return [];
+  const out = [];
+  const re = /(\w+):\s*'([^']+?)'\s+not in\s+\[([^\]]+)\]/g;
+  let m;
+  while ((m = re.exec(log))) {
+    const widget = m[1], required = m[2], listStr = m[3];
+    const candidates = (listStr.match(/'([^']+)'/g) || []).map((s) => s.slice(1, -1)).filter(Boolean);
+    if (!candidates.length) continue;
+    const ranked = candidates.map((c) => ({ name: c, sim: tokenSim(required, c) })).sort((a, b) => b.sim - a.sim);
+    const best = ranked[0], second = ranked[1];
+    const confident = best.sim >= 0.4 && (!second || best.sim - second.sim >= 0.2);
+    out.push({ widget, required, candidates, best: confident ? best.name : null });
+  }
+  return out;
+}
 function matchTroubleshootingPatterns(log) {
   if (!log || !log.trim()) return [];
   const text = log.toLowerCase();
@@ -1006,6 +1033,16 @@ function buildInstallScript(report, os) {
   return L.join(isWin ? "\r\n" : "\n");
 }
 
+// GGUF 대체 세트를 마크다운 들여쓰기 텍스트로 (브리핑·md 공용). fp8+Ampere 시 LLM에 같이 전달.
+function ggufLines(gguf) {
+  const L = [`  - GGUF 대체(이 GPU에서 동작): ${gguf.note}`];
+  for (const c of gguf.components || []) {
+    L.push(`    - ${c.role} → ${c.folder}`);
+    for (const f of c.files) L.push(`      - ${f.name}${f.size ? ` (${f.size})` : ""}${f.note ? ` — ${f.note}` : ""}: ${f.url}`);
+  }
+  if (gguf.node) L.push(`    - 필요 노드: ${gguf.node.name} (${gguf.node.repo})`);
+  return L;
+}
 function buildMarkdown(report, summary, rx) {
   const L = [];
   const now = new Date();
@@ -1074,7 +1111,14 @@ function buildMarkdown(report, summary, rx) {
           if (m.rename) L.push(`  - ⤷ ${m.rename}`);
         }
       }
-      if (step.items) for (const it of step.items) L.push(`- ${it.action}`);
+      if (step.items) for (const it of step.items) {
+        if (it.file) {
+          L.push(`- \`${it.file}\` — ${it.desc}`);
+          if (it.gguf) for (const ln of ggufLines(it.gguf)) L.push(ln);
+        } else {
+          L.push(`- ${it.action}`);
+        }
+      }
       L.push(``);
     });
   }
@@ -1139,6 +1183,8 @@ function buildBriefing(report, errlog, env) {
   if (qw.length) {
     L.push(`## 이미 발견된 양자화 호환성 문제 (Teardown 룰)`);
     for (const w of qw) L.push(`- ${w.file}: ${w.quant} 형식 → ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "미지원" : "부분지원"} → ${w.alt} 권장`);
+    const bAlt = qw.find((w) => w.gguf)?.gguf;
+    if (bAlt) for (const ln of ggufLines(bAlt)) L.push(ln);
     L.push(``);
   }
   if (rx.length) {
@@ -1265,7 +1311,7 @@ export default function Teardown() {
   const [err, setErr] = useState(null);
   const [drag, setDrag] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
-  const [open, setOpen] = useState({}); // 전부 기본 닫힘(스크롤 절약) — Solution/Findings/Inventory/AI 모두
+  const [open, setOpen] = useState({ fb: true, fa: true, f1: true, f2: true }); // 문제 블록(깨진·이상·이식위험·패키지)은 기본 펼침(주인공). 참고 토글(inv)·나머지는 닫힘
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
@@ -1832,10 +1878,17 @@ export default function Teardown() {
                                   <div style={{ fontSize: 20, fontWeight: 400, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere", marginTop: 4 }}>{it.desc}</div>
                                   {it.gguf && (
                                     <div style={{ marginTop: 10, background: C.bg, border: `1px solid ${C.point}55`, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
-                                      <div style={{ fontWeight: 700, color: C.point, marginBottom: 6, fontSize: 13.5 }}>GGUF 대체 (이 GPU에서 동작)</div>
+                                      <div style={{ fontWeight: 700, color: C.point, marginBottom: 6, fontSize: 13.5 }}>GGUF 대체 세트 (이 GPU에서 동작)</div>
                                       <div>{it.gguf.note}</div>
-                                      <div style={{ marginTop: 8 }}>① 모델: <a href={it.gguf.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.repo}</a> → <span style={{ fontFamily: MONO, color: C.text }}>{it.gguf.files.join(", ")}</span> (<span style={{ fontFamily: MONO }}>models/{it.gguf.folder}</span> 폴더)</div>
-                                      <div style={{ marginTop: 4 }}>② 노드: <a href={it.gguf.node.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.node.name}</a> 설치 필요</div>
+                                      {(it.gguf.components || []).map((c, ci) => (
+                                        <div key={ci} style={{ marginTop: 9 }}>
+                                          <div style={{ fontWeight: 650, color: C.text, fontSize: 12.5 }}>{c.role} → <span style={{ fontFamily: MONO, color: C.point }}>{c.folder}</span></div>
+                                          {c.files.map((f, fi) => (
+                                            <div key={fi} style={{ marginTop: 3, paddingLeft: 12, overflowWrap: "anywhere" }}>· <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point }}>{f.name}</a>{f.size ? <span style={{ color: C.faint }}> ({f.size})</span> : ""}{f.note ? <span style={{ color: C.faint }}> — {f.note}</span> : ""}</div>
+                                          ))}
+                                        </div>
+                                      ))}
+                                      {it.gguf.node && <div style={{ marginTop: 9 }}>필요 노드: <a href={it.gguf.node.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.node.name}</a></div>}
                                     </div>
                                   )}
                                 </div>
@@ -1873,7 +1926,7 @@ export default function Teardown() {
 
             {report.anomalous?.length > 0 && (
             <div style={{ borderTop: report.broken?.length ? `1px solid ${C.divider}` : "none", paddingTop: report.broken?.length ? 32 : 0 }}>
-              <BlockHead num="!" label="이상 노드" count={report.anomalous.length} open={open.fa} onToggle={() => toggle("fa")}
+              <BlockHead num="1" label="이상 노드" count={report.anomalous.length} open={open.fa} onToggle={() => toggle("fa")}
                 role="type이 정상 노드 이름이 아니라 UUID 형태입니다. 노드 정의 누락·내보내기 오류일 수 있어 점검 대상입니다." />
               <div style={{ marginTop: open.fa ? 32 : 0, paddingBottom: open.fa ? 36 : 36 }}>{open.fa && (
                 <div style={{ display: "flex", flexDirection: "column" }}>
@@ -1889,7 +1942,7 @@ export default function Teardown() {
             {/* 1 이식 위험 값 — Findings 제목 바로 아래 구분선 제거(borderTop 없음, 깨진 노드 있으면 구분선 추가)
                 간격 규칙: 제목↔내용 60(상단 marginTop) / 내용↔다음 순번 60(하단 paddingBottom). 모든 블록 동일. */}
             <div style={{ borderTop: (report.broken?.length || report.anomalous?.length) ? `1px solid ${C.divider}` : "none", paddingTop: (report.broken?.length || report.anomalous?.length) ? 32 : 0 }}>
-              <BlockHead num="1" label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
+              <BlockHead num={report.anomalous?.length ? "2" : "1"} label="이식 위험 값" count={report.portability.length} open={open.f1} onToggle={() => toggle("f1")}
                 role="이 값들은 당신 PC로 옮기면 안 맞을 수 있어요. 제작자 PC의 절대경로는 무시하고 당신 폴더 기준으로 보면 되고, 입력 파일은 다시 넣으면 됩니다." />
               <div style={{ marginTop: open.f1 ? 32 : 0, paddingBottom: open.f1 ? 36 : 36 }}>{open.f1 && (
                 report.portability.length === 0 ? <Empty text="이식 시 깨질 위험 값이 없습니다." /> : (
@@ -1916,7 +1969,7 @@ export default function Teardown() {
 
             {/* 2 패키지 · 버전 — 간격 규칙 동일(상단 60 / 하단 60) */}
             <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
-              <BlockHead num="2" label="패키지 · 버전" count={report.packs.length} open={open.f2} onToggle={() => toggle("f2")}
+              <BlockHead num={report.anomalous?.length ? "3" : "2"} label="패키지 · 버전" count={report.packs.length} open={open.f2} onToggle={() => toggle("f2")}
                 role="이 워크플로가 쓰는 노드팩과 기록된 버전입니다. 처방 1단계(설치)에 들어갈 저장소의 근거입니다." />
               <div style={{ marginTop: open.f2 ? 32 : 0, paddingBottom: open.f2 ? 36 : 36 }}>{open.f2 && (<>
                 <div style={{ display: "flex", flexDirection: "column" }}>
@@ -1980,11 +2033,15 @@ export default function Teardown() {
 
             {/* ── 위는 문제, 아래부터 전체 현황(참고). 구분선으로 한 흐름 안에서 분리 ── */}
             {/* 모델 · 자산 인벤토리 — Inventory를 Findings로 통합. 문제 영역과 굵은 구분선으로 구획. */}
-            <div style={{ borderTop: `2px solid ${C.divider}`, marginTop: 40, paddingTop: 36 }}>
-              <div style={{ fontFamily: SANS, fontSize: 12, fontWeight: 700, color: C.faint, letterSpacing: "0.04em", marginBottom: 20 }}>— 전체 현황 (참고) —</div>
-              <BlockHead num="1" label="모델 · 자산 인벤토리" count={report.models.length} open={open.i1} onToggle={() => toggle("i1")}
-                role="워크플로가 참조하는 모델·자산 전체 현황입니다 (VRAM·출처 포함, 참고용). 실제 받기(할 일)는 위 Solution '받아야 할 모델' 표에서 하세요." />
-              <div style={{ marginTop: open.i1 ? 32 : 0, paddingBottom: open.i1 ? 36 : 36 }}>{open.i1 && (
+            <div style={{ borderTop: `2px solid ${C.divider}`, marginTop: 40, paddingTop: 28 }}>
+              <button onClick={() => toggle("inv")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", background: C.surfaceHi, border: `1px solid ${C.line}`, borderRadius: 12, padding: "16px 20px", cursor: "pointer" }}>
+                <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.text }}>전체 현황 보기 <span style={{ fontWeight: 400, color: C.faint, fontSize: 13.5 }}>(모델 {report.models.length} · 비활성 {report.muted.length})</span></span>
+                {open.inv ? <Minus size={20} color={C.faint} /> : <Plus size={20} color={C.faint} />}
+              </button>
+              {open.inv && (<div className="td-fade" style={{ marginTop: 24 }}>
+              <div style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 700, color: C.dim }}>모델 · 자산 인벤토리 <span style={{ color: C.faint, fontWeight: 400 }}>· {report.models.length}개</span></div>
+              <div style={{ fontSize: 12.5, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>참조 모델·자산 전체(VRAM·출처 포함). 실제 받기는 위 Solution '받아야 할 모델' 표에서.</div>
+              <div style={{ marginTop: 16 }}>{(
                 report.models.length === 0 ? <Empty text="참조된 모델 파일을 찾지 못했습니다." /> : (() => {
                   const confirmed = [];
                   const unconfirmed = [];
@@ -2049,13 +2106,10 @@ export default function Teardown() {
                   </>);
                 })()
               )}</div>
-            </div>
 
-            {/* 2 비활성 노드 — 간격 규칙 동일(상단 60 / 하단 60), 1번과 구분선으로 분리 */}
-            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 32 }}>
-              <BlockHead num="2" label="비활성 노드" count={report.muted.length} open={open.i2} onToggle={() => toggle("i2")}
-                role="꺼졌거나(muted) 우회된(bypass) 노드입니다. 의도한 게 아니라면 결과가 달라질 수 있어 점검 대상입니다." />
-              <div style={{ marginTop: open.i2 ? 32 : 0, paddingBottom: open.i2 ? 36 : 36 }}>{open.i2 && (
+              <div style={{ fontFamily: SANS, fontSize: 13.5, fontWeight: 700, color: C.dim, marginTop: 36, paddingTop: 28, borderTop: `1px solid ${C.divider}` }}>비활성 노드 <span style={{ color: C.faint, fontWeight: 400 }}>· {report.muted.length}개</span></div>
+              <div style={{ fontSize: 12.5, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>꺼졌거나(muted) 우회된(bypass) 노드입니다. 의도한 게 아니라면 점검 대상.</div>
+              <div style={{ marginTop: 16 }}>{(
                 report.muted.length === 0 ? <Empty text="muted/bypass된 노드가 없습니다." /> : (
                   <div style={{ display: "flex", flexDirection: "column" }}>
                     {report.muted.map((m, i) => {
@@ -2073,12 +2127,13 @@ export default function Teardown() {
                     })}
                   </div>)
               )}</div>
+              {report.ignorable.length > 0 && (
+                <div style={{ marginTop: 20, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
+                  import 경고 무시 가능: <span style={{ fontFamily: MONO, color: C.dim }}>{report.ignorable.join(", ")}</span> — 이 노드를 안 쓰면 시작 로그의 빨간 import 에러는 무시해도 됩니다.
+                </div>
+              )}
+              </div>)}
             </div>
-            {report.ignorable.length > 0 && (
-              <div style={{ marginTop: 20, fontSize: 12, color: C.faint, lineHeight: 1.5 }}>
-                import 경고 무시 가능: <span style={{ fontFamily: MONO, color: C.dim }}>{report.ignorable.join(", ")}</span> — 이 노드를 안 쓰면 시작 로그의 빨간 import 에러는 무시해도 됩니다.
-              </div>
-            )}
           </div>
 
           {/* ───────── Diagnose (에러 로그 → AI 진단 / 브리핑) ─────────
@@ -2167,6 +2222,31 @@ export default function Teardown() {
                 </div>
               )}
             </div>
+
+            {/* 파일 이름 불일치 — "Value not in list" errlog 직접 파싱 (PC에 있는 후보로 교체) */}
+            {(() => { const hits = parseValueNotInList(errlog); return hits.length > 0 ? (
+              <div className="td-fade" style={{ marginTop: 24 }}>
+                <div style={{ background: C.surface, border: `1px solid ${C.point}`, borderRadius: 14, padding: "20px 24px" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+                    <CircleAlert size={18} color={C.point} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 16, fontWeight: 700, color: C.point }}>파일 이름 불일치 {hits.length}건 — PC에 있는 후보로 교체</span>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                    {hits.map((h, i) => (
+                      <div key={i} style={{ background: C.surfaceHi, borderRadius: 10, padding: "14px 18px" }}>
+                        <div style={{ fontSize: 14, color: C.text, lineHeight: 1.5 }}>● <span style={{ fontFamily: MONO, color: C.amber }}>{h.widget}</span>: 요구 <span style={{ fontFamily: MONO }}>'{h.required}'</span> 은(는) PC에 없음</div>
+                        {h.best ? (
+                          <div style={{ fontSize: 13.5, color: C.dim, marginTop: 8, lineHeight: 1.6 }}>→ 유력 후보(이름이 가장 비슷): <span style={{ fontFamily: MONO, color: C.point, fontWeight: 700 }}>{h.best}</span> — 위젯에서 이걸로 바꿔보세요.</div>
+                        ) : (
+                          <div style={{ fontSize: 13.5, color: C.dim, marginTop: 8, lineHeight: 1.6 }}>→ 아래 후보 중 이름이 가장 비슷한 걸 골라 바꾸세요.</div>
+                        )}
+                        <div style={{ fontSize: 12.5, color: C.faint, marginTop: 6, lineHeight: 1.6 }}>PC에 있는 후보: {h.candidates.map((c, ci) => <span key={ci} style={{ fontFamily: MONO, color: c === h.best ? C.point : C.faint }}>{ci > 0 ? ", " : ""}{c}</span>)}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null; })()}
 
             {/* 감지된 알려진 문제 — errlog 패턴 매칭 (매칭 없으면 미표시) */}
             {(() => { const hits = matchTroubleshootingPatterns(errlog); return hits.length > 0 ? (
