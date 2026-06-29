@@ -3,8 +3,20 @@
 // red 확정(디스크 상태)은 하지 않는다 — 상태를 모르면 전부 "교정 대상"으로 둔다.
 // 브라우저(ESM import)·node(콘솔 검증) 양쪽 안전: node 전용 모듈은 main 가드 안에서 동적 import.
 
+import ggufFileMap from "./gguf_file_map.json" with { type: "json" };
+
 const MODEL_EXT = /\.(safetensors|gguf|ckpt|pt|bin)$/i;
 const QUANT_BAD = /nvfp4|fp4|fp8/i;
+
+function lookupGgufAlt(filename) {
+  const low = filename.toLowerCase();
+  for (const m of (ggufFileMap?.maps || [])) {
+    if (m.match.some((kw) => low.includes(kw.toLowerCase()))) {
+      return m.alternatives.length ? { alternatives: m.alternatives } : { pending: true };
+    }
+  }
+  return null;
+}
 
 // 10. SLOT_FOLDER / TYPE_FOLDER — Teardown.jsx의 NODE_FOLDER_MAP과 같은 값.
 const TYPE_FOLDER = {
@@ -158,7 +170,8 @@ export function buildRecipes(json, { gpu = "ampere" } = {}) {
     if (!modelPairs.length) continue;
     const slots = modelPairs.map(([slot, value]) => {
       const r = resolveSlot(n, slot, value, manifest);
-      return { slot, value, ...r, quantBad: gpu === "ampere" && QUANT_BAD.test(value) }; // 8. 양자화 비호환
+      const qb = gpu === "ampere" && QUANT_BAD.test(value);
+      return { slot, value, ...r, quantBad: qb, ggufAlt: qb ? lookupGgufAlt(value) : null }; // 8. 양자화 비호환 + GGUF 대안
     });
     const recipe = { id: n.id, type: n.type, tab: n.properties?.pipeline_mode || null, sub: n._inSubgraph || null, slots };
     if (offsetWarning) recipe.__offset_warning = true;
