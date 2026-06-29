@@ -29,6 +29,18 @@
 
 ---
 
+## 2026-06-28 (redNodeRecipe.js 신설 — 모델 노드 교정 레시피 추출, UI 미연결)
+**한 일**
+- src/data/redNodeRecipe.js 신설(독립 ESM 모듈, Teardown.jsx 미연결). 워크플로 JSON → 모델 보유 노드별 탭·슬롯·폴더·URL 교정 레시피. red(디스크 상태) 확정 안 함 — 전부 "교정 대상".
+- 10개 동작: flatten(서브그래프 재귀+_inSubgraph) / bypass·mute 제외 / 모델노드 판별 / 활성탭(pipeline_mode) / 슬롯-값 정렬(phantom offset 보정) / 폴더·URL 우선순위(properties.models > manifest > SLOT_FOLDER > TYPE_FOLDER > 확인필요) / 위젯값≠author시 currentValue+authorRecommend 병기 / 양자화 quantBad / 출력구조 / NODE_FOLDER_MAP 동일값.
+- main 가드(node 콘솔 검증), node 전용 모듈은 동적 import로 브라우저 안전.
+
+**검증**
+- 실제 4개 워크플로 JSON이 프로젝트에 없어 명세 기반 합성 픽스처로 콘솔 검증(로직 동작 확인). LTX(서브그래프·매니페스트·offset·bypass제외·탭) / Flux2 Inpaint(properties.models diffusion_models 오버라이드) / Flux2 T2I(nvfp4 규칙폴더+quantBad) / Flux2 Edit(author병기) 전부 의도대로.
+
+**다음 할 일**
+- 실제 4개 워크플로 JSON으로 재검증(경로 받으면). UI 연결 여부 결정.
+
 ## 2026-06-28 (제작자 주의사항을 상단 "이렇게 하세요" 영역으로 이동)
 **한 일**
 - authorNotes(제작자 주의사항)를 상단 surfaceHi 영역 밖 → 안으로 이동(rx 요약 다음). amber 박스(테두리/radius) 제거하고 구분선 + amber 라벨로 영역에 녹임(박스 안 박스 방지).
