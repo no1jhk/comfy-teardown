@@ -1164,6 +1164,7 @@ export default function Teardown() {
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
   const [missingText, setMissingText] = useState(""); // 빨간 노드 교정: 사용자가 붙여넣은 누락 모델 파일명
   const [dirText, setDirText] = useState("");         // 빨간 노드 교정: PC 폴더 파일 목록(dir /b 결과)
+  const [scanRoot, setScanRoot] = useState("");      // dir 명령 생성기: 모델 루트 경로
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
   const [rawSrc, setRawSrc] = useState("");
   const [aiResult, setAiResult] = useState(null);  // AI 정밀 진단 결과
@@ -1356,6 +1357,13 @@ export default function Teardown() {
       return { ...s, missing };
     }) }));
   }, [recipes, missingSet, haveFromDir, hasRedInput]);
+
+  // recipes → 이 워크플로가 참조하는 폴더 unique 집합 (dir 명령 생성용)
+  const usedFolders = React.useMemo(() => {
+    const set = new Set();
+    for (const r of recipes) for (const s of r.slots) if (s.folder && s.folder !== "확인 필요") set.add(s.folder);
+    return [...set].sort();
+  }, [recipes]);
 
   // 진단 요약 계산
   let summary = null;
@@ -1725,7 +1733,40 @@ export default function Teardown() {
                   <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint }}>(고급 · 선택)</span>
                 </div>
                 {open.adv && (<>
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
+                  {/* 폴더 스캔 명령 생성기 */}
+                  {usedFolders.length > 0 && (
+                    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px", marginTop: 8, marginBottom: 14 }}>
+                      <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 4 }}>폴더 스캔 명령 만들기</div>
+                      <div style={{ fontSize: 11.5, color: C.faint, lineHeight: 1.5, marginBottom: 10 }}>모델 루트 경로를 넣으면, 이 워크플로가 쓰는 폴더만 스캔하는 명령을 만들어 줍니다. 결과를 아래 칸에 붙여넣으세요.</div>
+                      <input value={scanRoot} onChange={(e) => setScanRoot(e.target.value)} spellCheck={false}
+                        placeholder={"Windows 예: N:\\ComfyUI_models   ·   Mac 예: ~/ComfyUI/models"}
+                        style={{ width: "100%", boxSizing: "border-box", background: C.bg, color: C.text,
+                          border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 12px", fontFamily: MONO, fontSize: 12, outline: "none", marginBottom: 10 }} />
+                      {(() => {
+                        const root = scanRoot.trim();
+                        const subs = usedFolders.map(f => f.replace(/^models\//, ""));
+                        const winRoot = root ? root.replace(/\/+$/, "").replace(/\\+$/, "") : "<모델루트>";
+                        const macRoot = root ? root.replace(/\/+$/, "").replace(/\\+$/, "") : "<모델루트>";
+                        const winCmd = "dir /b " + subs.map(s => `"${winRoot}\\${s.replace(/\//g, "\\")}"`).join(" ");
+                        const macCmd = "ls " + subs.map(s => `"${macRoot}/${s}"`).join(" ");
+                        return (
+                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                            {[{ label: "Windows", cmd: winCmd, key: "scanwin" }, { label: "Mac / Linux", cmd: macCmd, key: "scanmac" }].map(({ label, cmd, key }) => (
+                              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                                <span style={{ fontSize: 10.5, color: C.faint, flexShrink: 0, minWidth: 70 }}>{label}:</span>
+                                <code style={{ fontFamily: MONO, fontSize: 11, color: root ? C.text : C.faint, flex: 1, overflowWrap: "anywhere", lineHeight: 1.5 }}>{cmd}</code>
+                                <button className="td-copy" onClick={() => copy(cmd, key)} title="복사"
+                                  style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                                  {copiedKey === key ? <Check size={13} /> : <Copy size={13} />}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
                     <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
                       <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>이미 가진 파일 제외</div>
                       <textarea value={missingText} onChange={(e) => setMissingText(e.target.value)} spellCheck={false}
@@ -1736,7 +1777,7 @@ export default function Teardown() {
                     <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
                       <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>내 폴더에 있는 것</div>
                       <textarea value={dirText} onChange={(e) => setDirText(e.target.value)} spellCheck={false}
-                        placeholder={"모델 폴더에서 dir /b(Win) 또는\nls(Mac) 결과를 붙여넣기. 비워도 됨."}
+                        placeholder={"위 명령 결과를 붙여넣기.\n비워도 됩니다."}
                         style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
                           border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
                     </div>
