@@ -169,22 +169,24 @@ export function buildRecipes(json, { gpu = "ampere" } = {}) {
 export default buildRecipes;
 
 // ── 검증(콘솔): node src/data/redNodeRecipe.js <workflow.json> ──
-async function main() {
-  const fs = await import("node:fs");
-  const file = process.argv[2];
-  if (!file) { console.error("usage: node redNodeRecipe.js <workflow.json>"); process.exit(1); }
-  const json = JSON.parse(fs.readFileSync(file, "utf8"));
-  const recipes = buildRecipes(json);
-  console.log(`\n=== ${file} — 모델 노드 ${recipes.length}개 ===`);
-  for (const r of recipes) {
-    const head = `[${r.type}] #${r.id}` + (r.tab ? ` · 탭:${r.tab}` : "") + (r.sub ? ` · sub:${r.sub}` : "") + (r.__offset_warning ? " ⚠offset" : "");
-    console.log("\n" + head);
-    for (const s of r.slots) {
-      console.log(`  ${s.slot} = ${s.value}`);
-      console.log(`    → ${s.folder} (${s.src}) · URL ${s.url}` + (s.quantBad ? "  ⚠비호환" : ""));
-      if (s.authorRecommend) console.log(`    author추천: ${s.authorRecommend.name} → ${normFolder(s.authorRecommend.directory)} (현재선택: ${s.currentValue})`);
-    }
-  }
-}
+// Vite가 import("node:fs")를 정적 분석해 경고를 내므로, 브라우저에서는 main 자체를 정의하지 않는다.
 const isNode = typeof process !== "undefined" && process.versions?.node;
-if (isNode && process.argv[1] && /redNodeRecipe\.js$/.test(process.argv[1])) main();
+if (isNode && process.argv[1] && /redNodeRecipe\.js$/.test(process.argv[1])) {
+  (async () => {
+    const _m = "node:" + "fs"; const fs = await import(_m);
+    const file = process.argv[2];
+    if (!file) { console.error("usage: node redNodeRecipe.js <workflow.json>"); process.exit(1); }
+    const json = JSON.parse(fs.readFileSync(file, "utf8"));
+    const recipes = buildRecipes(json);
+    console.log(`\n=== ${file} — 모델 노드 ${recipes.length}개 ===`);
+    for (const r of recipes) {
+      const head = `[${r.type}] #${r.id}` + (r.tab ? ` · 탭:${r.tab}` : "") + (r.sub ? ` · sub:${r.sub}` : "") + (r.__offset_warning ? " ⚠offset" : "");
+      console.log("\n" + head);
+      for (const s of r.slots) {
+        console.log(`  ${s.slot} = ${s.value}`);
+        console.log(`    → ${s.folder} (${s.src}) · URL ${s.url}` + (s.quantBad ? "  ⚠비호환" : ""));
+        if (s.authorRecommend) console.log(`    author추천: ${s.authorRecommend.name} → ${normFolder(s.authorRecommend.directory)} (현재선택: ${s.currentValue})`);
+      }
+    }
+  })();
+}

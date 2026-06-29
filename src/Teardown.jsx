@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
+import { buildRecipes } from "./data/redNodeRecipe.js";
 import mgrList from "./data/manager-model-list.json";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
@@ -1314,6 +1315,12 @@ export default function Teardown() {
 
   const rx = report ? buildPrescription(report, env.gpu) : [];
 
+  // GPU 변경 시 recipes 재계산 (buildRecipes의 gpu 파라미터 반영)
+  const recipes = React.useMemo(() => {
+    if (!rawJson) return [];
+    try { return buildRecipes(JSON.parse(rawJson), { gpu: gpuGeneration(env.gpu) || "ampere" }); } catch { return []; }
+  }, [rawJson, env.gpu]);
+
   // 진단 요약 계산
   let summary = null;
   if (report) {
@@ -1561,6 +1568,65 @@ export default function Teardown() {
                   })}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* 빨간 노드 교정 — redNodeRecipe 엔진 출력 */}
+          {recipes.length > 0 && (
+            <div style={{ marginTop: 44, paddingBottom: 48 }}>
+              <SectionTitle sub="이 노드는 지금 이걸로 돼있는데, 네 환경엔 이걸로">빨간 노드 교정</SectionTitle>
+              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                {recipes.map((r, ri) => (
+                  <div key={`${r.type}-${r.id}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "18px 22px" }}>
+                    {/* 카드 헤더 */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                      <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
+                      <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint }}>#{r.id}</span>
+                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: INK, background: C.point, borderRadius: 999, padding: "2px 10px" }}>탭: {r.tab}</span>}
+                      {r.sub && <span style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: C.violet, border: `1px solid ${C.violet}`, borderRadius: 999, padding: "2px 10px" }}>서브그래프</span>}
+                      {r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.amber }}>⚠ offset 보정됨</span>}
+                    </div>
+                    {/* 슬롯 표 */}
+                    <div style={{ borderRadius: 10, overflow: "hidden", border: `1px solid ${C.line}` }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 80px", gap: 10, padding: "8px 14px", background: C.surfaceHi, borderBottom: `1px solid ${C.line}` }}>
+                        {["#", "슬롯", "현재 값", "폴더", "받기"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.faint }}>{h}</span>)}
+                      </div>
+                      {r.slots.map((s, si) => (
+                        <div key={si}>
+                          <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 80px", gap: 10, padding: "10px 14px", alignItems: "start", borderTop: si > 0 ? `1px solid ${C.divider}` : "none" }}>
+                            <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint }}>{si + 1}</span>
+                            <span style={{ fontFamily: MONO, fontSize: 12, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontFamily: MONO, fontSize: 13, color: s.quantBad ? C.red : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
+                              {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.red }}>⚠ 이 GPU에서 안 됨 → GGUF/bf16 교체</span>}
+                              {s.authorRecommend && (
+                                <div style={{ marginTop: 4, fontSize: 11.5, color: C.dim, lineHeight: 1.5 }}>
+                                  제작자 권장: <span style={{ fontFamily: MONO, color: C.point }}>{s.authorRecommend.name}</span> → <span style={{ color: C.point }}>{s.authorRecommend.directory}</span>
+                                  {s.authorRecommend.url && s.authorRecommend.url !== "확인 필요" && (
+                                    <> · <a href={s.authorRecommend.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontSize: 11 }}>받기</a></>
+                                  )}
+                                </div>
+                              )}
+                            </div>
+                            <div style={{ minWidth: 0 }}>
+                              <div style={{ fontFamily: MONO, fontSize: 12, color: s.folder === "확인 필요" ? C.red : C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.folder}</div>
+                              {s.src && s.src !== "rule" && s.src !== "none" && <span style={{ fontFamily: SANS, fontSize: 10, color: C.faint }}>{s.src}</span>}
+                              {s.src === "none" && <span style={{ fontFamily: SANS, fontSize: 10, color: C.red }}>폴더 확인 필요</span>}
+                            </div>
+                            <div>
+                              {s.url && s.url !== "확인 필요" ? (
+                                <a className="td-hf-sm" href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontFamily: SANS, fontSize: 11, fontWeight: 700, color: INK, background: C.point, borderRadius: 999, padding: "3px 10px", textDecoration: "none", whiteSpace: "nowrap" }}>받기</a>
+                              ) : (
+                                <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint }}>확인 필요</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
 
