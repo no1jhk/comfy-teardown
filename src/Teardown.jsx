@@ -44,7 +44,7 @@ const SANS = "Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'App
 const MODEL_EXTS = [".safetensors",".ckpt",".pt",".pth",".bin",".gguf",".onnx",".glb",".fbx",".obj",".vrm",".gltf"];
 const WEIGHT_EXTS = [".ckpt",".safetensors",".pt",".pth",".bin",".gguf",".onnx"];
 
-const FRONTEND_ONLY = new Set(["Note","MarkdownNote","Reroute","PrimitiveNode"]);
+const FRONTEND_ONLY = new Set(["Note","MarkdownNote","Reroute","PrimitiveNode","SetNode","GetNode"]);
 
 const REPO_BY_CNR = {
   "comfyui-trellis2": "visualbruno/ComfyUI-Trellis2",
