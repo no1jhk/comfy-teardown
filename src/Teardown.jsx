@@ -1614,33 +1614,6 @@ export default function Teardown() {
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <SectionTitle sub="이 노드는 지금 이걸로 돼있는데, 네 환경엔 이걸로">Red Node Fix</SectionTitle>
 
-              {/* 입력칸 2개 — 누락 파일명 / 내 폴더 목록 */}
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
-                <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
-                  <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>실제 빨간 것만 추리기 <span style={{ fontWeight: 400, color: C.faint }}>(선택)</span></div>
-                  <textarea value={missingText} onChange={(e) => setMissingText(e.target.value)} spellCheck={false}
-                    placeholder={"ComfyUI 우측 '누락된 모델' 패널의\n파일명을 붙여넣으세요."}
-                    style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
-                      border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
-                </div>
-                <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
-                  <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>내 폴더에 있는 것 <span style={{ fontWeight: 400, color: C.faint }}>(선택)</span></div>
-                  <textarea value={dirText} onChange={(e) => setDirText(e.target.value)} spellCheck={false}
-                    placeholder={"dir /b 또는 ls 결과를 붙여넣으면\n목록에 없는 파일을 🔴로 표시합니다."}
-                    style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
-                      border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
-                </div>
-              </div>
-
-              {/* 요약 한 줄 */}
-              {hasRedInput && (
-                <div style={{ fontSize: 13, fontWeight: 700, color: missingCount > 0 ? C.red : C.green, marginBottom: 14, lineHeight: 1.5 }}>
-                  {missingCount > 0
-                    ? `🔴 표시된 ${missingCount}개가 실제로 없는 것입니다`
-                    : haveFromDir ? "폴더 목록의 파일이 모든 슬롯과 매칭됩니다 — 다 있는 상태" : "붙여넣은 파일명과 매칭되는 슬롯이 없습니다 — 파일명을 확인하세요"}
-                </div>
-              )}
-
               {/* 커스텀 노드 누락 */}
               {hasNodeIssues && (<>
                 <div style={{ fontSize: 13, fontWeight: 700, color: C.dim, marginBottom: 10, marginTop: 6 }}>커스텀 노드</div>
@@ -1744,6 +1717,39 @@ export default function Teardown() {
                   </div>
                 ))}
               </div>)}
+
+              {/* 고급: 이미 받은 것 빼고 보기 — 접이식 */}
+              <div style={{ marginTop: 24 }}>
+                <div onClick={() => toggle("adv")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "10px 0" }}>
+                  <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.dim }}>{open.adv ? "▾" : "▸"} 이미 받은 것 빼고 보기</span>
+                  <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint }}>(고급 · 선택)</span>
+                </div>
+                {open.adv && (<>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginTop: 8 }}>
+                    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>이미 가진 파일 제외</div>
+                      <textarea value={missingText} onChange={(e) => setMissingText(e.target.value)} spellCheck={false}
+                        placeholder={"받을 필요 없는(이미 가진) 파일명을\n한 줄에 하나씩. 모르면 비워두세요."}
+                        style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
+                          border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
+                    </div>
+                    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>내 폴더에 있는 것</div>
+                      <textarea value={dirText} onChange={(e) => setDirText(e.target.value)} spellCheck={false}
+                        placeholder={"모델 폴더에서 dir /b(Win) 또는\nls(Mac) 결과를 붙여넣기. 비워도 됨."}
+                        style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
+                          border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
+                    </div>
+                  </div>
+                  {hasRedInput && (
+                    <div style={{ fontSize: 13, fontWeight: 700, color: missingCount > 0 ? C.red : C.green, marginTop: 12, lineHeight: 1.5 }}>
+                      {missingCount > 0
+                        ? `🔴 표시된 ${missingCount}개가 실제로 없는 것입니다`
+                        : haveFromDir ? "폴더 목록의 파일이 모든 슬롯과 매칭됩니다 — 다 있는 상태" : "붙여넣은 파일명과 매칭되는 슬롯이 없습니다 — 파일명을 확인하세요"}
+                    </div>
+                  )}
+                </>)}
+              </div>
             </div>);
           })()}
 
