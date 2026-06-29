@@ -1343,6 +1343,7 @@ export default function Teardown() {
 
   // "입력이 하나라도 있나" — 렌더에서 뱃지 표시 여부 판단
   const hasRedInput = missingSet.size > 0 || haveFromDir !== null;
+  const hasNodeIssues = report && ((report.broken?.length || 0) + (report.unmapped?.length || 0) + (report.packs?.filter(p => p.conflict).length || 0) > 0);
 
   // recipes + missing 표시 enrichment (원본 buildRecipes 안 건드림)
   const recipesEnriched = React.useMemo(() => {
@@ -1607,7 +1608,7 @@ export default function Teardown() {
           )}
 
           {/* 빨간 노드 교정 — redNodeRecipe 엔진 출력 */}
-          {recipesEnriched.length > 0 && (() => {
+          {(recipesEnriched.length > 0 || hasNodeIssues) && (() => {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
@@ -1640,7 +1641,57 @@ export default function Teardown() {
                 </div>
               )}
 
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+              {/* 커스텀 노드 누락 */}
+              {hasNodeIssues && (<>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.dim, marginBottom: 10, marginTop: 6 }}>커스텀 노드</div>
+                <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
+                  {report.unmapped.map((u, i) => (
+                    <div key={`um-${i}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "14px 22px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.text }}>{u.type}</span>
+                        <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint }}>#{u.id}</span>
+                        <span style={{ fontFamily: SANS, fontSize: 11, color: C.red }}>미설치</span>
+                      </div>
+                      {(u.repo || u.clone_url) ? (
+                        <div style={{ marginTop: 8, fontSize: 12, color: C.dim, lineHeight: 1.6 }}>
+                          설치: <span style={{ fontFamily: MONO, color: C.point }}>{u.repo || u.clone_url}</span>
+                          {" · "}<a href={u.clone_url || `https://github.com/${u.repo}`} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "none", fontSize: 11 }}>GitHub</a>
+                          {u.manager_searchable === true && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.green, marginLeft: 8 }}>Manager 검색 가능</span>}
+                          {u.manager_searchable === false && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.faint, marginLeft: 8 }}>Manager 검색 안 됨 · 수동 clone</span>}
+                        </div>
+                      ) : (
+                        <div style={{ marginTop: 8, fontSize: 12, color: C.faint }}>출처 확인 필요</div>
+                      )}
+                      {u.install_note && <div style={{ marginTop: 4, fontSize: 11, color: C.faint, lineHeight: 1.5 }}>{u.install_note}</div>}
+                    </div>
+                  ))}
+                  {report.broken.map((b, i) => (
+                    <div key={`br-${i}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "14px 22px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.red }}>노드 #{b.id}</span>
+                        <span style={{ fontFamily: SANS, fontSize: 11, color: C.red }}>type을 못 읽음</span>
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 12, color: C.dim, lineHeight: 1.5 }}>커스텀 노드 미설치 추정. ComfyUI에서 해당 빨간 노드 이름 확인 필요</div>
+                    </div>
+                  ))}
+                  {report.packs.filter(p => p.conflict).map((p) => (
+                    <div key={`cf-${p.id}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "14px 22px" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.text }}>{p.id}</span>
+                        <span style={{ fontFamily: SANS, fontSize: 11, color: C.amber }}>버전 충돌</span>
+                      </div>
+                      <div style={{ marginTop: 8, fontSize: 12, color: C.dim, lineHeight: 1.5 }}>
+                        이 팩은 깔려있지만 버전이 여러 개 기록됨: <span style={{ fontFamily: MONO, color: C.amber }}>{p.vers.join(", ")}</span> — 재현이 불안정할 수 있습니다
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </>)}
+
+              {hasNodeIssues && recipesEnriched.length > 0 && (
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.dim, marginBottom: 10 }}>모델 슬롯</div>
+              )}
+              {recipesEnriched.length > 0 && (<div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {recipesEnriched.map((r, ri) => (
                   <div key={`${r.type}-${r.id}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "18px 22px" }}>
                     {/* 카드 헤더 */}
@@ -1703,7 +1754,7 @@ export default function Teardown() {
                     </div>
                   </div>
                 ))}
-              </div>
+              </div>)}
             </div>);
           })()}
 
