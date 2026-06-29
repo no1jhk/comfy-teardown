@@ -1343,7 +1343,7 @@ export default function Teardown() {
 
   // "입력이 하나라도 있나" — 렌더에서 뱃지 표시 여부 판단
   const hasRedInput = missingSet.size > 0 || haveFromDir !== null;
-  const hasNodeIssues = report && ((report.broken?.length || 0) + (report.unmapped?.length || 0) + (report.packs?.filter(p => p.conflict).length || 0) > 0);
+  const hasNodeIssues = report && ((report.broken?.length || 0) + (report.unmapped?.length || 0) > 0);
 
   // recipes + missing 표시 enrichment (원본 buildRecipes 안 건드림)
   const recipesEnriched = React.useMemo(() => {
@@ -1674,17 +1674,6 @@ export default function Teardown() {
                       <div style={{ marginTop: 8, fontSize: 12, color: C.dim, lineHeight: 1.5 }}>커스텀 노드 미설치 추정. ComfyUI에서 해당 빨간 노드 이름 확인 필요</div>
                     </div>
                   ))}
-                  {report.packs.filter(p => p.conflict).map((p) => (
-                    <div key={`cf-${p.id}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "14px 22px" }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                        <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.text }}>{p.id}</span>
-                        <span style={{ fontFamily: SANS, fontSize: 11, color: C.amber }}>버전 충돌</span>
-                      </div>
-                      <div style={{ marginTop: 8, fontSize: 12, color: C.dim, lineHeight: 1.5 }}>
-                        이 팩은 깔려있지만 버전이 여러 개 기록됨: <span style={{ fontFamily: MONO, color: C.amber }}>{p.vers.join(", ")}</span> — 재현이 불안정할 수 있습니다
-                      </div>
-                    </div>
-                  ))}
                 </div>
               </>)}
 
@@ -1765,20 +1754,24 @@ export default function Teardown() {
               <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)`, overflow: "hidden" }}>
                 <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
                   <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>※ 이렇게 하세요!</div>
-                  {rx.map((step, i) => (
-                    <div key={step.key} style={{ fontFamily: SANS, fontSize: 14, color: step.severity === "high" ? C.red : C.text, lineHeight: 1.6, paddingLeft: 4 }}>
-                      {i + 1}. {step.title}
-                    </div>
-                  ))}
+                  <div style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.6, paddingLeft: 4 }}>위 '빨간 노드 교정'의 받기 버튼으로 개별 받거나, 아래 설치 스크립트로 한 번에 받으세요.</div>
                   {report.authorNotes?.length > 0 && (
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                      <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                         <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
-                        <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber }}>제작자 주의사항 (워크플로 메모 · 실행 전 확인)</span>
+                        <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber, flex: 1 }}>제작자 주의사항 (워크플로 메모)</span>
+                        <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("an"); }} aria-label="펼치기/접기"
+                          style={{ background: "transparent", border: "none", color: C.amber, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
+                          {open.an ? <Minus size={18} strokeWidth={2.25} /> : <Plus size={18} strokeWidth={2.25} />}
+                        </button>
                       </div>
-                      {report.authorNotes.map((t, i) => (
-                        <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
-                      ))}
+                      {open.an && (
+                        <div style={{ marginTop: 8 }}>
+                          {report.authorNotes.map((t, i) => (
+                            <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
