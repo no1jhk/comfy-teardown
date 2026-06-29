@@ -1664,6 +1664,16 @@ export default function Teardown() {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontFamily: MONO, fontSize: 13, color: s.quantBad ? C.red : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
                               {s.quantBad && <div style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.red, marginTop: 4 }}>⚠ 이 GPU에서 안 됨 → GGUF/bf16 교체</div>}
+                              {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
+                                <div key={ai} style={{ fontFamily: SANS, fontSize: 11, color: C.point, marginTop: 3, lineHeight: 1.5 }}>
+                                  ↳ 대체: <span style={{ fontFamily: MONO }}>{a.name}</span> → {a.folder}
+                                  {a.url && <> · <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "none" }}>받기</a></>}
+                                  {a.note && <span style={{ color: C.faint, fontSize: 10.5 }}> ({a.note})</span>}
+                                </div>
+                              ))}
+                              {s.quantBad && s.ggufAlt?.pending && (
+                                <div style={{ fontFamily: SANS, fontSize: 11, color: C.faint, marginTop: 3 }}>↳ 대체 GGUF: 확인 필요</div>
+                              )}
                               {hasRedInput && s.missing === true && <div style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.red, marginTop: 4 }}>🔴 실제 누락</div>}
                               {hasRedInput && s.missing === false && <div style={{ fontFamily: SANS, fontSize: 10.5, color: C.faint, marginTop: 4 }}>있음(추정)</div>}
                               {s.authorRecommend && (
