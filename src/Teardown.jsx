@@ -1163,6 +1163,7 @@ export default function Teardown() {
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
   const [missingText, setMissingText] = useState(""); // 빨간 노드 교정: 사용자가 붙여넣은 누락 모델 파일명
+  const [dirText, setDirText] = useState("");         // 빨간 노드 교정: PC 폴더 파일 목록(dir /b 결과)
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
   const [rawSrc, setRawSrc] = useState("");
   const [aiResult, setAiResult] = useState(null);  // AI 정밀 진단 결과
@@ -1322,7 +1323,7 @@ export default function Teardown() {
     try { return buildRecipes(JSON.parse(rawJson), { gpu: gpuGeneration(env.gpu) || "ampere" }); } catch { return []; }
   }, [rawJson, env.gpu]);
 
-  // missingText → 파일명 Set (줄·공백 분리, 모델 확장자 매칭)
+  // missingText → 직접 지정한 누락 파일명 Set
   const missingSet = React.useMemo(() => {
     if (!missingText.trim()) return new Set();
     const MODEL_RE = /[\w.\-]+\.(safetensors|gguf|ckpt|pt|bin)/gi;
@@ -1331,13 +1332,29 @@ export default function Teardown() {
     return set;
   }, [missingText]);
 
+  // dirText → PC에 있는 파일명 Set (null = 입력 안 함)
+  const haveFromDir = React.useMemo(() => {
+    if (!dirText.trim()) return null;
+    const MODEL_RE = /[\w.\-]+\.(safetensors|gguf|ckpt|pt|bin)/gi;
+    const set = new Set();
+    for (const tok of dirText.match(MODEL_RE) || []) set.add(tok.toLowerCase());
+    return set;
+  }, [dirText]);
+
+  // "입력이 하나라도 있나" — 렌더에서 뱃지 표시 여부 판단
+  const hasRedInput = missingSet.size > 0 || haveFromDir !== null;
+
   // recipes + missing 표시 enrichment (원본 buildRecipes 안 건드림)
   const recipesEnriched = React.useMemo(() => {
-    if (missingSet.size === 0) return recipes;
-    return recipes.map((r) => ({ ...r, slots: r.slots.map((s) => ({
-      ...s, missing: !!(s.value && missingSet.has(s.value.toLowerCase())),
-    })) }));
-  }, [recipes, missingSet]);
+    if (!hasRedInput) return recipes;
+    return recipes.map((r) => ({ ...r, slots: r.slots.map((s) => {
+      const v = s.value?.toLowerCase();
+      let missing = false;
+      if (haveFromDir && v) missing = !haveFromDir.has(v); // 폴더목록에 없으면 누락
+      if (v && missingSet.has(v)) missing = true;          // 직접입력은 합집합(무조건 누락)
+      return { ...s, missing };
+    }) }));
+  }, [recipes, missingSet, haveFromDir, hasRedInput]);
 
   // 진단 요약 계산
   let summary = null;
@@ -1591,26 +1608,35 @@ export default function Teardown() {
 
           {/* 빨간 노드 교정 — redNodeRecipe 엔진 출력 */}
           {recipesEnriched.length > 0 && (() => {
-            const missingCount = missingSet.size > 0 ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
+            const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <SectionTitle sub="이 노드는 지금 이걸로 돼있는데, 네 환경엔 이걸로">빨간 노드 교정</SectionTitle>
 
-              {/* 실제 누락 입력칸 */}
-              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px", marginBottom: 18 }}>
-                <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>실제 빨간 것만 추리기 <span style={{ fontWeight: 400, color: C.faint }}>(선택)</span></div>
-                <textarea value={missingText} onChange={(e) => setMissingText(e.target.value)} spellCheck={false}
-                  placeholder={"ComfyUI 우측 '누락된 모델/알 수 없음' 패널의 파일명을 붙여넣으면,\n아래에서 진짜 없는 것만 🔴로 표시합니다. 비워두면 전부 교정 대상으로 봅니다."}
-                  style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
-                    border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
+              {/* 입력칸 2개 — 누락 파일명 / 내 폴더 목록 */}
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
+                <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>실제 빨간 것만 추리기 <span style={{ fontWeight: 400, color: C.faint }}>(선택)</span></div>
+                  <textarea value={missingText} onChange={(e) => setMissingText(e.target.value)} spellCheck={false}
+                    placeholder={"ComfyUI 우측 '누락된 모델' 패널의\n파일명을 붙여넣으세요."}
+                    style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
+                      border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
+                </div>
+                <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
+                  <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>내 폴더에 있는 것 <span style={{ fontWeight: 400, color: C.faint }}>(선택)</span></div>
+                  <textarea value={dirText} onChange={(e) => setDirText(e.target.value)} spellCheck={false}
+                    placeholder={"dir /b 또는 ls 결과를 붙여넣으면\n목록에 없는 파일을 🔴로 표시합니다."}
+                    style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
+                      border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 12, lineHeight: 1.6, outline: "none" }} />
+                </div>
               </div>
 
               {/* 요약 한 줄 */}
-              {missingSet.size > 0 && (
+              {hasRedInput && (
                 <div style={{ fontSize: 13, fontWeight: 700, color: missingCount > 0 ? C.red : C.green, marginBottom: 14, lineHeight: 1.5 }}>
                   {missingCount > 0
                     ? `🔴 표시된 ${missingCount}개가 실제로 없는 것입니다`
-                    : "붙여넣은 파일명과 매칭되는 슬롯이 없습니다 — 파일명을 확인하세요"}
+                    : haveFromDir ? "폴더 목록의 파일이 모든 슬롯과 매칭됩니다 — 다 있는 상태" : "붙여넣은 파일명과 매칭되는 슬롯이 없습니다 — 파일명을 확인하세요"}
                 </div>
               )}
 
@@ -1632,14 +1658,14 @@ export default function Teardown() {
                       </div>
                       {r.slots.map((s, si) => (
                         <div key={si}>
-                          <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 80px", gap: 10, padding: "10px 14px", alignItems: "start", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: missingSet.size > 0 && s.missing === false ? 0.45 : 1 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 80px", gap: 10, padding: "10px 14px", alignItems: "start", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
                             <span style={{ fontFamily: MONO, fontSize: 12, color: C.faint }}>{si + 1}</span>
                             <span style={{ fontFamily: MONO, fontSize: 12, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontFamily: MONO, fontSize: 13, color: s.quantBad ? C.red : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
                               {s.quantBad && <div style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.red, marginTop: 4 }}>⚠ 이 GPU에서 안 됨 → GGUF/bf16 교체</div>}
-                              {missingSet.size > 0 && s.missing === true && <div style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.red, marginTop: 4 }}>🔴 실제 누락</div>}
-                              {missingSet.size > 0 && s.missing === false && <div style={{ fontFamily: SANS, fontSize: 10.5, color: C.faint, marginTop: 4 }}>있음(추정)</div>}
+                              {hasRedInput && s.missing === true && <div style={{ fontFamily: SANS, fontSize: 10.5, fontWeight: 700, color: C.red, marginTop: 4 }}>🔴 실제 누락</div>}
+                              {hasRedInput && s.missing === false && <div style={{ fontFamily: SANS, fontSize: 10.5, color: C.faint, marginTop: 4 }}>있음(추정)</div>}
                               {s.authorRecommend && (
                                 <div style={{ marginTop: 4, fontSize: 11.5, color: C.dim, lineHeight: 1.5 }}>
                                   제작자 권장: <span style={{ fontFamily: MONO, color: C.point }}>{s.authorRecommend.name}</span> → <span style={{ color: C.point }}>{s.authorRecommend.directory}</span>
