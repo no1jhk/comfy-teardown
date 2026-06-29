@@ -29,6 +29,23 @@
 
 ---
 
+## 2026-06-29 (빨간 노드 교정 엔진 + UI 연결)
+**한 일**
+- src/data/redNodeRecipe.js 신설: 워크플로 JSON → 모델노드별 교정 레시피
+  · 폴더·URL 우선순위: properties.models > Deno매니페스트 > 슬롯맵 > 타입맵 > 확인필요
+  · 서브그래프 재귀, bypass 제외, 양자화 비호환(fp8/fp4/nvfp4) 플래그, author 병기
+  · TYPE_SLOT 폴백: inputs[] 빈 core 로더(Flux UNETLoader/CLIPLoader 등) 위치순 슬롯 추론
+- src/Teardown.jsx: Solution 위에 "빨간 노드 교정" 섹션 신설, recipes useMemo(rawJson+gpu)
+- 실물 검증: test/fixtures 4개(LTX2.3 + Flux2 3종) — 화면 렌더까지 확인
+- 커밋: c3f4630(엔진) / 5dd8f72(UI연결)
+
+**남은 일**
+- buildBriefing 끝에 캡쳐 동봉 안내(자산17)
+- 입력 UI 3구역 재배치 + dir/b·Manager·우측패널·extra_path 칸(자산 11·13·14·16·18)
+- 폴리시: 빨간노드 카드 슬롯 컬럼 줄바꿈 정리
+
+---
+
 ## 2026-06-28 (redNodeRecipe.js 신설 — 모델 노드 교정 레시피 추출, UI 미연결)
 **한 일**
 - src/data/redNodeRecipe.js 신설(독립 ESM 모듈, Teardown.jsx 미연결). 워크플로 JSON → 모델 보유 노드별 탭·슬롯·폴더·URL 교정 레시피. red(디스크 상태) 확정 안 함 — 전부 "교정 대상".
