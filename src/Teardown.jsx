@@ -737,7 +737,7 @@ function buildPrescription(r, envGpu) {
   const installNotes = r.unmapped.filter((u) => u.install_note).map((u) => ({ file: u.type, desc: u.install_note }));
   if (cloneList.length) steps.push({
     key: "install",
-    title: `커스텀 노드 ${cloneList.length}개 pack 설치`,
+    title: `커스텀 노드 한 번에 설치 (clone 스크립트 · ${cloneList.length}개)`,
     desc: "custom_nodes 폴더에서 git clone (또는 Manager의 Git URL 설치).",
     command: cloneList.map((url) => `git clone ${url}`).join("\n"),
     warn: unknown ? `출처 미상 ${unknown}개는 web_search 확인 필요.` : null,
@@ -746,7 +746,7 @@ function buildPrescription(r, envGpu) {
   const dl = r.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)));
   if (dl.length) steps.push({
     key: "models",
-    title: `모델 ${dl.length}개 다운로드·배치`,
+    title: `모델 한 번에 받기 (${dl.length}개)`,
     desc: "지정 폴더에 배치. 리네임 표시는 이름을 정확히 맞추세요.",
     models: dl,
     integrity: true,
@@ -1612,7 +1612,7 @@ export default function Teardown() {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
-              <SectionTitle sub="이 노드는 지금 이걸로 돼있는데, 네 환경엔 이걸로">빨간 노드 교정</SectionTitle>
+              <SectionTitle sub="이 노드는 지금 이걸로 돼있는데, 네 환경엔 이걸로">Red Node Fix</SectionTitle>
 
               {/* 입력칸 2개 — 누락 파일명 / 내 폴더 목록 */}
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14, marginBottom: 18 }}>
