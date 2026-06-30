@@ -880,7 +880,7 @@ function buildMarkdown(report, summary, rx, env) {
   L.push(`- 포맷: ${report.format}`);
   L.push(`- 생성: ${stamp}`);
   L.push(``);
-  if (summary) L.push(`> ${summary.headline}`);
+  if (summary) L.push(`> ${summary.diagLine}`);
   L.push(``);
 
   // Summary 지표
@@ -1368,21 +1368,24 @@ export default function Teardown() {
   // 진단 요약 계산
   let summary = null;
   if (report) {
-    const conflictPacks = report.packs.filter((p) => p.conflict);
     const weightCount = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e))).length;
     const issues = [];
     if (report.broken?.length) issues.push({ head: `깨진 노드 ${report.broken.length}개`, severity: "high",
       body: "type이 없는 노드입니다. 해당 커스텀 노드가 설치되지 않으면 워크플로 실행이 불가합니다." });
     if (report.anomalous?.length) issues.push({ head: `이상 노드 ${report.anomalous.length}개`, severity: "high",
       body: "type이 UUID 형태인 노드입니다. 노드 정의가 누락됐거나 내보내기가 잘못됐을 수 있어 점검이 필요합니다." });
-    if (conflictPacks.length) issues.push({ head: `버전 충돌 ${conflictPacks.length}건`,
-      body: `${conflictPacks.map((p) => p.id).join(", ")} — 같은 pack이 여러 버전으로 기록돼 재현이 불안정합니다.` });
-    if (report.portability.length) issues.push({ head: `이식 위험 ${report.portability.length}건`,
-      body: "flash_attn·경로 등 다른 PC로 옮기면 깨질 값이 있습니다." });
-    if (report.muted.length) issues.push({ head: `비활성 노드 ${report.muted.length}개`,
-      body: "bypass/muted 상태입니다. 단계별로 켜고 끄는 워크플로면 정상이고, 의도와 다르면 점검하세요." });
+    // 진단 한 줄 수치
+    const diagNodeM = report.unmapped?.length || 0;
+    const diagBrokenK = report.broken?.length || 0;
+    const diagModelN = recipes.flatMap((r) => r.slots).length;
+    let diagLine = "";
+    if (diagNodeM > 0 && diagModelN > 0) diagLine = `이 워크플로우는 정상 작동하지 않습니다. 커스텀 노드 ${diagNodeM}개를 설치하고, 모델 ${diagModelN}개를 맞춰야 합니다.`;
+    else if (diagNodeM > 0) diagLine = `커스텀 노드 ${diagNodeM}개를 설치하면 정상 작동합니다.`;
+    else if (diagModelN > 0) diagLine = `모델 ${diagModelN}개를 네 환경에 맞추면 정상 작동합니다.`;
+    else diagLine = "차단 요소는 없습니다. 아래 참고 항목만 확인하세요.";
+    if (diagBrokenK > 0) diagLine += ` (이름을 못 읽는 노드 ${diagBrokenK}개는 ComfyUI에서 직접 확인이 필요합니다.)`;
     summary = {
-      headline: `이 워크플로는 커스텀 노드 ${report.customPackCount}개 pack과 모델 ${weightCount}개에 의존합니다.`,
+      diagLine, diagBlocked: diagNodeM > 0 || diagModelN > 0 || diagBrokenK > 0,
       issues, weightCount,
     };
   }
@@ -1587,6 +1590,7 @@ export default function Teardown() {
                   style={{ display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 999, padding: "8px 16px", fontFamily: SANS, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                   <Download size={15} /> 결과 저장 (.md)</button>
               </div>
+              <div style={{ fontSize: 16, fontWeight: 700, color: summary.diagBlocked ? C.red : C.green, lineHeight: 1.6, margin: "0 0 20px" }}>{summary.diagLine}</div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 24px" }}>
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
                 <MetricBox value={report.customPackCount} label="커스텀 pack" unit="개" />
@@ -1624,7 +1628,7 @@ export default function Teardown() {
 
               {/* 커스텀 노드 누락 */}
               {hasNodeIssues && (<>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.dim, marginBottom: 10, marginTop: 6 }}>커스텀 노드</div>
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.dim, marginBottom: 10, marginTop: 6 }}>STEP 1 — 커스텀 노드 설치</div>
                 <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 20 }}>
                   {report.unmapped.map((u, i) => (
                     <div key={`um-${i}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "14px 22px" }}>
@@ -1658,8 +1662,8 @@ export default function Teardown() {
                 </div>
               </>)}
 
-              {hasNodeIssues && recipesEnriched.length > 0 && (
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.dim, marginBottom: 10 }}>모델 슬롯</div>
+              {recipesEnriched.length > 0 && (
+                <div style={{ fontSize: 13, fontWeight: 700, color: C.dim, marginBottom: 10 }}>STEP {hasNodeIssues ? 2 : 1} — 모델 맞추기</div>
               )}
               {recipesEnriched.length > 0 && (<div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {recipesEnriched.map((r, ri) => (
@@ -1726,8 +1730,8 @@ export default function Teardown() {
                 ))}
               </div>)}
 
-              {/* 고급: 이미 받은 것 빼고 보기 — 접이식 */}
-              <div style={{ marginTop: 24 }}>
+              {/* 고급: 이미 받은 것 빼고 보기 — 비표시(재설계 후 복원 예정) */}
+              {false && <div style={{ marginTop: 24 }}>
                 <div onClick={() => toggle("adv")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "10px 0" }}>
                   <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.dim }}>{open.adv ? "▾" : "▸"} 이미 받은 것 빼고 보기</span>
                   <span style={{ fontFamily: SANS, fontSize: 11, color: C.faint }}>(고급 · 선택)</span>
@@ -1790,7 +1794,7 @@ export default function Teardown() {
                     </div>
                   )}
                 </>)}
-              </div>
+              </div>}
             </div>);
           })()}
 
