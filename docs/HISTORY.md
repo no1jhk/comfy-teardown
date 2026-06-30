@@ -29,6 +29,24 @@
 
 ---
 
+## 2026-06-30 (사용자 동선 재배치 — 진단 한 줄 + STEP + 중복 제거)
+**한 일**
+- Summary를 "진단 한 줄(diagLine) + 차단 이슈만"으로 축소, 참고(충돌/이식/비활성)는 Findings 일원화
+- Red Node Fix에 커스텀 노드 누락 카드 추가 (report.broken+unmapped → 설치 안내)
+- FRONTEND_ONLY 버그 수정 (SetNode/GetNode 누락 → 24개 거짓 양성 제거)
+- 빨간 노드 교정 ↔ Solution 중복 제거: 버전충돌 제거, TL;DR 제거, authorNotes 아코디언화
+- Solution 설치 단계 제목 → 행동 중심("커스텀 노드 한 번에 설치", "모델 한 번에 받기")
+- Red Node Fix STEP 1(노드 설치)/STEP 2(모델 맞추기) 번호 부여, 고급 입력칸 숨김
+
+**어떻게**: 진단→STEP 처방→Solution(실행)→Diagnose→Findings(참고) 동선 확립
+
+**다음 할 일**
+- 고급 옵션(dir 생성기·입력칸) 재설계 후 복원
+- P8: Manager model-list 월간 갱신
+- P9: JSON 10개 회귀테스트
+
+---
+
 ## 2026-06-29 (빨간 노드 교정 엔진 + UI 연결)
 **한 일**
 - src/data/redNodeRecipe.js 신설: 워크플로 JSON → 모델노드별 교정 레시피
