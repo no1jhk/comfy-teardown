@@ -252,13 +252,20 @@ const GEN_LABEL = { ampere: "Ampere(30xx)", ada: "Ada(40xx)", blackwell: "Blackw
 const NODE_REPO_INDEX = {};
 for (const m of (nodeRepoMap?.mappings || [])) NODE_REPO_INDEX[m.class_type] = m;
 
-function repoForUnmapped(type) {
+function repoForUnmapped(type, mgrMap) {
   // 1. node_repo_map exact match (큐레이션 DB, 최우선)
   const nrm = NODE_REPO_INDEX[type];
-  if (nrm) return nrm.repo || null;
-  // 2. prefix fallback
-  for (const [pre, repo] of REPO_BY_PREFIX) if (type.startsWith(pre)) return repo;
-  return null;
+  if (nrm) return { repo: nrm.repo || null, src: "curated" };
+  // 2. manager_node_map (extension-node-map 역매핑, 비동기 로드)
+  if (mgrMap) {
+    const idx = mgrMap.map[type];
+    if (idx === -1) return { repo: "CORE", src: "manager" };
+    if (typeof idx === "number" && mgrMap.repos[idx]) return { repo: "https://github.com/" + mgrMap.repos[idx], src: "manager" };
+  }
+  // 3. prefix fallback (접두어 추측)
+  for (const [pre, repo] of REPO_BY_PREFIX) if (type.startsWith(pre)) return { repo, src: "prefix" };
+  // 4. compatNodeRepo (cnr_id 기반 — unmapped에선 cnr_id 없지만 type→cnr 역추정 시도 가능)
+  return { repo: null, src: null };
 }
 function nodeRepoDetail(type) {
   return NODE_REPO_INDEX[type] || null;
@@ -450,7 +457,7 @@ function extractNoteLinks(notes) {
   }
   return out;
 }
-function analyze(norm) {
+function analyze(norm, mgrMap) {
   const packVers = {}, packNodes = {}, unmappedRaw = [], frontendOnly = [], muted = [], models = [], broken = [], anomalous = [];
   const authorNotes = norm.nodes.map((n) => n.noteText).filter((t) => t && t.trim());
   const noteLinks = extractNoteLinks(authorNotes);
@@ -461,7 +468,9 @@ function analyze(norm) {
     else if (FRONTEND_ONLY.has(n.type)) frontendOnly.push(n.type);
     else {
       const nrd = nodeRepoDetail(n.type);
-      unmappedRaw.push({ id: n.id, type: n.type, repo: repoForUnmapped(n.type),
+      const { repo, src: repoSrc } = repoForUnmapped(n.type, mgrMap);
+      unmappedRaw.push({ id: n.id, type: n.type, repo: repo === "CORE" ? null : repo, repoSrc,
+        isCore: repo === "CORE",
         clone_url: nrd?.clone_url || null, manager_searchable: nrd?.manager_searchable ?? null,
         install_note: nrd?.notes || null });
     }
@@ -502,7 +511,7 @@ function analyze(norm) {
   return {
     format: norm.format, totalNodes: norm.nodes.length,
     customPackCount: packs.filter((p) => !p.isCore).length,
-    packs, unmapped: unmappedRaw, frontendOnly: [...new Set(frontendOnly)],
+    packs, unmapped: unmappedRaw.filter((u) => !u.isCore), frontendOnly: [...new Set(frontendOnly)],
     muted, models: dedupModels, sameRepo, broken, anomalous, portability: portabilityScan(norm.nodes),
     bypassBreaks: detectBypassBreaks(norm),
     ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
@@ -730,7 +739,7 @@ function buildPrescription(r, envGpu) {
   }
   for (const u of r.unmapped) {
     if (u.clone_url) cloneSet.set(u.clone_url, u.manager_searchable === false ? `Manager 검색 안 됨 (${u.type})` : null);
-    else if (u.repo) cloneSet.set(`https://github.com/${u.repo}.git`, null);
+    else if (u.repo) cloneSet.set(u.repo.startsWith("https://") ? u.repo.replace(/\/?$/, ".git") : `https://github.com/${u.repo}.git`, null);
   }
   const cloneList = [...cloneSet.keys()];
   const unknown = r.unmapped.filter((u) => !u.repo && !u.clone_url).length;
@@ -804,7 +813,7 @@ function buildInstallScript(report, os) {
   }
   for (const u of report.unmapped) {
     if (u.clone_url) cloneUrls.set(u.clone_url, u.manager_searchable === false ? `Manager 검색 안 됨 (${u.type})` : null);
-    else if (u.repo) cloneUrls.set(`https://github.com/${u.repo}.git`, null);
+    else if (u.repo) cloneUrls.set(u.repo.startsWith("https://") ? u.repo.replace(/\/?$/, ".git") : `https://github.com/${u.repo}.git`, null);
   }
   if (cloneUrls.size) {
     L.push(`${cmt} === 커스텀 노드 ${cloneUrls.size}개 ===`);
@@ -1176,6 +1185,8 @@ export default function Teardown() {
   const [envLog, setEnvLog] = useState("");
   const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", modelRoot: "" });
   const [cmdOpen, setCmdOpen] = useState(false);
+  const [mgrMap, setMgrMap] = useState(null); // manager_node_map.json (비동기 로드)
+  useEffect(() => { fetch("/manager_node_map.json").then((r) => r.ok ? r.json() : null).then(setMgrMap).catch(() => {}); }, []);
   const onEnvLog = (text) => {
     setEnvLog(text);
     const parsed = parseComfyLog(text);
@@ -1208,14 +1219,14 @@ export default function Teardown() {
     try {
       const norm = normalize(JSON.parse(text));
       if (!norm) throw new Error("ComfyUI 워크플로 형식이 아닙니다. nodes 배열 또는 class_type 키가 보이지 않습니다.");
-      const rep = analyze(norm);
+      const rep = analyze(norm, mgrMap);
       setReport({ ...rep, source: src });
     } catch (e) {
       setReport(null);
       setErr(/JSON|Unexpected|token/.test(e.message)
         ? "JSON을 읽지 못했습니다. ComfyUI 워크플로 export가 맞는지 확인하세요." : e.message);
     }
-  }, []);
+  }, [mgrMap]);
   const onFile = (file) => {
     if (!file) return;
     const r = new FileReader();
@@ -1638,14 +1649,16 @@ export default function Teardown() {
                         <span style={{ fontFamily: SANS, fontSize: 11, color: C.red }}>미설치</span>
                       </div>
                       {(u.repo || u.clone_url) ? (
-                        <div style={{ marginTop: 8, fontSize: 12, color: C.dim, lineHeight: 1.6 }}>
-                          설치: <span style={{ fontFamily: MONO, color: C.point }}>{u.repo || u.clone_url}</span>
-                          {" · "}<a href={u.clone_url || `https://github.com/${u.repo}`} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "none", fontSize: 11 }}>GitHub</a>
-                          {u.manager_searchable === true && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.green, marginLeft: 8 }}>Manager 검색 가능</span>}
-                          {u.manager_searchable === false && <span style={{ fontFamily: SANS, fontSize: 10.5, color: C.faint, marginLeft: 8 }}>Manager 검색 안 됨 · 수동 clone</span>}
+                        <div style={{ marginTop: 8, fontSize: 12, color: C.dim, lineHeight: 1.6, display: "flex", alignItems: "center", flexWrap: "wrap", gap: "4px 8px" }}>
+                          <span>설치: <span style={{ fontFamily: MONO, color: C.point }}>{(u.repo || u.clone_url || "").replace("https://github.com/", "")}</span></span>
+                          <a href={u.clone_url || (u.repo?.startsWith("https://") ? u.repo : `https://github.com/${u.repo}`)} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "none", fontSize: 11 }}>GitHub</a>
+                          {u.repoSrc === "curated" && <span style={{ fontSize: 10.5, color: C.point }}>검증됨</span>}
+                          {u.repoSrc === "manager" && <span style={{ fontSize: 10.5, color: C.dim }}>Manager 등록</span>}
+                          {u.repoSrc === "prefix" && <span style={{ fontSize: 10.5, color: C.amber }}>추정 — 설치 전 repo 확인 권장</span>}
+                          {u.manager_searchable === false && <span style={{ fontSize: 10.5, color: C.faint }}>Manager 검색 안 됨 · 수동 clone</span>}
                         </div>
                       ) : (
-                        <div style={{ marginTop: 8, fontSize: 12, color: C.faint }}>출처 확인 필요</div>
+                        <div style={{ marginTop: 8, fontSize: 12, color: C.faint }}>출처 확인 필요 — web_search 또는 Manager에서 노드 이름 검색</div>
                       )}
                       {u.install_note && <div style={{ marginTop: 4, fontSize: 11, color: C.faint, lineHeight: 1.5 }}>{u.install_note}</div>}
                     </div>

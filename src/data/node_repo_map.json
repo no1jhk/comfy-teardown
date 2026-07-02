@@ -13,7 +13,7 @@
       "source": "manual_curation | empirical(실제 막혀서 확인) | manager_list"
     },
     "matching_rule": "class_type 완전일치 우선. 못 찾으면 노드 title/display name 보조 매칭. 절대 추측 URL 생성 금지 — 미확인은 repo=null로 두고 'web_search 필요' 플래그.",
-    "last_updated": "2026-06-27"
+    "last_updated": "2026-07-02"
   },
 
   "mappings": [
@@ -31,24 +31,24 @@
     {
       "class_type": "DenoLTX23PresetLoader",
       "display_name": "(Deno) LTX Model Loader",
-      "repo": "deno-custom-nodes",
-      "clone_url": null,
+      "repo": "Deno2026/comfyui-deno-custom-nodes",
+      "clone_url": "https://github.com/Deno2026/comfyui-deno-custom-nodes.git",
       "manager_searchable": false,
       "install": "manual_clone",
-      "notes": "비공개/커스텀 pack — 정확한 공개 repo URL 미확인(web_search 필요). GGUF Style/Checkpoint/KJ Style 3모드. VAE 로드 시 KJNodes load_vae 경유 → VAE 파일 손상(0바이트/HTML 저장) 시 json.decoder.JSONDecodeError 발생.",
-      "verified_on": "2026-06-27",
-      "source": "empirical"
+      "notes": "GGUF Style/Checkpoint/KJ Style 3모드. VAE 로드 시 KJNodes load_vae 경유 → VAE 파일 손상(0바이트/HTML 저장) 시 json.decoder.JSONDecodeError 발생.",
+      "verified_on": "2026-07-02",
+      "source": "empirical+manager"
     },
     {
       "class_type": "DenoMultiImageLoader",
       "display_name": "(Deno) Multi Image Loader",
-      "repo": "deno-custom-nodes",
-      "clone_url": null,
+      "repo": "Deno2026/comfyui-deno-custom-nodes",
+      "clone_url": "https://github.com/Deno2026/comfyui-deno-custom-nodes.git",
       "manager_searchable": false,
       "install": "manual_clone",
-      "notes": "deno-custom-nodes 소속. 선택 이미지가 input 폴더에 없으면 'Selected image file(s) are missing' 검증 실패. URL 미확인.",
-      "verified_on": "2026-06-27",
-      "source": "empirical"
+      "notes": "deno-custom-nodes 소속. 선택 이미지가 input 폴더에 없으면 'Selected image file(s) are missing' 검증 실패.",
+      "verified_on": "2026-07-02",
+      "source": "empirical+manager"
     },
     {
       "class_type": "PatchTritonVAE",
@@ -81,7 +81,7 @@
     "comfyui_memory_cleanup": "https://github.com/LAOGOU-666/Comfyui-Memory_Cleanup.git",
     "ComfyUI-VFI": "https://github.com/GACLove/ComfyUI-VFI.git",
     "ComfyUI-LTXVideo": "https://github.com/Lightricks/ComfyUI-LTXVideo.git",
-    "deno-custom-nodes": null,
+    "deno-custom-nodes": "https://github.com/Deno2026/comfyui-deno-custom-nodes.git",
     "ComfyMath": null,
     "comfyui_nvidia_rtx_nodes": null
   }
