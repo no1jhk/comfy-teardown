@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-02 (Manager 노드맵 역매핑 + 출처 확신도 라벨)
+**한 일**
+- Comfy Registry API 검증: 역검색(class→repo) 불가 확인, cnr_id 커버리지 79.6%(FRONTEND_ONLY 제외 시 98%)
+- ComfyUI-Manager extension-node-map.json 검증: 36,222 class 역매핑 가능, GACLove/Deno2026 등 Registry 미등록 팩도 포함
+- scripts/build-nodemap.mjs 신설: 역매핑 생성(repos 인덱스화, minify → 1,120KB, gzip 314KB)
+- public/manager_node_map.json: Vite 정적 서빙, useEffect 비동기 로드(번들 미포함)
+- 룩업 체인 4단계: curated → manager → prefix → null, CORE(-1) 자동 제외
+- 커스텀 노드 카드에 출처 라벨: 검증됨/Manager 등록/추정(확인 권장)
+- Deno 계열 curated 데이터 완성(Deno2026/comfyui-deno-custom-nodes)
+
+**어떻게**: extension-node-map { repo: [[classes], meta] } → { repos:[], map:{class:idx} } 역변환, -1=CORE
+
+**다음 할 일**
+- dev 화면 검증(체크리스트 5항목)
+- P8: Manager model-list + nodemap 월간 갱신 통합
+- P9: JSON 10개 회귀테스트
+
+---
+
 ## 남은 과제 (컨텍스트 압축 대비 — 다음 세션 참조용)
 
 **완료**
