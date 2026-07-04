@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-05 (P9 회귀테스트 — buildRecipes 4 fixtures 통과)
+**한 일**
+- test/regression.mjs 신설: fixtures 4개(LTX2.3 + Flux2 Edit/Inpaint/T2I) → buildRecipes(gpu=ampere). 크래시 0.
+- 기대치 전부 충족: LTX quantBad 2(fp8_scaled+fp4_mixed)·ggufAlt 2, Flux2 3종 quantBad 슬롯 ggufAlt 전부 채움(확인필요 0). src 분포 정상(LTX manifest 6/rule 2, Flux properties.models/rule).
+
+**막힌 점**
+- analyze(normalize·repoForUnmapped) unmapped/broken/repoSrc 항목은 Teardown.jsx 내부(JSX+React, node import 불가) → 회귀에서 SKIP. 완전 검증하려면 순수 ESM 모듈 추출 필요(별건).
+
+**다음 할 일**
+- (선택) analyze/normalize/repoForUnmapped 추출 → regression 완전판(unmapped/repoSrc 포함).
+- 미커밋 누적(regression.mjs·gguf_file_map·CLAUDE.md·HISTORY) 커밋 지시 대기.
+
 ## 2026-07-05 (CLAUDE.md 작업 규칙 섹션 신설)
 **한 일**
 - CLAUDE.md 상단에 "작업 규칙 (불변 — 압축 후에도 유지)" 6개 신설: 빌드≠화면(dev 확인 전 커밋금지) / 커밋은 명시지시만 / 날조금지·미확인 "확인 필요" / 변경요약 표+라인번호 / 기능심사 기준("빨간 워크플로 캡쳐 대신 JSON 한 방") / 작업 단위마다 HISTORY 갱신(커밋 무관, 커밋 시 해시 병기).
