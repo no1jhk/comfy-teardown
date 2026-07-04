@@ -53,6 +53,16 @@ function normFolder(d) {
 // 1. flatten — json.nodes + definitions.subgraphs[].nodes 재귀 평탄화. 서브그래프 노드엔 _inSubgraph 태그.
 export function flatten(json) {
   const out = [];
+  // API 포맷: 최상위가 노드ID 키 + 각 값에 class_type (json.nodes 없음). 내부 노드 형태로 변환.
+  //   inputs 객체는 _apiInputs로 넘겨 alignSlots가 직접 파싱. properties.models는 대개 없음 → rule fallback.
+  if (json && typeof json === "object" && !Array.isArray(json.nodes)) {
+    const apiEntries = Object.entries(json).filter(([, v]) => v && typeof v === "object" && v.class_type);
+    if (apiEntries.length) {
+      for (const [id, v] of apiEntries)
+        out.push({ id, type: v.class_type, mode: 0, properties: v.properties || {}, _apiInputs: v.inputs || {} });
+      return out;
+    }
+  }
   const push = (nodes, tag) => { for (const n of nodes || []) out.push(tag ? { ...n, _inSubgraph: tag } : n); };
   push(json?.nodes, null);
   const walk = (defs) => {
@@ -103,6 +113,12 @@ const TYPE_SLOT = {
 
 // 5. 슬롯명↔값 정렬 (phantom offset 보정 — 순진한 zip 금지).
 function alignSlots(n) {
+  // API 포맷: inputs가 {슬롯명: 값} 객체 → *_name류 파일값 직접 추출 (phantom-offset 없음).
+  if (n._apiInputs) {
+    const pairs = Object.entries(n._apiInputs)
+      .filter(([s, v]) => /_name$/.test(s) && typeof v === "string" && MODEL_EXT.test(v));
+    return { pairs, offsetWarning: false };
+  }
   const widgetSlots = (n.inputs || []).filter((i) => i?.widget?.name).map((i) => i.widget.name);
   const vals = Array.isArray(n.widgets_values) ? n.widgets_values : [];
   if (widgetSlots.length && widgetSlots.length === vals.length) {

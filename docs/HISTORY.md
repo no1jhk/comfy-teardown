@@ -6,7 +6,20 @@
 
 ---
 
-## 2026-07-05 (P9 회귀테스트 — buildRecipes 4 fixtures 통과)
+## 2026-07-05 (A-1 — buildRecipes API 포맷 지원)
+**한 일**
+- redNodeRecipe.js: ComfyUI API 포맷(최상위 노드ID 키 + 각 값 class_type) 지원. flatten이 json.nodes 없으면 API 노드로 변환(_apiInputs), alignSlots가 inputs 객체에서 *_name 파일값 직접 추출.
+- 사전 실측(A-1): API 포맷 입력 시 기존 buildRecipes는 빈 recipes([]) 반환(크래시 아님) → "빨간 노드 교정" 섹션 조용히 누락. normalize(화면)는 Teardown.jsx L337~343에서 이미 API 대응 확인.
+- test/api_sample.json 신설(합성 4노드, nvfp4+fp4). regression.mjs에 API 케이스 추가.
+
+**어떻게**
+- API는 properties.models 없음 → folder/url은 rule fallback(src=rule). quantBad/ggufAlt는 파일명 기반이라 변환만으로 동작. 회귀: 기존 4 + API 신규 전부 통과, 빌드 OK.
+
+**다음 할 일**
+- 화면(Teardown.jsx)에서 API 포맷 파일 실제 로드 dev 확인.
+- 미커밋 누적(redNodeRecipe.js·regression.mjs·api_sample.json·HISTORY) 커밋 지시 대기.
+
+## 2026-07-05 (P9 회귀테스트 — buildRecipes 4 fixtures 통과) · 커밋 0bcebdc (push 대기)
 **한 일**
 - test/regression.mjs 신설: fixtures 4개(LTX2.3 + Flux2 Edit/Inpaint/T2I) → buildRecipes(gpu=ampere). 크래시 0.
 - 기대치 전부 충족: LTX quantBad 2(fp8_scaled+fp4_mixed)·ggufAlt 2, Flux2 3종 quantBad 슬롯 ggufAlt 전부 채움(확인필요 0). src 분포 정상(LTX manifest 6/rule 2, Flux properties.models/rule).

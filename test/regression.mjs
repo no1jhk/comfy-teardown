@@ -63,6 +63,35 @@ for (const f of files) {
   rows.push([f.replace(/\.json$/, "").slice(0, 34), recipes.length + "/" + slots.length, quantBad.length, ggufFilled.length + ggufPending.length, ggufNone.length, JSON.stringify(srcDist)]);
 }
 
+// === API 포맷 케이스 (test/api_sample.json — 합성 4노드, nvfp4+fp4 포함) ===
+console.log("\n" + "=".repeat(70) + "\nAPI 포맷: api_sample.json");
+{
+  const j = JSON.parse(fs.readFileSync(path.join(DIR, "api_sample.json"), "utf8"));
+  let recipes, crash = null;
+  try { recipes = buildRecipes(j, { gpu: GPU }); } catch (e) { crash = e; }
+  if (crash) { console.log(`  ❌ CRASH\n${crash.stack}`); fail++; }
+  else {
+    const slots = recipes.flatMap((r) => r.slots);
+    const quantBad = slots.filter((s) => s.quantBad);
+    const ggufFilled = quantBad.filter((s) => s.ggufAlt && s.ggufAlt.alternatives?.length > 0);
+    const ggufPending = quantBad.filter((s) => s.ggufAlt && s.ggufAlt.pending);
+    const ggufNone = quantBad.filter((s) => !s.ggufAlt);
+    const ggAll = ggufFilled.length + ggufPending.length;
+    const srcDist = {};
+    for (const s of slots) srcDist[s.src] = (srcDist[s.src] || 0) + 1;
+    console.log(`  크래시: 없음 ✅`);
+    console.log(`  recipes 노드: ${recipes.length} · 슬롯: ${slots.length}`);
+    console.log(`  quantBad: ${quantBad.length}  (ggufAlt채움 ${ggufFilled.length} / pending ${ggufPending.length} / 확인필요 ${ggufNone.length})`);
+    console.log(`  slot.src 분포: ${JSON.stringify(srcDist)}`);
+    console.log(`  quantBad 파일: ${quantBad.map((s) => s.value).join(", ") || "-"}`);
+    if (recipes.length === 0) { console.log(`  ❌ 기대 recipes>0, 실제 0 → flatten API 분기 미작동 추정`); fail++; }
+    else if (quantBad.length !== 2) { console.log(`  ❌ 기대 quantBad 2, 실제 ${quantBad.length} → API inputs 슬롯 추출/감지 불일치 추정`); fail++; }
+    else if (ggAll !== 2) { console.log(`  ❌ 기대 ggufAlt 2, 실제 ${ggAll} → gguf_file_map 매칭 누락 추정`); fail++; }
+    else console.log(`  ✅ API 기대치(recipes>0 · quantBad 2 · ggufAlt 2) 충족`);
+    rows.push(["api_sample (API포맷)", recipes.length + "/" + slots.length, quantBad.length, ggAll, ggufNone.length, JSON.stringify(srcDist)]);
+  }
+}
+
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");
 for (const r of rows) console.log("  " + r.join("  |  "));

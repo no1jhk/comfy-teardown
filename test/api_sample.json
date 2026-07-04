@@ -1,0 +1,23 @@
+{
+  "_comment": "합성 API 포맷 테스트 샘플 — 실제 워크플로 아님(IP 무관). regression.mjs API 케이스용. nvfp4+fp4 파일명으로 quantBad/ggufAlt 경로 검증.",
+  "10": {
+    "inputs": { "unet_name": "flux2-dev-nvfp4-mixed.safetensors", "weight_dtype": "default" },
+    "class_type": "UNETLoader",
+    "_meta": { "title": "Load Diffusion Model" }
+  },
+  "11": {
+    "inputs": { "clip_name": "mistral_3_small_flux2_fp4_mixed.safetensors", "type": "flux2", "device": "default" },
+    "class_type": "CLIPLoader",
+    "_meta": { "title": "Load CLIP" }
+  },
+  "12": {
+    "inputs": { "vae_name": "flux2-vae.safetensors" },
+    "class_type": "VAELoader",
+    "_meta": { "title": "Load VAE" }
+  },
+  "13": {
+    "inputs": { "model": ["10", 0], "lora_name": "Flux2TurboComfyv2.safetensors", "strength_model": 1.0 },
+    "class_type": "LoraLoaderModelOnly",
+    "_meta": { "title": "LoraLoaderModelOnly" }
+  }
+}
