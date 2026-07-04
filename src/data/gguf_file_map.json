@@ -1,6 +1,6 @@
 {
   "_desc": "fp8/fp4/nvfp4 모델 파일명 → 작동하는 GGUF 대체. 파일 단위 매핑. URL은 실증된 것만(날조 금지).",
-  "_source": "compatibility.json gguf_alternatives에서 추출 + Flux2는 확인 필요",
+  "_source": "compatibility.json gguf_alternatives에서 추출. Flux2는 city96/unsloth HF 실물 검증(2026-07-03).",
   "maps": [
     {
       "match": ["gemma_3_12b_it_fp4"],
@@ -33,19 +33,34 @@
       ]
     },
     {
-      "match": ["flux2_dev_fp8", "flux2-dev-fp8"],
-      "from_quant": "fp8",
-      "alternatives": []
-    },
-    {
-      "match": ["flux2-dev-nvfp4", "flux2_dev_nvfp4"],
-      "from_quant": "nvfp4",
-      "alternatives": []
+      "match": ["flux2_dev_fp8", "flux2-dev-fp8", "flux2-dev-nvfp4", "flux2_dev_nvfp4"],
+      "from_quant": "fp8|nvfp4",
+      "alternatives": [
+        {
+          "name": "flux2-dev-Q4_K_M.gguf",
+          "folder": "models/unet",
+          "url": "https://huggingface.co/city96/FLUX.2-dev-gguf/resolve/main/flux2-dev-Q4_K_M.gguf",
+          "note": "20.1GB · 품질 우선"
+        },
+        {
+          "name": "flux2-dev-Q3_K_M.gguf",
+          "folder": "models/unet",
+          "url": "https://huggingface.co/city96/FLUX.2-dev-gguf/resolve/main/flux2-dev-Q3_K_M.gguf",
+          "note": "16GB · VRAM 여유 적을 때"
+        }
+      ]
     },
     {
       "match": ["mistral_3_small_flux2_fp8", "mistral_3_small_flux2_fp4"],
       "from_quant": "fp8|fp4",
-      "alternatives": []
+      "alternatives": [
+        {
+          "name": "Mistral-Small-3.2-24B-Instruct-2506-UD-Q4_K_XL.gguf",
+          "folder": "models/text_encoders",
+          "url": "https://huggingface.co/unsloth/Mistral-Small-3.2-24B-Instruct-2506-GGUF/resolve/main/Mistral-Small-3.2-24B-Instruct-2506-UD-Q4_K_XL.gguf",
+          "note": "14.5GB · Flux2 text encoder"
+        }
+      ]
     }
   ]
 }
