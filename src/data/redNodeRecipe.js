@@ -195,6 +195,21 @@ export function buildRecipes(json, { gpu = "ampere" } = {}) {
   }
   return recipes;
 }
+
+// 미씽 커스텀 노드를 repo 키로 그룹핑. 같은 repo는 clone 1회로 묶음. 화면·CLI 겸용(순수 함수).
+export function groupNodesByRepo(unmapped) {
+  const groups = new Map();
+  const solo = [];
+  for (const u of (unmapped || [])) {
+    if (u.isCore) continue;
+    const key = u.repo || u.clone_url;
+    if (!key) { solo.push(u); continue; }
+    if (!groups.has(key)) groups.set(key, { repo: u.repo, clone_url: u.clone_url, repoSrc: u.repoSrc, manager_searchable: u.manager_searchable, install_note: u.install_note, ids: [], types: [] });
+    const g = groups.get(key);
+    g.ids.push(u.id); g.types.push(u.type);
+  }
+  return { groups: [...groups.values()], solo };
+}
 export default buildRecipes;
 
 // ── 검증(콘솔): node src/data/redNodeRecipe.js <workflow.json> ──

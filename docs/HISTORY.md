@@ -6,6 +6,199 @@
 
 ---
 
+## 2026-07-06 (표시층 7건 · 내부노트 차단 · 화살표 소거 · 그룹 단복수)
+**한 일**
+1. footer 아래 여백 절반: paddingBottom 64 → 32. L2722.
+2. Install Script 상단: "이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요."를 step.desc(18px dim)와 같은 레벨로 격상 + 앞줄 배치. install step은 상단 step.desc를 command 안으로 옮겨 순서(제목 → 이 노드들을 → git clone). L2046·2049.
+3. ※ macOS 안내문 ↔ "방법 A. 직접" 사이 30px(방법 A 박스 marginTop 30). L2073.
+4. [최우선] 내부 진단 노트 차단: install_note를 기본 화면에서 숨기고 isAdmin(?admin=1)에서만. offset 뱃지도 admin만(작업6). L1861·1899.
+5. 화살표(→ ↳) 기본 화면 전수 소거: 처방전 모델(L1700·1714), RNF 표(L1913·1916·1922·1928), 방법A 절차(L2075), Diagnose(L2101·2583·2585), 버전충돌(L2353), gguf role(L2246). 렌더 텍스트 잔존 0.
+6. offset 뱃지 admin 전용(작업4와 함께).
+7. 그룹 문장 단복수: nodegroup g.types.length ≥2 "이 노드들을", =1 "이 노드를"(추정형 동일). L1669.
+
+**작업 4 — 내부 노트 데이터 소스(보고)**
+- install_note = `node_repo_map.json`의 mappings[].notes(**curated note 필드**). nodeRepoDetail(type)→nrd.notes→analyze의 report.unmapped[].install_note(L475). 적립/검증대기(learned) 데이터 아님.
+- 행동 정보(예: Desktop 앱은 실제 custom_nodes 경로에 설치) 유지 여부: 원문 노트를 기본 화면에서 통째 숨기되, **해당 행동 정보는 이미 "custom_nodes 폴더 찾기" 블록(Windows Desktop 앱 경로 %LOCALAPPDATA%\Comfy-Desktop\…)에 구조화**돼 있어 별도 문장 추가 불필요로 판단. → 기본 화면에 남긴 노트 문장 없음(구조화 블록으로 대체).
+
+**화살표 교체 예시**
+- "→ models/checkpoints. 이미…" → "models/checkpoints 폴더에 넣으세요. 이미…"
+- "⚠ 이 GPU에서 안 됨 → GGUF/bf16 교체" → "⚠ 이 GPU에서 실행되지 않습니다. GGUF 또는 bf16으로 교체하세요."
+- "↳ 대체: {파일} → {폴더}" → "대체 파일: {파일} · {폴더}"(↳·→ 제거, paddingLeft 10 들여쓰기)
+- 유지: L2478 JSX 주석(스토리라인), buildInstallScript 경로 표기(산출물).
+
+**검증**
+- npm run build OK(433KB/gzip 119.8). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인(?admin=1 토글 포함) 후 커밋.
+
+## 2026-07-06 (표시층 4건 · 등급문장 2줄 · install 버튼 정규화 · footer 여백/문장)
+**한 일**
+1. 출처 등급 문장을 상태 줄 / 안내 줄 2줄로 분리(14px, lineHeight 1.6 유지). ENF STEP1(단수 L1850~)·처방전 nodegroup(복수 L1668~) 둘 다 일관 적용.
+2. Install Script install.bat/.sh 버튼: 이미 td-outline(라인형+hover)이라 규칙 충족. 컨테이너에 justifyContent center 추가로 나란히 가로 중앙. L2084.
+3. 스크립트 캡션 "초보자는 이 방법 권장…" 앞 ※ + textAlign center. L2092.
+4. footer: `paddingBottom 64`로 하단 여백(위 marginTop 64와 균형). 문장 "Built by…" → "comfy-teardown · Built by Joon Hyung Kim · no1jhk.space". L2722·2725.
+
+**어떻게**
+- [1] 등급별 상태/안내 텍스트를 삼항으로 두 div에 분리(prefix는 "추정됩니다"/"설치 전…", manager는 "…있지 않습니다"/"Manager…", 그 외 "…있지 않습니다"/"출처 확인된…"). STEP1은 return 단일 div → fragment 2 div.
+
+**검증**
+- npm run build OK(433KB/gzip 119.7). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋.
+
+## 2026-07-06 (표시층 3건 + 처방전 repo 그룹핑 · Install Script · custom_nodes 재배치)
+**한 일**
+1. 섹션 제목 "한 번에 실행 (설치 스크립트)" → "Install Script"(SectionTitle 토큰). L2018.
+2. custom_nodes: 제목·서브텍스트를 경로 박스 바깥(위)으로. 박스 안엔 경로 행만. L2041~.
+3. macOS 안내문을 경로 박스 아래 바깥으로 + ※ 패턴(14 dim). L2057~.
+4. 처방전 노드 설치 repo 그룹핑(방식 ①): 같은 repo 미씽 노드를 1항목으로. redNodeRecipe.js에 `groupNodesByRepo(unmapped)` 순수 함수 추가(화면·CLI 겸용), Teardown import+rxTodos에서 `nodegroup`/`node`(solo) 분기. 렌더: 제목 "{repo명} 설치" + 부연 "해결되는 노드 N개: {types · 구분}" + clone 칩(복사 아이콘)+GitHub ↗ + 출처 등급 문장(ENF 2행 체계, 복수형). git clone 그룹당 1회.
+
+**구현 위치 / 스펙 정합 보고**
+- unmapped(미씽 노드)는 analyze(Teardown.jsx) 결과라 buildRecipes(모델 슬롯)의 데이터가 아님. 그래서 그룹핑 함수는 redNodeRecipe.js에 별도 순수 함수로 추가(CLI 겸용 충족)하고 rxTodos가 호출. buildRecipes 자체는 무변경 → **regression 스냅샷 무변화**(모델 기대값 그대로 통과).
+- buildInstallScript는 `cloneSet = new Map()`(url 키)로 같은 repo clone URL을 이미 dedup → 중복 clone 라인 없음. groupNodesByRepo와 소스는 다르나 결과 동일이라 미변경.
+- 진단 한 줄 "커스텀 노드 M개 미설치"의 M = 노드 수 유지(그룹 수 아님). Solution 부제 없음(이전 삭제).
+
+**검증**
+- npm run build OK(433KB/gzip 119.7). node test/regression.mjs 통과(기대값 변경 없음). ※ 시각 dev 확인.
+
+**다음 할 일**
+- 규칙 1: dev 확인(그룹 항목·해결 노드 목록·clone 1회) 후 커밋. (선택) groupNodesByRepo regression 테스트 추가.
+
+## 2026-07-06 (표시층 4건 + buildInstallScript em dash · footer선·부제·ENF 항목 재설계·Findings)
+**한 일**
+1. footer 위 가로 구분선 삭제: footer div `paddingTop 24·borderTop` 제거 → marginTop 64 여백만. L2716.
+2. Solution 부제 "위에서부터 순서대로 하면 정상 작동합니다 · 총 N개" 삭제(h2만). L1637.
+3. Error Node Fix STEP1 항목 2행 재설계: 1행 노드명(코드체 15) + 캡션 "워크플로 {id}번 노드"(#N 삭제) + 우측 GitHub ↗. 2행(14 본문색) 출처 등급별 문장(manager/prefix/검증됨). "미설치" 뱃지·"설치:" 라벨 삭제. L1836~.
+4. Findings marginTop 44 → 29(어두운 존 통일). L2259.
+- (후속) buildInstallScript(.bat/.sh) em dash: L784 제목 `: `, L837 `. `, L854 접미 ` · `, L876 note 접미 ` · `. 잔존 0.
+
+**후속 미완 (확인 요청)**
+- "처방전 repo 그룹핑" 지시는 상세 스펙(그룹 레이아웃·묶는 기준)이 현재 컨텍스트에 없어 미착수. "Solution 부제 총 K개 산정" 항목은 부제 삭제(작업2)로 무효. 진단 한 줄 노드 수 표기는 유지.
+
+**검증**
+- npm run build OK(431.7KB/gzip 119.4). node test/regression.mjs 유지. ※ 시각 dev 확인.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋. repo 그룹핑 상세 스펙 확인 후 착수.
+
+## 2026-07-06 (표시층 정비 9건 · Error Node Fix · Diagnose 라인 · 어두운 존 간격 · custom_nodes · 샘플 흰색)
+**한 일**
+1. 섹션명 "Red Node Fix" → "Error Node Fix"(L1808). "빨간 노드" 문구(L1722·1853·2085·2086)는 ComfyUI 실제 빨강 노드 지칭이라 유지. 변수·주석 미변경.
+2. Diagnose 상단 라인 2px→1px, 라인↔제목 간격 paddingTop 64→32(1/2). L2465.
+3. 빨강 진단 박스 marginBottom 16→20(박스↔Solution). L1626.
+4. 어두운 존 섹션 marginTop 44→29: Summary·Error Node Fix·한 번에 실행 3곳(L1752·1807·2019). Findings(L2259)는 사용자 미명시라 44 유지. CLAUDE.md 규칙 "밝은 존 44 · 어두운 존 29(Diagnose 예외)" 추가.
+5. custom_nodes 폴더 찾기: 제목 15/700(항목 제목급), 서브 13 faint, 경로 행 사이 구분선(borderTop divider, 개방형). L2039·경로 map.
+6. "방법 A·B" 제목 13→15/700(소제목 격상). L2059·2071.
+7. "도구는 PC…" 표 위 → 표 아래 이동 + 앞에 ※ + 완료안내 패턴(14 dim). L2211 근처.
+8. 처방전 GitHub 버튼 항목 우측 끝 → clone 칩 옆(나란히 flex). right null, 칩 내부 복사 아이콘 유지. L1658·1675.
+9. 샘플 보기 흰색 라인형: td-outline-w 신설(border/color C.text, hover bg C.text·color C.bg, 0.15s). L1452·샘플 버튼.
+
+**토큰 명기**
+- [6] 방법 A/B = 15/700(custom_nodes 제목과 동일 소제목 레벨). 항목 제목 23·STEP 23은 위계 과함이라 소제목 15 채택.
+
+**검증**
+- npm run build OK(432KB/gzip 119.5). node test/regression.mjs 유지. ※ 시각 dev 확인.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋. (확인) Findings marginTop 44 유지 여부.
+
+## 2026-07-06 (표시층 정비 5건 · clone 칩 · RNF 단일박스 · 진단 강조박스 · em dash 산출물)
+**한 일**
+- 처방전 노드 항목 clone 칩: git clone 칩 내부 우측에 복사 아이콘(칩 flex, 텍스트 14px, 세로패딩 10, width 100%). 우측 별도 "복사" 버튼 삭제 → "GitHub ↗"만. L1657·L1670.
+- RNF STEP1: 노드별 개별 박스 → 단일 라운딩 박스 + 구분선 인셋(unmapped+broken 통합 map, marginLeft/Right 20). "설치: repo" 인라인 GitHub → 우측 끝 "GitHub ↗" 버튼. L1821~·L1856.
+- RNF 배너 카피: "이 노드는 지금 이걸로…" → "워크플로에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요." L1806.
+- 진단 한 줄(빨강 판정) 강조 박스: 1px red 테두리 + red 8% 틴트 + radius 14, 중앙정렬 15px, 앞에 인라인 SVG 경고 트라이앵글(red, 이모지 아님). 문안 유지. 정상(초록)은 미변경. L1624~.
+- em dash 산출물 확장: buildMarkdown(.md)·buildBriefing(LLM 프롬프트) 출력 —를 마침표·가운뎃점으로(sed 881~1071). 코드 주석 3곳(L911·1011·1052)은 원복(유지). buildInstallScript는 미명시라 제외.
+
+**em dash 교체 목록 (buildMarkdown/buildBriefing)**
+- L907 `head — body`→`. ` / L940 `— [다운로드]`→` · [다운로드]`(가운뎃점) / L951 `file — desc`→`. ` / L966 `(node) — risk`→`. ` / L972 `repo — vers`→`. ` / L1001 `type — mode`→`. ` / L1048 `참고 — 중복`→`. ` / L1066 `비교 — 수 KB`→`. ` / L1071 `없음 — 구조`→`. `
+
+**검증**
+- npm run build OK(431.6KB/gzip 119.4). node test/regression.mjs 유지. ※ 시각 dev 확인.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋. (선택) buildInstallScript em dash·.bat/.sh 정리.
+
+## 2026-07-06 (표시층 정비 6건 · 노란 스트록 제거 · em dash 폐지 · 제작자 메모 Summary 이동)
+**한 일**
+- Red Node Fix·"한 번에 실행" 라운딩 박스의 노란 테두리·glow 제거 → 무채색 1px C.line(배경·라운딩 유지). L1779·L1984.
+- 처방전 항목 구분선 인셋: 가로 100% → 번호원 왼쪽 x(20)부터 좌우 20 인셋(React.Fragment + 구분선 div marginLeft/Right 20). 단일 박스 유지. L1705.
+- em dash(—) 전면 폐지: CLAUDE.md 심사기준에 "UI 카피 em dash 금지" 추가. render UI(L1380~2700) em dash 전부 마침표 분리(sed), diagLine "…않습니다. 커스텀 노드…"(확정 a), Diagnose 제목 "…나면: 에러 로그 진단"(확정 b 콜론), gguf size placeholder —→·. render UI 잔존 0.
+- "완료 후 확인" 소제목 삭제, 본문 앞 ※ + 여백 보정(marginTop 제거). L1717.
+- "한 번에 실행" 내 "※ 이렇게 하세요" 안내 블록(surfaceHi 헤더) 완전 삭제. 스크립트 버튼·파일명 유지.
+- 제작자 주의사항(authorNotes)을 Solution → Summary 숫자카드 아래로 이동(기존 아코디언 토큰, 데이터 없으면 미렌더). L1749~.
+
+**어떻게 / 근거**
+- 작업5: 실행 위치(custom_nodes 경로)는 install step 내 "custom_nodes 폴더 찾기"에 이미 있어, 안내 블록은 캡션 축약 없이 완전 삭제.
+- em dash 잔존 39는 코드 주석·buildMarkdown(.md 다운로드 파일)·buildBriefing(LLM 프롬프트) — 화면 UI 아니라 유지(원하면 .md도 정리 가능).
+
+**검증**
+- npm run build OK(430.7KB/gzip 119.2). node test/regression.mjs 유지. ※ 시각은 dev 확인.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋.
+
+## 2026-07-06 (divider/어두운 존 경계 구조적 재구현 · flex column 레이아웃)
+**한 일**
+- 페이지 최외곽을 flex column + overflowX:hidden으로, 좌우 패딩을 컬럼으로 이전(부모 기준 full-bleed 준비).
+- 상단 컬럼(로고~처방전, maxWidth 1080 padding 32/20, flexShrink 0)과 하단 존을 분리 — 존을 컬럼 밖·페이지 직속으로.
+- 하단 존: report && 렌더, flex:1(남은 높이 채움), position:relative, background = detailOpen ? bgDeep : transparent. width:100%(부모 폭 full-bleed, 100vw 아님 → 가로 스크롤 없음).
+- divider: 존의 top edge에 position:absolute + top:0 + translateY(-50%). 텍스트 배경 투명 → 상반부 밝은/하반부 어두운에 걸침. 좌선(flex1 2px dashed)+중앙텍스트(패딩16)+우선.
+- 존 내부 컬럼 paddingTop:36(divider 아래 여백, 걸친 텍스트 겹침 방지). detailOpen 내용 + footer가 존 안.
+
+**의도 충족(요구 대비)**
+- [1] 배경 전환선 = 점선 라인 y좌표: divider가 존 top에 absolute로 걸침 → 존 배경(bgDeep) 시작점 = 점선 라인.
+- [2] 접힘: 존 배경 transparent(밝은) → divider가 밝은 배경 위 일반선처럼. divider y = 존 top 고정 → 접힘/펼침 튐 없음.
+- [3] footer 하단 배경: 존 flex:1이 남은 높이를 채우고 배경이 detailOpen 연동 → 접힘=밝은 하나, 펼침=bgDeep 하나. 하단 띠 0px.
+- [4] 100vw 대신 width:100% 부모 full-bleed → 세로 스크롤바 폭 무관, 가로 스크롤 없음.
+
+**검증**
+- npm run build OK(431KB/gzip 119.3). node test/regression.mjs 유지. ※ 빌드·회귀는 판정 기준 아님 — dev에서 걸침·하단 띠 0px 육안 확인 필요.
+
+**다음 할 일**
+- 규칙 1: dev 확인(펼침/접힘 전환, 하단 띠 0px, 걸친 텍스트, 가로 스크롤 없음) 후 커밋.
+
+## 2026-07-06 (디자인 정합 5건 — Solution 제목 격상 · 존 경계 · divider 점선 · RNF 폰트 · 노드 그룹)
+**한 일**
+- Solution 체크리스트 제목 = RNF STEP 헤더 토큰 재사용: 번호원 30, 제목 23/650, 부연 14, 항목 패딩 22.
+- 어두운 존 경계 수정: 110px를 밝은 쪽(완료 안내 marginBottom 110)으로 이동, 존 paddingTop 110→36. 어두운 배경은 divider 라인 바로 아래부터.
+- divider 재작성: full-bleed 점선(2px dashed, 100vw 음수마진), 좌선+중앙텍스트(패딩16)+우선. 클릭 토글·아이콘 유지.
+- RNF 폰트 등급: 슬롯표 셀 14·행패딩 12, 노드카드 설명문 14/1.6, 뱃지·캡션 13 유지.
+- (추가) RNF STEP2 노드 그룹 사이 간격 16→32(borderTop 유지).
+
+**어떻게**
+- 표시층만. 제목은 RNF STEP과 동일 값(새 값 없음). 부연/셀은 라인별 sed. divider·존 둘 다 100vw full-bleed(페이지 overflow hidden으로 가로 스크롤 억제).
+
+**작업2 — 어두운 배경이 시작되는 정확한 위치**
+- 어두운 배경(bgDeep)은 **divider(점선) 라인 바로 아래**(존 div 시작점)부터 적용. divider와 그 위 110px 간격은 **밝은 배경**(페이지 bg) — 완료 안내 블록 marginBottom 110이 담당. 존 내부 paddingTop 36은 divider 아래 여백용.
+
+**검증**
+- npm run build OK(431KB/gzip 119.3). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋. (심사기준 후속) "⚠ offset 보정됨" 등 개발자 용어 잔존 — 다음 정비.
+
+## 2026-07-06 (Findings 목적성 정비 + 심사 기준 강제)
+**한 일**
+- CLAUDE.md: "정보 심사 기준" 섹션 신설 — 모든 표시 정보는 (a)행동 유발 (b)한계 고지 중 하나, 개발자 용어(UUID/이식/phantom/offset)·제작자 환경값(절대경로) 노출 금지.
+- 이식 위험 값 섹션 폐지: Findings에서 portability 렌더 제거(제작자 절대경로·"이식" 용어 노출 제거). 분석 로직(portabilityScan) 미수정.
+- 입력 파일(LoadAudio류 mp3 등) → 처방전 체크리스트 항목 승격: "{파일} 입력 파일 준비" + input 폴더 안내, 버튼 없음(로컬 파일). portability 중 미디어 파일명(경로 아님)만.
+- 이상 노드 → "정체 미상 노드": UUID(type) 화면 노출 제거, 설명을 행동 언어로("ComfyUI 빨간 테두리 확인"). Findings 번호 자동 재정렬.
+
+**N 카운트 (보고)**
+- diagLine "모델 N개 점검" N = 모델 슬롯만(diagModelN, 입력파일 미포함). 처방전 Solution 부제 "총 M개" M = rxTodos(입력파일 포함). → 입력파일은 "행동 항목"엔 들되 "모델 점검 수"엔 안 듦.
+
+**Findings 최종 구성**
+- 깨진 노드(!) · 정체 미상 노드(1) · 패키지·버전(2) · 전체 현황(3). [이식 위험 값 폐지]
+
+**검증**
+- npm run build OK(431KB/gzip 119.3). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋.
+
 ## 2026-07-06 (처방전 마감부 — 완료 안내 재작성 · 하단 어두운 존)
 **한 일**
 - 완료 안내: "다 했으면 → …" 화살표 체인 삭제 → 소제목("완료 후 확인", 15px semibold) + 본문(14px: 재시작·재열기·빨간노드 확인).
