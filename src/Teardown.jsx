@@ -1171,6 +1171,7 @@ export default function Teardown() {
   const [open, setOpen] = useState({ fb: false, fa: false, f1: false, f2: false, rn1: true, rn2: true }); // 문제 블록 기본 닫힘 — Solution이 주인공, Findings는 필요시 펼침. rn1/rn2(Red Node STEP)는 기본 펼침
   const [rxChecked, setRxChecked] = useState(() => new Set()); // 처방전 체크 토글 (로컬 state만, 저장 불필요)
   const [detailOpen, setDetailOpen] = useState(false);         // "자세한 진단 보기" 토글 (기본 닫힘)
+  const isAdmin = new URLSearchParams(location.search).get("admin") === "1"; // 관리자 모드(적립 데이터 노출)
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
   const [missingText, setMissingText] = useState(""); // 빨간 노드 교정: 사용자가 붙여넣은 누락 모델 파일명
@@ -1393,11 +1394,11 @@ export default function Teardown() {
     const diagBrokenK = report.broken?.length || 0;
     const diagModelN = recipes.flatMap((r) => r.slots).length;
     let diagLine = "";
-    if (diagNodeM > 0 && diagModelN > 0) diagLine = `이 워크플로우는 정상 작동하지 않습니다. 커스텀 노드 ${diagNodeM}개를 설치하고, 모델 ${diagModelN}개를 맞춰야 합니다.`;
-    else if (diagNodeM > 0) diagLine = `커스텀 노드 ${diagNodeM}개를 설치하면 정상 작동합니다.`;
-    else if (diagModelN > 0) diagLine = `모델 ${diagModelN}개를 네 환경에 맞추면 정상 작동합니다.`;
-    else diagLine = "차단 요소는 없습니다. 아래 참고 항목만 확인하세요.";
-    if (diagBrokenK > 0) diagLine += ` (이름을 못 읽는 노드 ${diagBrokenK}개는 ComfyUI에서 직접 확인이 필요합니다.)`;
+    if (diagNodeM > 0 && diagModelN > 0) diagLine = `현재 상태로는 실행되지 않습니다 — 커스텀 노드 ${diagNodeM}개 미설치 · 모델 ${diagModelN}개 점검 필요`;
+    else if (diagModelN > 0) diagLine = `현재 상태로는 실행되지 않습니다 — 모델 ${diagModelN}개 점검 필요`;
+    else if (diagNodeM > 0) diagLine = `현재 상태로는 실행되지 않습니다 — 커스텀 노드 ${diagNodeM}개 미설치`;
+    else diagLine = "차단 요소가 없습니다 — 바로 실행해 보세요";
+    if (diagBrokenK > 0) diagLine += ` · 이름 확인 불가 노드 ${diagBrokenK}개 (ComfyUI에서 확인 필요)`;
     summary = {
       diagLine, diagBlocked: diagNodeM > 0 || diagModelN > 0 || diagBrokenK > 0,
       issues, weightCount,
@@ -1437,7 +1438,7 @@ export default function Teardown() {
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-acc{transition:opacity .15s;opacity:.9}.td-acc:hover{opacity:1}
         .td-spin{animation:tdSpin .9s linear infinite}@keyframes tdSpin{to{transform:rotate(360deg)}}
-        .td-hf{display:inline-flex;align-items:center;gap:6px;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:6px 16px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
+        .td-hf{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf:hover{background:${C.point};color:${INK}}
         .td-hf-sm{display:inline-flex;align-items:center;justify-content:center;width:280px;max-width:100%;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:8px 0;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sm:hover{background:${C.point};color:${INK}}
@@ -1484,10 +1485,10 @@ export default function Teardown() {
           <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={(e) => onFile(e.target.files?.[0])} />
           {/* 두 버튼은 별도 래퍼로 묶어 gap 13(기존 26의 절반)만 적용 — 부모 gap 18과 분리 */}
           <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-            <button className="td-btn" onClick={() => fileRef.current?.click()}
-              style={{ background: C.point, color: INK, border: "none", borderRadius: 999, padding: "10px 20px", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{report ? "다른 파일" : "파일 선택"}</button>
-            <button className="td-btn" onClick={() => run(JSON.stringify(SAMPLE_WORKFLOW), "샘플 · Rig+Anim 파이프라인")}
-              style={{ background: "transparent", color: C.dim, border: `1px solid ${C.line}`, borderRadius: 999, padding: "10px 18px", fontFamily: SANS, fontSize: 14, cursor: "pointer" }}>샘플 보기</button>
+            <button className="td-btn td-outline" onClick={() => fileRef.current?.click()}
+              style={{ borderRadius: 999, padding: "10px 20px", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{report ? "다른 파일" : "파일 선택"}</button>
+            <button className="td-btn td-outline" onClick={() => run(JSON.stringify(SAMPLE_WORKFLOW), "샘플 · Rig+Anim 파이프라인")}
+              style={{ borderRadius: 999, padding: "10px 18px", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>샘플 보기</button>
           </div>
         </div>
 
@@ -1613,84 +1614,85 @@ export default function Teardown() {
         {report && (<div className="td-fade">
           {/* ══ 처방전 (첫 화면) — 기존 데이터(unmapped·recipesEnriched)에서 '할 일'만 뽑은 체크리스트 ══ */}
           <div style={{ marginTop: 40 }}>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
-              <div style={{ flex: 1, minWidth: 240 }}>
-                {rxTodos.length > 0 ? (<>
-                  <div style={{ fontSize: 17, fontWeight: 700, color: C.text, lineHeight: 1.5 }}>{summary?.diagLine}</div>
-                  <div style={{ fontSize: 21, fontWeight: 800, color: C.point, lineHeight: 1.35, marginTop: 8 }}>아래 {rxTodos.length}개만 하면 됩니다.</div>
-                </>) : (
-                  <div style={{ fontSize: 18, fontWeight: 700, color: C.green, lineHeight: 1.5 }}>차단 요소 없음. 바로 실행해 보세요.</div>
-                )}
-              </div>
+            {rxTodos.length > 0 && (
+              <div style={{ fontSize: 17, fontWeight: 700, color: summary?.diagBlocked ? C.red : C.text, lineHeight: 1.5, marginBottom: 16 }}>{summary?.diagLine}</div>
+            )}
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
+              {rxTodos.length > 0 ? (
+                <div style={{ minWidth: 0 }}>
+                  <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>Solution</h2>
+                  <p style={{ fontFamily: SANS, fontSize: 14, color: C.dim, margin: "10px 0 0", lineHeight: 1.6 }}>위에서부터 순서대로 하면 정상 작동합니다 · 총 {rxTodos.length}개</p>
+                </div>
+              ) : (
+                <div style={{ fontSize: 18, fontWeight: 700, color: C.green, lineHeight: 1.5 }}>차단 요소 없음. 바로 실행해 보세요.</div>
+              )}
               <button className="td-btn td-outline" onClick={saveReport} title="진단 결과를 Markdown(.md) 파일로 저장"
                 style={{ display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 999, padding: "8px 16px", fontFamily: SANS, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
                 <Download size={15} /> 결과 저장 (.md)</button>
             </div>
 
-            {rxTodos.length > 0 && (<div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+            {rxTodos.length > 0 && (<div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden" }}>
               {rxTodos.map((t, i) => {
                 const done = rxChecked.has(t.key);
+                let left = null, right = null;
+                if (t.kind === "node") {
+                  const u = t.u;
+                  const cloneUrl = u.clone_url || (u.repo ? (u.repo.startsWith("https://") ? u.repo.replace(/\/?$/, ".git") : `https://github.com/${u.repo}.git`) : null);
+                  const ghUrl = u.clone_url ? u.clone_url.replace(/\.git$/, "") : (u.repo ? (u.repo.startsWith("https://") ? u.repo : `https://github.com/${u.repo}`) : null);
+                  left = (<>
+                    <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.4 }}>
+                      <span style={{ fontFamily: MONO }}>{u.type}</span> 노드 설치</div>
+                    {cloneUrl ? (
+                      <code style={{ display: "inline-block", fontFamily: MONO, fontSize: 13, color: C.point, background: C.bg, borderRadius: 8, padding: "6px 10px", marginTop: 8, overflowWrap: "anywhere" }}>git clone {cloneUrl}</code>
+                    ) : (
+                      <div style={{ fontSize: 13, color: C.amber, marginTop: 8 }}>출처 확인 필요 — Manager에서 노드 이름 검색 또는 web_search</div>
+                    )}
+                    <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>
+                      {u.manager_searchable === false ? "Manager 검색 안 됨 · 수동 clone 필요"
+                        : u.manager_searchable === true ? "Manager 검색 가능"
+                        : "Manager 등록 여부 미확인"}</div>
+                  </>);
+                  right = cloneUrl ? (<>
+                    <button className="td-hf" onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)}>
+                      {copiedKey === `rx-${t.key}` ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}</button>
+                    {ghUrl && <a className="td-hf" href={ghUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
+                  </>) : null;
+                } else {
+                  const s = t.s;
+                  const alts = s.quantBad && s.ggufAlt?.alternatives?.length ? s.ggufAlt.alternatives : null;
+                  if (alts) {
+                    const a0 = alts[0];
+                    left = (<>
+                      <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                        <span style={{ fontFamily: MONO }}>{a0.name}</span> 다운로드</div>
+                      <div style={{ fontSize: 13, color: C.dim, marginTop: 6 }}>→ <span style={{ fontFamily: MONO }}>{a0.folder}</span>에 넣기</div>
+                      <div style={{ fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>
+                        원본 <span style={{ fontFamily: MONO }}>{s.value}</span>은 이 GPU에서 안 돌아 GGUF로 교체
+                        {alts[1] && <><br />또는 <span style={{ fontFamily: MONO }}>{alts[1].name}</span>{alts[1].note ? ` (${alts[1].note})` : ""}</>}
+                      </div>
+                    </>);
+                    right = a0.url ? <a className="td-hf" href={a0.url} target="_blank" rel="noopener noreferrer">다운로드</a> : null;
+                  } else {
+                    const mr = modelResearch[s.value];
+                    const foundUrl = mr?.result?.url || learnedModel(s.value)?.url || (s.url && s.url !== "확인 필요" ? s.url : null);
+                    left = (<>
+                      <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.4, overflowWrap: "anywhere" }}>
+                        <span style={{ fontFamily: MONO }}>{s.value}</span> {foundUrl ? "다운로드" : "준비"}
+                        {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
+                      <div style={{ fontSize: 13, color: C.dim, marginTop: 6 }}>→ <span style={{ fontFamily: MONO }}>{s.folder}</span> — 이미 있으면 건너뛰기</div>
+                      {s.quantBad && <div style={{ fontSize: 13, color: C.amber, marginTop: 6 }}>이 GPU에서 안 될 수 있음 — 대체 GGUF 확인 필요</div>}
+                    </>);
+                    right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
+                      : <button className="td-hf" onClick={() => researchUnknownModel(s.value)} disabled={mr?.loading}>{mr?.loading ? "찾는 중…" : "찾기"}</button>;
+                  }
+                }
                 return (
-                <div key={t.key} style={{ display: "flex", gap: 14, alignItems: "flex-start", background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "16px 20px", opacity: done ? 0.5 : 1 }}>
+                <div key={t.key} style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "16px 20px", borderTop: i > 0 ? `1px solid ${C.divider}` : "none", opacity: done ? 0.5 : 1 }}>
                   <div onClick={() => toggleRx(t.key)} title="완료 표시" style={{ width: 28, height: 28, borderRadius: 14, background: done ? C.line : C.point, color: INK, fontFamily: SANS, fontSize: 14, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, cursor: "pointer", marginTop: 1 }}>
                     {done ? <Check size={15} color={C.dim} /> : i + 1}
                   </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {t.kind === "node" ? (() => {
-                      const u = t.u;
-                      const cloneUrl = u.clone_url || (u.repo ? (u.repo.startsWith("https://") ? u.repo.replace(/\/?$/, ".git") : `https://github.com/${u.repo}.git`) : null);
-                      const ghUrl = u.clone_url ? u.clone_url.replace(/\.git$/, "") : (u.repo ? (u.repo.startsWith("https://") ? u.repo : `https://github.com/${u.repo}`) : null);
-                      return (<>
-                        <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.4 }}>
-                          <span style={{ fontFamily: MONO }}>{u.type}</span> 노드 설치</div>
-                        {cloneUrl ? (
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                            <code style={{ fontFamily: MONO, fontSize: 13, color: C.point, background: C.bg, borderRadius: 8, padding: "6px 10px", overflowWrap: "anywhere" }}>git clone {cloneUrl}</code>
-                            <button className="td-hf" onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)}>
-                              {copiedKey === `rx-${t.key}` ? <><Check size={13} /> 복사됨</> : <><Copy size={13} /> 복사</>}</button>
-                            {ghUrl && <a className="td-hf" href={ghUrl} target="_blank" rel="noopener noreferrer">GitHub</a>}
-                          </div>
-                        ) : (
-                          <div style={{ fontSize: 13, color: C.amber, marginTop: 8 }}>출처 확인 필요 — Manager에서 노드 이름 검색 또는 web_search</div>
-                        )}
-                        <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>
-                          {u.manager_searchable === false ? "Manager 검색 안 됨 · 수동 clone 필요"
-                            : u.manager_searchable === true ? "Manager 검색 가능"
-                            : "Manager 등록 여부 미확인"}</div>
-                      </>);
-                    })() : (() => {
-                      const s = t.s;
-                      const alts = s.quantBad && s.ggufAlt?.alternatives?.length ? s.ggufAlt.alternatives : null;
-                      if (alts) {
-                        const a0 = alts[0];
-                        return (<>
-                          <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.4, overflowWrap: "anywhere" }}>
-                            <span style={{ fontFamily: MONO }}>{a0.name}</span> 받기</div>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                            {a0.url && <a className="td-hf" href={a0.url} target="_blank" rel="noopener noreferrer">받기</a>}
-                            <span style={{ fontSize: 13, color: C.dim }}>→ <span style={{ fontFamily: MONO }}>{a0.folder}</span>에 넣기</span>
-                          </div>
-                          <div style={{ fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>
-                            원본 <span style={{ fontFamily: MONO }}>{s.value}</span>은 이 GPU에서 안 돌아 GGUF로 교체
-                            {alts[1] && <><br />또는 <span style={{ fontFamily: MONO }}>{alts[1].name}</span>{alts[1].note ? ` (${alts[1].note})` : ""}</>}
-                          </div>
-                        </>);
-                      }
-                      const mr = modelResearch[s.value];
-                      const foundUrl = mr?.result?.url || learnedModel(s.value)?.url || (s.url && s.url !== "확인 필요" ? s.url : null);
-                      return (<>
-                        <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.4, overflowWrap: "anywhere" }}>
-                          <span style={{ fontFamily: MONO }}>{s.value}</span> {foundUrl ? "받기" : "준비"}
-                          {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
-                          {foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">받기</a>
-                            : <button className="td-hf" onClick={() => researchUnknownModel(s.value)} disabled={mr?.loading}>{mr?.loading ? "찾는 중…" : "찾기"}</button>}
-                          <span style={{ fontSize: 13, color: C.dim }}>→ <span style={{ fontFamily: MONO }}>{s.folder}</span> — 이미 있으면 건너뛰기</span>
-                        </div>
-                        {s.quantBad && <div style={{ fontSize: 13, color: C.amber, marginTop: 6 }}>이 GPU에서 안 될 수 있음 — 대체 GGUF 확인 필요</div>}
-                      </>);
-                    })()}
-                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>{left}</div>
+                  {right && <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginTop: 1 }}>{right}</div>}
                 </div>);
               })}
             </div>)}
@@ -1711,7 +1713,7 @@ export default function Teardown() {
           {detailOpen && (<div className="td-fade">
           {/* Summary — 아래 Solution과의 구분선 제거(borderBottom 없음) */}
           {summary && (
-            <div style={{ marginTop: 64, paddingBottom: 48 }}>
+            <div style={{ marginTop: 44, paddingBottom: 48 }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, margin: "0 0 28px", flexWrap: "wrap" }}>
                 <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>Summary</h2>
               </div>
@@ -1816,7 +1818,7 @@ export default function Teardown() {
                   {sopen && <div style={{ paddingLeft: 44, marginTop: 8 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {recipesEnriched.map((r, ri) => (
-                  <div key={`${r.type}-${r.id}`} style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "18px 22px" }}>
+                  <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 16 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
                     {/* 카드 헤더 */}
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
@@ -1828,7 +1830,7 @@ export default function Teardown() {
                     {/* 슬롯 표 */}
                     <div style={{ borderTop: `1px solid ${C.line}` }}>
                       <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 80px", gap: 10, padding: "8px 14px", borderBottom: `1px solid ${C.line}` }}>
-                        {["#", "슬롯", "현재 값", "폴더", "받기"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
+                        {["#", "슬롯", "현재 값", "폴더", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
                       </div>
                       {r.slots.map((s, si) => (
                         <div key={si}>
@@ -1841,7 +1843,7 @@ export default function Teardown() {
                               {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
                                 <div key={ai} style={{ fontFamily: SANS, fontSize: 13, color: C.point, marginTop: 3, lineHeight: 1.5 }}>
                                   ↳ 대체: <span style={{ fontFamily: MONO }}>{a.name}</span> → {a.folder}
-                                  {a.url && <> · <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "none" }}>받기</a></>}
+                                  {a.url && <> · <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "none" }}>다운로드</a></>}
                                   {a.note && <span style={{ color: C.faint, fontSize: 13 }}> ({a.note})</span>}
                                 </div>
                               ))}
@@ -1854,7 +1856,7 @@ export default function Teardown() {
                                 <div style={{ marginTop: 4, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>
                                   제작자 권장: <span style={{ fontFamily: MONO, color: C.point }}>{s.authorRecommend.name}</span> → <span style={{ color: C.point }}>{s.authorRecommend.directory}</span>
                                   {s.authorRecommend.url && s.authorRecommend.url !== "확인 필요" && (
-                                    <> · <a href={s.authorRecommend.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontSize: 13 }}>받기</a></>
+                                    <> · <a href={s.authorRecommend.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontSize: 13 }}>다운로드</a></>
                                   )}
                                 </div>
                               )}
@@ -1866,7 +1868,7 @@ export default function Teardown() {
                             </div>
                             <div>
                               {s.url && s.url !== "확인 필요" ? (
-                                <a className="td-hf-sm" href={s.url} target="_blank" rel="noopener noreferrer" style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: INK, background: C.point, borderRadius: 999, padding: "3px 10px", textDecoration: "none", whiteSpace: "nowrap" }}>받기</a>
+                                <a className="td-hf" href={s.url} target="_blank" rel="noopener noreferrer">다운로드</a>
                               ) : (
                                 <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>확인 필요</span>
                               )}
@@ -1953,11 +1955,11 @@ export default function Teardown() {
           {/* Solution — 위 Summary와의 구분선 제거(Summary 박스의 borderBottom을 없앰) */}
           {rx.length > 0 && (
             <div style={{ marginTop: 44, paddingBottom: 48 }}>
-              <SectionTitle>Solution</SectionTitle>
+              <SectionTitle>한 번에 실행 (설치 스크립트)</SectionTitle>
               <div style={{ background: C.surface, border: `1.5px solid ${C.point}`, borderRadius: 18, padding: "18px 34px", boxShadow: `0 0 0 4px rgba(244,255,117,0.06)`, overflow: "hidden" }}>
                 <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
                   <div style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>※ 이렇게 하세요!</div>
-                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, paddingLeft: 4 }}>위 '빨간 노드 교정'의 받기 버튼으로 개별 받거나, 아래 설치 스크립트로 한 번에 받으세요.</div>
+                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, paddingLeft: 4 }}>위 '빨간 노드 교정'의 다운로드 버튼으로 개별 받거나, 아래 설치 스크립트로 한 번에 받으세요.</div>
                   {report.authorNotes?.length > 0 && (
                     <div style={{ marginTop: 14, paddingTop: 14, borderTop: `1px solid ${C.line}` }}>
                       <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -2035,11 +2037,11 @@ export default function Teardown() {
                             <div style={{ fontSize: 13, fontWeight: 700, color: C.point, marginBottom: 8 }}>방법 B — 자동 스크립트</div>
                             <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
                             <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                              <button onClick={() => downloadText("install.bat", buildInstallScript(report, "bat"))}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.point, color: INK, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
+                              <button className="td-outline" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat"))}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
                                 <Download size={14} /> install.bat (Windows)</button>
-                              <button onClick={() => downloadText("install.sh", buildInstallScript(report, "sh"))}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.point, color: INK, border: "none", borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
+                              <button className="td-outline" onClick={() => downloadText("install.sh", buildInstallScript(report, "sh"))}
+                                style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
                                 <Download size={14} /> install.sh (Mac/Linux)</button>
                             </div>
                             <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5 }}>초보자는 이 방법 권장. 반드시 custom_nodes 폴더 안에서 실행하세요.</div>
@@ -2090,8 +2092,8 @@ export default function Teardown() {
                             for (const w of quantWarnings(report.models, env.gpu)) qwMap[w.file.toLowerCase()] = w;
                             return (
                           <div style={{ borderTop: `1px solid ${C.divider}` }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "11px 20px", borderBottom: `1px solid ${C.divider}` }}>
-                              {["받을 파일", "어디에 둘지", "정상 용량", "받기"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em" }}>{h}</span>)}
+                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>
+                              {["받을 파일", "어디에 둘지", "정상 용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "right" : "left" }}>{h}</span>)}
                             </div>
                             {step.models.map((m, k) => {
                               const live = liveCompat[m.file];
@@ -2106,7 +2108,7 @@ export default function Teardown() {
                               const have = haveModels.has(m.file);
                               const qwHit = qwMap[m.file.toLowerCase()];
                               return (<React.Fragment key={k}>
-                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 20px", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : qwHit ? 0.5 : 1 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 0", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : qwHit ? 0.5 : 1 }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontFamily: MONO, fontSize: 14, color: qwHit ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
                                   {qwHit && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red }}>⚠ 이 GPU에선 안 돌 수 있음</span>}
@@ -2123,7 +2125,7 @@ export default function Teardown() {
                                     </>
                                   ) : <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>확인 필요</span>}
                                 </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-start" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
                                   {have ? (
                                     <button onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.green, background: "transparent", border: `1px solid ${C.green}55`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>✓ 있음 (취소)</button>
                                   ) : qwHit?.gguf ? (
@@ -2132,7 +2134,7 @@ export default function Teardown() {
                                     <>
                                       {dlUrl ? (
                                         <>
-                                          <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">받기</a>
+                                          <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
                                           {!eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" }}>이거 맞았어</button>}
                                           {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>✓ 적립됨</span>}
                                         </>
@@ -2150,7 +2152,7 @@ export default function Teardown() {
                               </div>
                               {/* GGUF 대체 행 — 비호환 모델 바로 아래 */}
                               {qwHit?.gguf && (qwHit.gguf.components || []).map((comp) => comp.files.map((gf, gi) => (
-                                <div key={`gguf-${k}-${comp.role}-${gi}`} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "10px 20px", alignItems: "start", background: "rgba(244,255,117,0.04)", borderTop: `1px solid ${C.divider}` }}>
+                                <div key={`gguf-${k}-${comp.role}-${gi}`} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "10px 0", alignItems: "start", background: "rgba(244,255,117,0.04)", borderTop: `1px solid ${C.divider}` }}>
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ fontFamily: MONO, fontSize: 14, color: C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{gf.name}</div>
                                     <span style={{ fontFamily: SANS, fontSize: 13, color: C.point }}>대신 받기 · {comp.role}</span>
@@ -2160,7 +2162,7 @@ export default function Teardown() {
                                   <div style={{ minWidth: 0 }}>
                                     {gf.size ? <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{gf.size}</div> : <span style={{ fontSize: 13, color: C.faint }}>—</span>}
                                   </div>
-                                  <div><a className="td-hf" href={gf.url} target="_blank" rel="noopener noreferrer">받기</a></div>
+                                  <div style={{ display: "flex", justifyContent: "flex-end" }}><a className="td-hf" href={gf.url} target="_blank" rel="noopener noreferrer">다운로드</a></div>
                                 </div>
                               )))}
                               </React.Fragment>);
@@ -2170,9 +2172,9 @@ export default function Teardown() {
                           {step.integrity && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 13, color: C.text, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
-                              <div>위 표의 “정상 용량”과 받은 파일을 비교하세요. 용량을 모르는 파일도 수 KB/MB로 비정상적으로 작으면 깨진 것이니 삭제 후 재다운로드.</div>
-                              <div style={{ marginTop: 4 }}>큰 모델 다운로드 중에는 ComfyUI/PC를 재부팅하지 마세요. 끊기면 빈 파일이 됩니다.</div>
-                              <div style={{ marginTop: 4, color: C.dim }}>.safetensors가 비정상적으로 작으면 <span style={{ fontFamily: MONO }}>JSONDecodeError</span>가 발생합니다.</div>
+                              <div style={{ fontSize: 13, lineHeight: 1.6 }}>· 받은 파일 용량을 위 표의 “정상 용량”과 비교 — 수 KB/MB로 비정상적으로 작으면 삭제 후 재다운로드</div>
+                              <div style={{ fontSize: 13, lineHeight: 1.6, marginTop: 4 }}>· 대용량 다운로드 중 ComfyUI·PC 재부팅 금지 — 중단되면 빈 파일이 됨</div>
+                              <div style={{ fontSize: 13, lineHeight: 1.6, marginTop: 4 }}>· .safetensors가 비정상적으로 작으면 <span style={{ fontFamily: MONO }}>JSONDecodeError</span> 발생</div>
                             </div>
                           )}
                         </div>
@@ -2345,15 +2347,11 @@ export default function Teardown() {
               </>)}</div>
             </div>); })()}
 
-            </>); })()}
-
-            {/* ── 참고 토글: 모델 인벤토리 + 비활성 노드를 접힌 토글 하나로 ── */}
-            <div style={{ marginTop: 40, paddingTop: 28 }}>
-              <button onClick={() => toggle("inv")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", background: C.surfaceHi, border: `1px solid ${C.line}`, borderRadius: 12, padding: "16px 20px", cursor: "pointer" }}>
-                <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.text }}>전체 현황 보기 <span style={{ fontWeight: 400, color: C.faint, fontSize: 14 }}>(모델 {report.models.length} · 비활성 {report.muted.length})</span></span>
-                {open.inv ? <Minus size={20} color={C.faint} /> : <Plus size={20} color={C.faint} />}
-              </button>
-              {open.inv && (<div className="td-fade" style={{ marginTop: 24 }}>
+            {(() => { fnum++; return (
+            <div style={{ borderTop: `1px solid ${C.divider}`, paddingTop: 27 }}>
+              <BlockHead num={String(fnum)} label="전체 현황" count={`모델 ${report.models.length} · 비활성 ${report.muted.length}`} open={open.inv} onToggle={() => toggle("inv")}
+                role="이 워크플로가 참조하는 모델·자산 전체와 비활성(bypass/mute) 노드입니다." />
+              <div style={{ marginTop: open.inv ? 27 : 0 }}>{open.inv && (<div className="td-fade">
               <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim }}>모델 · 자산 인벤토리 <span style={{ color: C.faint, fontWeight: 400 }}>· {report.models.length}개</span></div>
               <div style={{ fontSize: 13, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>참조 모델·자산 전체(VRAM·출처 포함). 실제 받기는 위 Solution '받아야 할 모델' 표에서.</div>
               <div style={{ marginTop: 16 }}>{(
@@ -2448,7 +2446,10 @@ export default function Teardown() {
                 </div>
               )}
               </div>)}
-            </div>
+              </div>
+            </div>); })()}
+
+            </>); })()}
           </div>
 
           {/* ───────── Diagnose (에러 로그 → AI 진단 / 브리핑) ─────────
@@ -2483,6 +2484,7 @@ export default function Teardown() {
                 </button>
               </div>
               {open.errAcc && (<>
+              <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, marginBottom: 12 }}>pytorch·cuda·python 버전 호환성은 각 pack의 requirements.txt 영역이라 JSON만으로는 확인할 수 없습니다. 에러 로그를 넣으면 AI 진단으로 보완합니다.</div>
               <textarea value={errlog} onChange={(e) => setErrlog(e.target.value)} spellCheck={false}
                 placeholder={"마지막 Traceback 블록 전체를 붙여넣으세요.\n예) Traceback (most recent call last):\n  File \".../nodes.py\", line 123, in ...\nModuleNotFoundError: No module named 'flash_attn'"}
                 style={{ width: "100%", minHeight: 120, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
@@ -2670,19 +2672,10 @@ export default function Teardown() {
             )}
           </div>
 
-          <p style={{ marginTop: 64, fontSize: 13, color: C.faint, lineHeight: 1.6, textAlign: "center" }}>
-            pytorch·cuda·python 버전 호환성은 각 pack의 requirements.txt 영역으로 JSON 파일만으로는 확인할 수 없음. AI 진단(에러 로그 + JSON 컨텍스트 → LLM) 업데이트 예정.
-            <br />
-            <a href="https://no1jhk.space" target="_blank" rel="noopener noreferrer"
-              style={{ fontFamily: MONO, color: C.faint, textDecoration: "none", letterSpacing: "0.02em" }}>
-              Built by Joon Hyung Kim · no1jhk.space
-            </a>
-          </p>
-
-          {learned.length > 0 && (
+          {learned.length > 0 && isAdmin && (
             <div style={{ marginTop: 40, padding: "18px 24px", background: C.surface, border: `1px solid ${C.amber}55`, borderRadius: 16 }}>
               <div onClick={() => toggle("learnedAcc")} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap", cursor: "pointer" }}>
-                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>적립한 데이터 {learned.length}건 <span style={{ fontSize: 13, fontWeight: 400, color: C.faint }}>· 관리자용 · 이 브라우저에만 저장 · 미확정</span></div>
+                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>검증 대기 데이터 {learned.length}건 <span style={{ fontSize: 13, fontWeight: 400, color: C.faint }}>· 관리자 전용</span></div>
                 <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("learnedAcc"); }} aria-label="펼치기/접기"
                   style={{ background: "transparent", border: "none", color: C.amber, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
                   {open.learnedAcc ? <Minus size={20} strokeWidth={2.25} /> : <Plus size={20} strokeWidth={2.25} />}
@@ -2690,11 +2683,11 @@ export default function Teardown() {
               </div>
               {open.learnedAcc && (<>
                 <div style={{ marginTop: 14, display: "flex", gap: 8, flexWrap: "wrap" }}>
-                  <button onClick={() => { const s = buildLearnedSnippet(learned); copy(s, "learned"); console.log("[Teardown 적립 스니펫]\n" + s); }} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: INK, background: C.point, border: "none", borderRadius: 8, padding: "7px 14px", cursor: "pointer" }}>{copiedKey === "learned" ? "복사됨 ✓" : "복사 + 콘솔"}</button>
+                  <button className="td-outline" onClick={() => { const s = buildLearnedSnippet(learned); copy(s, "learned"); console.log("[Teardown 적립 스니펫]\n" + s); }} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, borderRadius: 8, padding: "7px 14px", cursor: "pointer" }}>{copiedKey === "learned" ? "복사됨 ✓" : "복사 + 콘솔"}</button>
                   <button onClick={() => downloadText("teardown-learned.json", buildLearnedSnippet(learned))} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.point, background: "transparent", border: `1px solid ${C.point}`, borderRadius: 8, padding: "7px 14px", cursor: "pointer" }}>내보내기(.json)</button>
                   <button onClick={clearLearned} style={{ fontFamily: SANS, fontSize: 13, color: C.faint, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 8, padding: "7px 14px", cursor: "pointer" }}>비우기</button>
                 </div>
-                <div style={{ marginTop: 10, fontSize: 13, color: C.dim, lineHeight: 1.55 }}>web_search로 찾아 “맞았어”로 확인한 항목입니다. 아래 스니펫을 확인한 뒤 해당 파일에 병합하고, 정확하면 사람이 커밋하세요. <b style={{ color: C.amber }}>도구는 JSON을 자동 수정하지 않습니다.</b></div>
+                <div style={{ marginTop: 10, fontSize: 13, color: C.dim, lineHeight: 1.55 }}>LLM 진단 과정에서 확인된 모델 출처입니다. 내용을 검토한 뒤 compatibility.json에 병합하고 커밋하세요. 이 데이터는 이 브라우저에만 저장되며 자동 반영되지 않습니다.</div>
                 <pre style={{ marginTop: 12, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", fontFamily: MONO, fontSize: 13, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.6, maxHeight: 280, overflowY: "auto" }}>{buildLearnedSnippet(learned)}</pre>
                 <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
                   {learned.map((x) => (
@@ -2707,6 +2700,13 @@ export default function Teardown() {
               </>)}
             </div>
           )}
+
+          <div style={{ marginTop: 64, paddingTop: 24, borderTop: `1px solid ${C.divider}`, textAlign: "center" }}>
+            <a href="https://no1jhk.space" target="_blank" rel="noopener noreferrer"
+              style={{ fontFamily: MONO, fontSize: 13, color: C.faint, textDecoration: "none", letterSpacing: "0.02em" }}>
+              Built by Joon Hyung Kim · no1jhk.space
+            </a>
+          </div>
           </div>)}
         </div>)}
 

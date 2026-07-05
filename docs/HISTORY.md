@@ -6,6 +6,60 @@
 
 ---
 
+## 2026-07-06 (UX 정비 5건 — Inventory를 Findings로 · 모델표 정렬 · 무결성 개조식 · 버튼 라인형)
+**한 일**
+- 전체 현황(Inventory): 독립 아코디언 → Findings 마지막 BlockHead 항목(fnum 4)으로 이동. 번호원+제목+토글 동일 스타일, 기본 접힘.
+- 한 번에 실행 모델표: "받을 파일" 좌측 패딩 제거(표 왼쪽 끝), "다운로드" 우측 정렬(오른쪽 끝). 헤더/셀/gguf행 padding 좌우 0.
+- 무결성 확인: 문장 3개 → · 불릿 개조식 통일(13px, 줄간격 동일).
+- 버튼 라인형 통일: 인라인 채움형(파일선택·샘플·슬롯표다운로드·install.bat/sh·적립복사) 6곳 → td-outline/td-hf(라인+hover). CSS(td-hf/outline/cta)는 기존 라인형.
+- hover 전수 점검: 기본형 준수 확인 + 예외 보고(의미색 상태버튼·보조버튼은 미변경).
+
+**어떻게**
+- 표시층만. Inventory를 fnum IIFE 안 BlockHead로. 버튼은 공통 클래스로 통일, 인라인 채움 제거.
+
+**막힌 점 / 예외**
+- 의미색 상태버튼(있음/취소=green, 이거 맞았어=amber, 이미 있음=회색)·보조버튼(내보내기/비우기/캡처첨부)은 hover 배경채움 없음 — 노란 기본형과 별개(의미 전달용). 미변경, 정책 확인 대기.
+
+**검증**
+- npm run build OK(431.7KB/gzip 119.5). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋.
+
+## 2026-07-05 (UX 정비 6건 — 적립 관리자화 · 푸터 · diagLine · RNF 평면화 · 버튼폭 · 간격)
+**한 일**
+- 적립 데이터: 기본 화면에서 제거, ?admin=1일 때만 렌더(isAdmin=URLSearchParams). 문구 재작성(내부 은어 제거): "검증 대기 데이터 N건 (관리자 전용)" + LLM 출처 검토·compatibility.json 병합 안내. 저장 로직 미수정(표시만).
+- 푸터: pytorch·cuda 문구 → Diagnose 에러로그 아코디언 내부 상단 캡션(13px)으로 이동. 푸터 = 상단 divider 1px + 크레딧 한 줄(13px 중앙).
+- diagLine 재작성: 상태 판정만("현재 상태로는 실행되지 않습니다 — …"), 행동 지시는 Solution 부제 담당(중복 제거). 반말 제거. 처방전/자세히 동일 소스(summary.diagLine).
+- RNF 내부 노드 카드: 배경·테두리·라운딩 제거 → 노드명 헤딩+개방형 표 평면. 노드 사이 borderTop+여백(paddingTop 16 + gap 16).
+- 버튼 폭: td-hf에 min-width 76 + justify-content center(다운로드/찾기/복사/GitHub 통일).
+- 섹션 간격: Summary marginTop 64 → 44로 통일(RNF·한 번에 실행·Findings/Inventory와 동일). Diagnose는 borderTop 2px 별도 영역이라 64 유지.
+
+**어떻게**
+- 표시층만. diagLine·문구 단일 소스. isAdmin은 URLSearchParams.
+
+**검증**
+- npm run build OK(432KB/gzip 119.5). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋.
+
+## 2026-07-05 (처방전 헤더 개편 + 항목 단일 박스화 + 푸터 순서 버그)
+**한 일**
+- [버그 수정] Diagnose/적립 데이터가 footer 뒤에 렌더되던 문제: DOM 순서를 [… → Diagnose → 적립(관리자용) → footer]로 정정. 전수 점검 결과 footer가 report 블록 최하단, 이후 렌더 요소 없음 확인.
+- 처방전 헤더: "아래 N개만 하면 됩니다" 제거 → 대제목 "Solution"(SectionTitle 타이포) + 부제 "위에서부터 순서대로 하면 정상 작동합니다 · 총 N개". diagLine(빨강) 위 유지. 자세한 진단 내부 기존 "Solution" → "한 번에 실행 (설치 스크립트)" 개명(중복 방지).
+- 체크리스트: 개별 카드 → 단일 라운딩 박스 + 항목 사이 가로 구분선. 행 좌측 번호+제목+폴더/부연, [다운로드]/[찾기] 버튼 우측 끝 정렬.
+- "받기" → "다운로드" 전역(처방전·슬롯표·모델표 버튼·컬럼명). "찾기" 유지, 설명 문구도 일관 반영.
+
+**어떻게**
+- 표시층만. 항목 렌더를 left/right로 분리해 버튼 우측. 버튼/컬럼 "받기"는 sed 일괄, 제목/설명은 개별.
+
+**검증**
+- npm run build OK(432KB/gzip 119.5). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋(시각 변경).
+
 ## 2026-07-05 (디자인 정돈 3건 — 토글 divider · 폰트 12px+ · 표 개방형)
 **한 일**
 - "자세한 진단 보기" 토글 → 가로 분할선(divider): 양쪽 border-top + 가운데 텍스트/아이콘, 클릭 전체 행.
