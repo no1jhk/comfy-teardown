@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-05 (처방전 모드 — 첫 화면을 할 일 체크리스트로)
+**한 일**
+- Teardown.jsx: 분석 직후 첫 화면을 "처방전"(할 일 체크리스트) 하나로. 기존 Summary/Red Node Fix/Solution/Findings/Diagnose 전체는 "자세한 진단 보기" 토글(기본 닫힘) 뒤로 보존 — 감싸기만, 내부 미수정.
+- 처방전 항목 = (a) report.unmapped 노드 설치(CORE 제외, git clone 복사+GitHub) + (b) recipesEnriched 슬롯 평탄화. quantBad는 대체 GGUF "받기", 일반은 "준비"(받기/찾기 재사용). ☐번호 클릭 = 체크 토글(로컬 state).
+- diagLine 재사용 + "아래 N개만 하면 됩니다" 끝맺음. 결과 저장(.md) 버튼 Summary→처방전 상단으로 이동. 할 일 0개면 "차단 요소 없음".
+
+**어떻게**
+- 새 분석 로직 없이 rxTodos useMemo로 기존 데이터만 순회(표시층). buildPrescription(rx·Solution)은 묶음 처방이라 별개 — 자세히 안에 그대로 유지. C 변수·td-hf 버튼 재사용.
+
+**검증**
+- npm run build OK(429KB/gzip 119, +6KB). node test/regression.mjs 기존 4+API 전부 유지(엔진 무영향 확인).
+
+**다음 할 일**
+- 규칙 1: 사용자 dev 화면 ✅ 확인 후 커밋(시각 변경이라 선커밋 금지). 미커밋에 Teardown.jsx 추가.
+
 ## 2026-07-05 (A-1 — buildRecipes API 포맷 지원)
 **한 일**
 - redNodeRecipe.js: ComfyUI API 포맷(최상위 노드ID 키 + 각 값 class_type) 지원. flatten이 json.nodes 없으면 API 노드로 변환(_apiInputs), alignSlots가 inputs 객체에서 *_name 파일값 직접 추출.
