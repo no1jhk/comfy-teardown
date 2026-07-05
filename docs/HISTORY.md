@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-06 (처방전 마감부 — 완료 안내 재작성 · 하단 어두운 존)
+**한 일**
+- 완료 안내: "다 했으면 → …" 화살표 체인 삭제 → 소제목("완료 후 확인", 15px semibold) + 본문(14px: 재시작·재열기·빨간노드 확인).
+- 간격: 완료 안내 ↔ divider 110px(하단 존 paddingTop).
+- 하단 영역 존: divider부터 페이지 끝(푸터 포함)까지 살짝 어두운 배경. C.bgDeep #1A1420(bg #201926 대비 약 -3%p). full-bleed(width 100vw + left 50% + marginLeft -50vw), 콘텐츠는 maxWidth 1080 컬럼 재정렬(좌우 20 패딩 유지). footer를 detailOpen 밖·존 안으로 빼 접힘 시에도 노출.
+
+**어떻게**
+- 표시층만. divider가 두 존 경계. 카드 배경(surface #2A2333, MetricBox #28222E)은 bgDeep보다 밝아 대비 유지 → 조정 불필요.
+
+**검증**
+- npm run build OK(432KB/gzip 119.6). node test/regression.mjs 유지.
+
+**다음 할 일**
+- 규칙 1: dev 확인 후 커밋. full-bleed 가로 스크롤/모바일 확인.
+
 ## 2026-07-06 (UX 정비 5건 — Inventory를 Findings로 · 모델표 정렬 · 무결성 개조식 · 버튼 라인형)
 **한 일**
 - 전체 현황(Inventory): 독립 아코디언 → Findings 마지막 BlockHead 항목(fnum 4)으로 이동. 번호원+제목+토글 동일 스타일, 기본 접힘.

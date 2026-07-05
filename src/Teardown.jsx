@@ -30,7 +30,7 @@ import modelSizes from "./data/model_sizes.json";
 
 // comfy.org 공식 톤: 배경 #201926 플럼 / 텍스트는 순백 아닌 밝은 회색 / 노랑은 포인트만
 const C = {
-  bg: "#201926", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248",
+  bg: "#201926", bgDeep: "#1A1420", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248",
   quiet: "#241D2E",
   divider: "rgba(255,255,255,0.09)",
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F",
@@ -1697,10 +1697,16 @@ export default function Teardown() {
               })}
             </div>)}
 
-            <div style={{ marginTop: 18, fontSize: 14, fontWeight: 700, color: C.text, lineHeight: 1.5 }}>
-              다 했으면 → ComfyUI 완전 재시작 → 워크플로 다시 열기</div>
+            <div style={{ marginTop: 18 }}>
+              <div style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.5 }}>완료 후 확인</div>
+              <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 6 }}>모든 항목을 마쳤다면 ComfyUI를 완전히 재시작한 뒤 워크플로를 다시 열어 주세요. 빨간 노드가 남아 있지 않으면 정상적으로 설치된 것입니다.</div>
+            </div>
+          </div>
 
-            <div onClick={() => setDetailOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer", marginTop: 28 }}>
+          {/* ── 하단 존: divider부터 페이지 끝(푸터 포함)까지 살짝 어두운 배경. full-bleed(음수 마진), divider가 두 존 경계. ── */}
+          <div style={{ width: "100vw", position: "relative", left: "50%", right: "50%", marginLeft: "-50vw", marginRight: "-50vw", background: C.bgDeep, paddingTop: 110 }}>
+            <div style={{ maxWidth: 1080, margin: "0 auto", padding: "0 20px", boxSizing: "border-box" }}>
+            <div onClick={() => setDetailOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 16, cursor: "pointer" }}>
               <div style={{ flex: 1, borderTop: `1px solid ${C.divider}` }} />
               <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.dim, fontFamily: SANS, fontSize: 14, fontWeight: 600, flexShrink: 0 }}>
                 <span>자세한 진단 보기 (노드별 슬롯 · 설치 스크립트 · 전체 리포트)</span>
@@ -1708,7 +1714,6 @@ export default function Teardown() {
               </div>
               <div style={{ flex: 1, borderTop: `1px solid ${C.divider}` }} />
             </div>
-          </div>
 
           {detailOpen && (<div className="td-fade">
           {/* Summary — 아래 Solution과의 구분선 제거(borderBottom 없음) */}
@@ -2701,13 +2706,15 @@ export default function Teardown() {
             </div>
           )}
 
+          </div>)}
           <div style={{ marginTop: 64, paddingTop: 24, borderTop: `1px solid ${C.divider}`, textAlign: "center" }}>
             <a href="https://no1jhk.space" target="_blank" rel="noopener noreferrer"
               style={{ fontFamily: MONO, fontSize: 13, color: C.faint, textDecoration: "none", letterSpacing: "0.02em" }}>
               Built by Joon Hyung Kim · no1jhk.space
             </a>
           </div>
-          </div>)}
+            </div>
+          </div>
         </div>)}
 
         {!report && !err && (<div style={{ marginTop: 40, textAlign: "center", color: C.faint, fontSize: 13 }}>
