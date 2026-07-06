@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-06 (표시층 4건 · 패키지 행 재설계 · clone 흰 버튼)
+**한 일**
+1. 패키지·버전(Findings) 행 재설계로 겹침 근본 해결: 좌측 항상 2행(1행 팩명+버전충돌 뱃지 / 2행 브랜치+repo ellipsis, paddingLeft 24 정렬), 버전 칩 그룹 maxWidth 300+wrap+flexShrink, N종은 flex none width 40 우측 고정 컬럼(침범 불가). 칩 세로 쌓임 허용·겹침 0. L2315~2343.
+2. clone 복사 아이콘·GitHub ↗ 버튼 흰색화: 복사 버튼 point→td-outline-w 흰 라인, GitHub는 td-hf td-outline-w(흰 pill, hover 흰 배경+어두운 텍스트). ENF STEP1 GitHub도 통일. 노랑 제거. L1663·1666·1871.
+3. "자세한 진단 보기" divider 1.5배: 토글 텍스트 14→21, 아이콘 15→21, 점선 2px→3px, 텍스트 padding 16→12(선 여유). 존 paddingTop 36 수용. L1749~1754.
+4. footer 문구·링크 교체: "comfy-teardown · … · no1jhk.space"(링크) → "© 2026 Comfy-teardown · Built by Joon Hyung Kim"(span, 링크 제거). L2727~2731.
+
+**어떻게**
+- 빌드 통과 + regression 통과. dev 화면 판정 전.
+
+**다음 할 일**
+- dev 화면 판정 후 push(사용자). 불합격 항목 fix-forward.
+
 ## 2026-07-06 (표시층 8건 + 찾기 버튼 동작 추적)
 **한 일**
 1. 찾기 버튼 라벨 추적·수정: 검색 성공(mr.result.url) 시 '찾기'→'다운로드'로 바뀌던 것을 foundUrl 산출에서 mr.result.url 제외로 차단(URL 미확인 파일은 '찾기' 유지). 캡션 추가("직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다"). L1709·1715·1719.

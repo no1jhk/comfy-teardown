@@ -1660,10 +1660,10 @@ export default function Teardown() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                       <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "10px 12px", boxSizing: "border-box" }}>
                         <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 14, color: C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>git clone {cloneUrl}</code>
-                        <button onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)} title="명령 복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                        <button className="td-outline-w" onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)} title="명령 복사" style={{ borderRadius: 6, padding: "5px 7px", cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
                           {copiedKey === `rx-${t.key}` ? <Check size={15} /> : <Copy size={15} />}</button>
                       </div>
-                      {ghUrl && <a className="td-hf" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
+                      {ghUrl && <a className="td-hf td-outline-w" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
                     </div>
                     <div style={{ fontSize: 14, color: C.text, marginTop: 8, lineHeight: 1.6 }}>
                       {g.repoSrc === "prefix" ? <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장 {repoEl} 가 설치되어 있지 않습니다.</>}
@@ -1746,12 +1746,12 @@ export default function Teardown() {
         <div style={{ flex: 1, position: "relative", width: "100%", background: detailOpen ? C.bgDeep : "transparent" }}>
           {/* ── 경계 divider: 존 컨테이너의 top edge에 absolute 걸침(translateY -50%). 텍스트가 라인에 수직 중앙, 배경 투명(상반부 밝은/하반부 어두운). 부모(존) 폭 기준 full-bleed(100vw 아님 → 가로 스크롤 없음). ── */}
           <div onClick={() => setDetailOpen((v) => !v)} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
-            <div style={{ flex: 1, borderTop: `2px dashed ${C.divider}` }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.dim, fontFamily: SANS, fontSize: 14, fontWeight: 600, flexShrink: 0, padding: "0 16px" }}>
+            <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.dim, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
               <span>자세한 진단 보기 (노드별 슬롯 · 설치 스크립트 · 전체 리포트)</span>
-              {detailOpen ? <Minus size={15} color={C.dim} /> : <Plus size={15} color={C.dim} />}
+              {detailOpen ? <Minus size={21} color={C.dim} /> : <Plus size={21} color={C.dim} />}
             </div>
-            <div style={{ flex: 1, borderTop: `2px dashed ${C.divider}` }} />
+            <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
           </div>
           <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "36px 20px 0", boxSizing: "border-box" }}>
 
@@ -1868,7 +1868,7 @@ export default function Teardown() {
                             <div style={{ marginTop: 8, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>커스텀 노드 미설치 추정. ComfyUI에서 해당 빨간 노드 이름 확인 필요</div>
                           </>)}
                         </div>
-                        {ghUrl && <a className="td-hf" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
+                        {ghUrl && <a className="td-hf td-outline-w" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
                       </div>
                     </React.Fragment>);
                   })}
@@ -2312,35 +2312,35 @@ export default function Teardown() {
               <div style={{ marginTop: open.f2 ? 27 : 0, paddingBottom: open.f2 ? 31 : 31 }}>{open.f2 && (<>
                 <div style={{ display: "flex", flexDirection: "column" }}>
                   {report.packs.map((p, i) => (
-                    <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 18, paddingTop: i > 0 ? 18 : 0, marginTop: i > 0 ? 18 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
-                      {/* 좌: > + pack id + repo */}
-                      <div style={{ display: "flex", alignItems: "center", gap: "4px 14px", minWidth: 0, flexWrap: "wrap", flex: "1 1 auto" }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                          <ChevronRight size={16} color={C.amber} style={{ flexShrink: 0 }} />
-                          <span style={{ fontFamily: MONO, fontSize: 18, color: p.isCore ? C.dim : C.text, overflowWrap: "anywhere" }}>{p.id}{p.isCore && <span style={{ color: C.faint, fontSize: 13 }}> · 내장</span>}</span>
-                        </div>
-                        {p.repo && <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-                          <GitBranch size={13} color={C.green} style={{ flexShrink: 0, opacity: 0.6 }} /><span title={p.repo} style={{ fontFamily: MONO, fontSize: 13, color: C.green, opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>{p.repo}</span></div>}
-                      </div>
-                      {/* 버전(빨강) 블록. "버전 충돌" 라벨 좌측(세로중앙) + 우측에 버전 칩들 줄바꿈 채움 */}
-                      {(p.conflict || p.vers.length > 0) && (
-                        <div style={{ display: "flex", flexDirection: "row", alignItems: "center", gap: 12, flexShrink: 0, maxWidth: 340 }}>
-                          {p.conflict && <span style={{ fontSize: 13, fontWeight: 700, color: C.red, flexShrink: 0, whiteSpace: "nowrap" }}>버전 충돌</span>}
-                          <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                            {p.vers.map((v, j) => {
-                              const isHash = /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v);
-                              return (
-                              <span key={j} title={isHash ? `git 커밋 ${v}` : `릴리스 버전 ${v}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: MONO, fontSize: 13, color: p.conflict ? C.red : C.dim,
-                                background: p.conflict ? "rgba(239,83,80,0.1)" : C.surfaceHi, border: `1px solid ${p.conflict ? C.red + "44" : C.line}`, borderRadius: 5, padding: "2px 8px" }}>
-                                {isHash && <span style={{ fontSize: 13, color: C.faint }}>commit</span>}
-                                {v}
-                              </span>);
-                            })}
+                    <div key={p.id} style={{ display: "flex", alignItems: "flex-start", gap: 18, paddingTop: i > 0 ? 18 : 0, marginTop: i > 0 ? 18 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
+                      {/* 좌: 항상 2행 — 1행 팩명(+버전 충돌), 2행 브랜치+repo(ellipsis). 폭 부족해도 겹침 0 */}
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6, minWidth: 0, flex: "1 1 auto" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, flexWrap: "wrap" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                            <ChevronRight size={16} color={C.amber} style={{ flexShrink: 0 }} />
+                            <span style={{ fontFamily: MONO, fontSize: 18, color: p.isCore ? C.dim : C.text, overflowWrap: "anywhere" }}>{p.id}{p.isCore && <span style={{ color: C.faint, fontSize: 13 }}> · 내장</span>}</span>
                           </div>
+                          {p.conflict && <span style={{ fontSize: 13, fontWeight: 700, color: C.red, flexShrink: 0, whiteSpace: "nowrap" }}>버전 충돌</span>}
+                        </div>
+                        {p.repo && <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0, paddingLeft: 24 }}>
+                          <GitBranch size={13} color={C.green} style={{ flexShrink: 0, opacity: 0.6 }} /><span title={p.repo} style={{ fontFamily: MONO, fontSize: 13, color: C.green, opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{p.repo}</span></div>}
+                      </div>
+                      {/* 중앙~우측: 버전 칩 그룹. 남는 폭 안에서만 wrap(maxWidth), N종 컬럼 침범 불가 */}
+                      {p.vers.length > 0 && (
+                        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "flex-end", maxWidth: 300, flexShrink: 1, minWidth: 0 }}>
+                          {p.vers.map((v, j) => {
+                            const isHash = /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v);
+                            return (
+                            <span key={j} title={isHash ? `git 커밋 ${v}` : `릴리스 버전 ${v}`} style={{ display: "inline-flex", alignItems: "center", gap: 5, fontFamily: MONO, fontSize: 13, color: p.conflict ? C.red : C.dim,
+                              background: p.conflict ? "rgba(239,83,80,0.1)" : C.surfaceHi, border: `1px solid ${p.conflict ? C.red + "44" : C.line}`, borderRadius: 5, padding: "2px 8px" }}>
+                              {isHash && <span style={{ fontSize: 13, color: C.faint }}>commit</span>}
+                              {v}
+                            </span>);
+                          })}
                         </div>
                       )}
-                      {/* 우: N종. 맨 오른쪽 끝 보장(marginLeft auto로 버전 블록과 공간 분리) */}
-                      <span style={{ marginLeft: "auto", paddingLeft: 12, fontSize: 13, color: C.faint, flexShrink: 0 }}>{p.nodeTypes.length}종</span>
+                      {/* 우: N종 — 고정 폭 컬럼(flex none, 우측 정렬). 칩 그룹이 침범 불가 */}
+                      <span style={{ flex: "none", width: 40, textAlign: "right", fontSize: 13, color: C.faint }}>{p.nodeTypes.length}종</span>
                     </div>))}
                 </div>
                 {/* 점버전 설명 + 한 저장소 안내. 한 묶음 `-` 개조식. gap 0 + 줄간격만으로 붙임(알트엔터처럼). 위 여백 2배(36) + 좌측 들여쓰기(indent)로 탭 들어간 느낌. */}
@@ -2725,10 +2725,9 @@ export default function Teardown() {
 
           </div>)}
           <div style={{ marginTop: 64, paddingBottom: 32, textAlign: "center" }}>
-            <a href="https://no1jhk.space" target="_blank" rel="noopener noreferrer"
-              style={{ fontFamily: MONO, fontSize: 13, color: C.faint, textDecoration: "none", letterSpacing: "0.02em" }}>
-              comfy-teardown · Built by Joon Hyung Kim · no1jhk.space
-            </a>
+            <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, letterSpacing: "0.02em" }}>
+              © 2026 Comfy-teardown · Built by Joon Hyung Kim
+            </span>
           </div>
             </div>
           </div>
