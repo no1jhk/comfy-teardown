@@ -19,20 +19,20 @@ const files = fs.readdirSync(FIX).filter((f) => f.endsWith(".json")).sort();
 const GPU = "ampere";
 
 // 3등급(buildRecipes 범위): redGpu(quantBad)>0 → red / 그 외 점검 모델>0 → yellow / 0 → green.
-// 실제 grade는 미설치 노드(analyze)도 red 트리거하나 regression은 buildRecipes만 → redGpu 기준.
+// 실증 반영: quantBad(fp8)는 노랑(GPU 점검 권장). red는 노드 사유(analyze)만 → regression(buildRecipes)엔 red 없음.
 function gradeFromRecipes(recipes) {
   const slots = recipes.flatMap((r) => r.slots);
-  const redGpu = slots.filter((s) => s.quantBad).length;
+  const gpuCheck = slots.filter((s) => s.quantBad).length; // fp8 등 → 노랑 카운트
   const checkModels = slots.filter((s) => !s.quantBad).length;
-  return redGpu > 0 ? "red" : checkModels > 0 ? "yellow" : "green";
+  return (gpuCheck + checkModels) > 0 ? "yellow" : "green";
 }
 
 // 파일별 등급 기대값 (신규 fixtures 포함). red=실행불가(quantBad>0) / yellow=점검 / green=문제없음.
 // GPU 입력 조건별 등급 기대. ampere=GPU 입력 시 / none=GPU 미입력 시(추정 금지 → GPU 사유 red 없음).
 const GRADE_EXPECT = {
-  "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": { ampere: "red", none: "yellow" },
+  "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": { ampere: "yellow", none: "yellow" },
   "LTX2.3 8GB VRAM workflow + Audio to Video.json": { ampere: "yellow", none: "yellow" },
-  "Silent Snow LTX2.3 Kjai FP8.json": { ampere: "red", none: "yellow" },
+  "Silent Snow LTX2.3 Kjai FP8.json": { ampere: "yellow", none: "yellow" },
 };
 let fail = 0;
 const rows = [];

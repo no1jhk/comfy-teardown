@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-06 (실기기 반증 반영: quantBad 강등 + 정체미상 정비)
+**배경(실증)**: RTX3090+ComfyUI 0.25.1+comfy-kitchen 0.2.10에서 fp8_scaled가 dequantize 경로로 실행됨(사용자 콘솔). "Ampere=fp8 불가 확정"(구스택) 폐기.
+**한 일**
+1. quantBad 등급 강등 red→yellow: 등급 로직 redGpu를 빨강 트리거에서 제외, yellowN에 gpuCheck 추가(L1411~). 빨강=미설치 노드 계열만. 노랑 diagLine에 "GPU 점검 권장 모델 N개". 문구 확정형→조건형 4곳(slot GGUF L1735·slot L1747·RNF L1946·모델표 L2195): "이 형식(fp8)은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장." 색 red→amber(L1947 등). GGUF 대체 블록·다운로드 유지.
+2. 정체 미상(solo 미씽) 중복 제거: solo를 type별 1항목 합침 + "해당 노드 N개" 부연(L1443~1445·1717). repo 그룹핑 패턴.
+3. "(rgthree)" 접미 매핑: repoForUnmapped 체인에 / \\(rgthree\\)$/ → rgthree/rgthree-comfy(추정, src=prefix) 규칙 추가(L267). [보고] Manager 역매핑(extension-node-map)은 런타임 비동기 로드라 "Label (rgthree)" 키 등록 여부 정적 확인 불가. 등록됐으면 체인 2)manager에서 우선 잡히고, 없으면 3b)접미 규칙 적용.
+4. web_search 은어 제거 2곳(L1712·1892): "출처를 확인할 수 없습니다. ComfyUI Manager에서 노드 이름으로 검색해 주세요."
+5. regression: gradeFromRecipes quantBad→노랑, GRADE_EXPECT Silent Snow/LTX2_3_ ampere red→yellow. quantBad 2 검증 유지. 통과. [처방 항목 수는 rxTodos=analyze라 buildRecipes 회귀 범위 밖 — SKIP.]
+6. 제작자 주의사항 색 ×1.3: C.memo #635537→#816E48(본문·링크), C.memoBright #816E48→#A88F5E(헤더). 위계 유지.
+
+**어떻게**
+- 빌드 통과 + regression(gpu입력 yellow·미입력 yellow·red 없음) 통과.
+
+**다음 할 일**
+- dev 판정 후 push.
+
 ## 2026-07-06 (P0 마무리 — 모델표 GPU 미입력 안내 + 잔여 축 감사)
 **한 일 / 감사**
 1. 모델표(step.models)에 GPU 미입력 fp 안내: qwHit(quantWarnings 미입력 [])+gpuGeneration falsy+detectQuant(fp) 조건 → dim 안내(slot·RNF와 동일 문구). 판정 아님(등급 무영향). L2199.

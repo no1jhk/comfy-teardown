@@ -35,7 +35,7 @@ const C = {
   divider: "rgba(255,255,255,0.09)",
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#423E47",
   point: "#F4FF75",
-  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#635537", memoBright: "#816E48",
+  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#816E48", memoBright: "#A88F5E",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
@@ -264,6 +264,8 @@ function repoForUnmapped(type, mgrMap) {
   }
   // 3. prefix fallback (접두어 추측)
   for (const [pre, repo] of REPO_BY_PREFIX) if (type.startsWith(pre)) return { repo, src: "prefix" };
+  // 3b. 접미 라벨 " (rgthree)" → rgthree-comfy (추정). rgthree는 노드 표시명 끝에 라벨을 붙인다.
+  if (/ \(rgthree\)$/i.test(type)) return { repo: "rgthree/rgthree-comfy", src: "prefix" };
   // 4. compatNodeRepo (cnr_id 기반 — unmapped에선 cnr_id 없지만 type→cnr 역추정 시도 가능)
   return { repo: null, src: null };
 }
@@ -1409,23 +1411,25 @@ export default function Teardown() {
     // 이상 노드(anomalous)는 Findings "정체 미상 노드"(상세·행동)로 일원화 — 요약 중복 제거
     // 3등급 판정 — 빨강(실행 불가 확정) / 노랑(점검 필요) / 초록(문제 없음)
     const allSlots = recipes.flatMap((r) => r.slots);
-    const redGpu = allSlots.filter((s) => s.quantBad).length;   // GPU 비호환 확정 모델
-    const redNodes = (report.unmapped?.length || 0) + (report.anomalous?.length || 0) + (report.broken?.length || 0); // 미설치·정체미상·깨진 노드
-    const checkModels = allSlots.filter((s) => !s.quantBad).length; // 점검 대상 모델 슬롯(빨강 아님)
+    // 실증(RTX3090+ComfyUI 0.25.1): fp8_scaled가 변환(dequantize) 경로로 실행됨 → quantBad는 '실행 불가 확정'이 아니라 'GPU 점검 권장'(노랑).
+    const gpuCheck = allSlots.filter((s) => s.quantBad).length;   // fp8 등 GPU 점검 권장(빨강 아님, 노랑 카운트)
+    const redNodes = (report.unmapped?.length || 0) + (report.anomalous?.length || 0) + (report.broken?.length || 0); // 미설치·정체미상·깨진 노드(실행 불가 확정)
+    const checkModels = allSlots.filter((s) => !s.quantBad).length; // 점검 대상 모델 슬롯
     const checkInputs = (report.portability || []).filter((h) => /\.(png|jpe?g|webp|bmp|gif|tiff?|mp4|mov|webm|mkv|avi|wav|mp3|flac|ogg)$/i.test(h.value) && !/[\\/]/.test(h.value)).length; // 입력 파일 준비
-    const yellowN = checkModels + checkInputs;
+    const yellowN = checkModels + checkInputs + gpuCheck;
     let grade, diagLine;
-    if (redNodes > 0 || redGpu > 0) {
+    if (redNodes > 0) {
       grade = "red";
       const parts = [];
       if (report.unmapped?.length) parts.push(`커스텀 노드 ${report.unmapped.length}개 미설치`);
       if (report.anomalous?.length) parts.push(`정체 미상 노드 ${report.anomalous.length}개`);
       if (report.broken?.length) parts.push(`이름 확인 불가 노드 ${report.broken.length}개`);
-      if (redGpu > 0) parts.push(`이 GPU 비호환 모델 ${redGpu}개`);
       diagLine = `현재 상태로는 실행되지 않습니다. ${parts.join(" · ")}`;
     } else if (yellowN > 0) {
       grade = "yellow";
-      diagLine = `실행을 막는 문제는 찾지 못했습니다. 실행 전 점검 항목 ${yellowN}개`;
+      const yparts = [`실행 전 점검 항목 ${yellowN}개`];
+      if (gpuCheck > 0) yparts.push(`GPU 점검 권장 모델 ${gpuCheck}개`);
+      diagLine = `실행을 막는 문제는 찾지 못했습니다. ${yparts.join(" · ")}`;
     } else {
       grade = "green";
       diagLine = "이 워크플로우에서 구조상 문제를 찾지 못했습니다. 도구는 PC 안의 설치 상태는 확인하지 않습니다.";
@@ -1440,7 +1444,9 @@ export default function Teardown() {
     // (a) 커스텀 노드 설치. 같은 repo 미씽 노드는 groupNodesByRepo로 1항목 그룹핑(clone 1회). repo 없으면 solo 개별.
     const { groups, solo } = groupNodesByRepo(report.unmapped || []);
     for (const g of groups) todos.push({ kind: "nodegroup", key: `repo-${g.repo || g.clone_url}`, g });
-    for (const u of solo) todos.push({ kind: "node", key: `node-${u.type}-${u.id}`, u });
+    const soloByType = {}; // 같은 type 미씽 노드를 1항목으로 합침(해당 노드 N개), repo 그룹핑과 같은 패턴
+    for (const u of solo) (soloByType[u.type] ||= []).push(u);
+    for (const us of Object.values(soloByType)) todos.push({ kind: "node", key: `node-${us[0].type}`, u: us[0], count: us.length });
     // (b) 모델 준비. 노드 카드 단위가 아니라 슬롯 단위로 평탄화
     for (const rc of recipesEnriched) for (const s of rc.slots) {
       todos.push({ kind: "model", key: `model-${rc.id}-${s.slot}`, s });
@@ -1708,8 +1714,8 @@ export default function Teardown() {
                   const u = t.u;
                   left = (<>
                     <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3 }}>
-                      <span style={{ fontFamily: MONO }}>{u.type}</span> 노드 설치</div>
-                    <div style={{ fontSize: 14, color: C.amber, marginTop: 8, lineHeight: 1.6 }}>출처 확인 필요. Manager에서 노드 이름 검색 또는 web_search</div>
+                      <span style={{ fontFamily: MONO }}>{u.type}</span> 노드 설치{t.count > 1 && <span style={{ fontSize: 15, color: C.faint, fontWeight: 400 }}> · 해당 노드 {t.count}개</span>}</div>
+                    <div style={{ fontSize: 14, color: C.amber, marginTop: 8, lineHeight: 1.6 }}>출처를 확인할 수 없습니다. ComfyUI Manager에서 노드 이름으로 검색해 주세요.</div>
                   </>);
                   right = null;
                 } else if (t.kind === "input") {
@@ -1730,7 +1736,7 @@ export default function Teardown() {
                         <span style={{ fontFamily: MONO }}>{a0.name}</span> 다운로드</div>
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{a0.folder}</span> 폴더에 넣으세요</div>
                       <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>
-                        원본 <span style={{ fontFamily: MONO }}>{s.value}</span>은 이 GPU에서 안 돌아 GGUF로 교체
+                        원본 <span style={{ fontFamily: MONO }}>{s.value}</span>은 이 GPU에서 기본 미지원. 안정 실행엔 GGUF 권장
                         {alts[1] && <><br />또는 <span style={{ fontFamily: MONO }}>{alts[1].name}</span>{alts[1].note ? ` (${alts[1].note})` : ""}</>}
                       </div>
                     </>);
@@ -1744,7 +1750,7 @@ export default function Teardown() {
                         {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{s.folder}</span> 폴더에 넣으세요. 이미 있으면 건너뛰기</div>
                       {!foundUrl && <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>}
-                      {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6 }}>이 GPU에서 실행되지 않습니다. 대체 GGUF로 교체하세요.</div>}
+                      {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장합니다.</div>}
                       {s.quantUnknown && <div style={{ fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
@@ -1889,7 +1895,7 @@ export default function Teardown() {
                               </div>
                               </>);
                             })() : (
-                              <div style={{ marginTop: 8, fontSize: 14, color: C.faint, lineHeight: 1.6 }}>출처 확인 필요. web_search 또는 Manager에서 노드 이름 검색</div>
+                              <div style={{ marginTop: 8, fontSize: 14, color: C.faint, lineHeight: 1.6 }}>출처를 확인할 수 없습니다. ComfyUI Manager에서 노드 이름으로 검색해 주세요.</div>
                             )}
                             {isAdmin && u.install_note && <div style={{ marginTop: 4, fontSize: 14, color: C.faint, lineHeight: 1.6 }}>{u.install_note}</div>}
                           </>) : (<>
@@ -1942,8 +1948,8 @@ export default function Teardown() {
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.faint }}>{si + 1}</span>
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontFamily: MONO, fontSize: 14, color: s.quantBad ? C.red : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
-                              {s.quantBad && <div style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginTop: 4 }}>⚠ 이 GPU에서 실행되지 않습니다. GGUF 또는 bf16으로 교체하세요.</div>}
+                              <div style={{ fontFamily: MONO, fontSize: 14, color: s.quantBad ? C.amber : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
+                              {s.quantBad && <div style={{ fontFamily: SANS, fontSize: 13, color: C.amber, marginTop: 4, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장합니다.</div>}
                               {s.quantUnknown && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
                               {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
                                 <div key={ai} style={{ fontFamily: SANS, fontSize: 13, color: C.point, marginTop: 3, lineHeight: 1.5, paddingLeft: 10 }}>
@@ -2192,7 +2198,7 @@ export default function Teardown() {
                               <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "13px 0", alignItems: "center", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : qwHit ? 0.5 : 1 }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontFamily: MONO, fontSize: 14, color: qwHit ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
-                                  {qwHit && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red }}>⚠ 이 GPU에선 안 돌 수 있음</span>}
+                                  {qwHit && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>이 GPU는 변환 경로 필요 · GGUF 권장</span>}
                                   {src && !qwHit && <span style={{ fontFamily: SANS, fontSize: 13, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
                                   {m.rename && <div style={{ fontSize: 13, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>⤷ {m.rename}</div>}
                                   {al && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>다른 이름: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div>}
