@@ -33,9 +33,9 @@ const C = {
   bg: "#201926", bgDeep: "#1A1420", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248",
   quiet: "#241D2E",
   divider: "rgba(255,255,255,0.09)",
-  text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#534E59",
+  text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#423E47",
   point: "#F4FF75",
-  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#635537",
+  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#635537", memoBright: "#816E48",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
@@ -1062,7 +1062,7 @@ function buildBriefing(report, errlog, env) {
   const dlModels = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)));
   if (dlModels.length) {
     L.push(`## 받을 모델 (파일명 · 폴더 · 정상 용량 · 직링크)`);
-    L.push(`| 받을 파일 | 어디에 둘지 | 정상 용량 | 직링크 |`);
+    L.push(`| 받을 파일 | 어느 폴더에 둘지 | 정상 용량 | 직링크 |`);
     L.push(`|---|---|---|---|`);
     for (const m of dlModels) {
       const eff = m.compat;
@@ -1794,10 +1794,10 @@ export default function Teardown() {
               {report.authorNotes?.length > 0 && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${C.divider}` }}>
                   <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <CircleAlert size={16} color={C.memo} style={{ flexShrink: 0 }} />
-                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.memo, flex: 1 }}>제작자 주의사항 (워크플로우 메모)</span>
+                    <CircleAlert size={16} color={C.memoBright} style={{ flexShrink: 0 }} />
+                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.memoBright, flex: 1 }}>제작자 주의사항 (워크플로우 메모)</span>
                     <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("an"); }} aria-label="펼치기/접기"
-                      style={{ background: "transparent", border: "none", color: C.memo, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
+                      style={{ background: "transparent", border: "none", color: C.memoBright, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
                       {open.an ? <Minus size={18} strokeWidth={2.25} /> : <Plus size={18} strokeWidth={2.25} />}
                     </button>
                   </div>
@@ -1924,12 +1924,12 @@ export default function Teardown() {
                     </div>
                     {/* 슬롯 표 */}
                     <div style={{ borderTop: `1px solid ${C.line}` }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 110px", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr) 90px", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
                         {["#", "슬롯", "현재 값", "폴더", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
                       </div>
                       {r.slots.map((s, si) => (
                         <div key={si}>
-                          <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 110px", gap: 10, padding: "12px 0", alignItems: "center", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr) 90px", gap: 10, padding: "12px 0", alignItems: "center", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.faint }}>{si + 1}</span>
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
                             <div style={{ minWidth: 0 }}>
@@ -2164,7 +2164,7 @@ export default function Teardown() {
                             return (
                           <div style={{ borderTop: `1px solid ${C.divider}` }}>
                             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>
-                              {["받을 파일", "어디에 둘지", "정상 용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "center" : "left" }}>{h}</span>)}
+                              {["받을 파일", "어느 폴더에 둘지", "정상 용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "center" : "left" }}>{h}</span>)}
                             </div>
                             {step.models.map((m, k) => {
                               const live = liveCompat[m.file];
