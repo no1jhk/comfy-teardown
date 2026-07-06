@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-07-07 (CLAUDE.md 자율 운영 개정)
+**한 일**
+- CLAUDE.md에 "## 자율 라운드 운영 (Fable 중계 없이 진행)" 섹션 추가(작업 규칙 불변 직후). 라운드 완료 기준·자가 검수 4항(양방향 대조/정보 설계 4항/카피 규칙/대원칙)·fix-forward·HISTORY 갱신·"판단 필요" 분리 보고.
+- `.claude/settings.json`(공유·커밋 대상) 신규 생성. allow: Edit·Write·npm run build·node test/·git add/commit/log/diff·shasum·ls. deny: git push·reset --hard·clean·rm(방어).
+
+**어떻게**
+- settings.json은 gitignore 안 됨(커밋 대상), settings.local.json은 gitignore(로컬). 지시대로 공유 파일에 등록. `:*` 컨벤션(기존 local 파일 검증형)으로 프롬프트 없는 실행 보장. push·rm은 allow 제외 + deny 명시.
+
+**다음 할 일**
+- 다음 라운드부터 변경요약에 자가 검수 체크 결과 명기.
+
 ## 2026-07-07 (액션 테이블 결함 3건)
 **한 일 / 실측**
 1. 받기 행 파일 단위 그룹핑: 동일 basename(경로 제거·소문자) 슬롯 1행 병합(받기+넣기 폴더[다르면 각각]+선택 N줄). L1500~1511·1749~1751. 실측(regression): Video To Audio 받기 4→2(dev-fp8 3병합+lora). ACTION_MODEL_EXPECT Video 4→2.
