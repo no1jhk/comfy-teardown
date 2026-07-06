@@ -175,7 +175,7 @@ function resolveSlot(n, slot, value, manifest) {
 }
 
 // 9. 워크플로 JSON → 레시피 배열.
-export function buildRecipes(json, { gpu = "ampere" } = {}) {
+export function buildRecipes(json, { gpu = null } = {}) {
   const nodes = flatten(json).filter((n) => n.mode !== 4 && n.mode !== 2); // 2. bypass/mute 제외
   const manifest = extractManifest(nodes);
   const recipes = [];
@@ -186,8 +186,10 @@ export function buildRecipes(json, { gpu = "ampere" } = {}) {
     if (!modelPairs.length) continue;
     const slots = modelPairs.map(([slot, value]) => {
       const r = resolveSlot(n, slot, value, manifest);
-      const qb = gpu === "ampere" && QUANT_BAD.test(value);
-      return { slot, value, ...r, quantBad: qb, ggufAlt: qb ? lookupGgufAlt(value) : null }; // 8. 양자화 비호환 + GGUF 대안
+      const fpMatch = value.match(QUANT_BAD); // fp8/fp4/nvfp4 형식 매칭
+      const qb = gpu === "ampere" && !!fpMatch; // 판정: GPU 입력 + ampere일 때만 (미입력 시 추정 금지)
+      const quantUnknown = !gpu && !!fpMatch;   // GPU 미입력 + fp 파일 → 안내용(판정 아님, 등급 무관)
+      return { slot, value, ...r, quantBad: qb, quantUnknown, quantFmt: fpMatch ? fpMatch[0] : null, ggufAlt: qb ? lookupGgufAlt(value) : null }; // 8. 양자화 비호환 + GGUF 대안
     });
     const recipe = { id: n.id, type: n.type, tab: n.properties?.pipeline_mode || null, tabColor: n.bgcolor || n.color || null, sub: n._inSubgraph || null, slots };
     if (offsetWarning) recipe.__offset_warning = true;

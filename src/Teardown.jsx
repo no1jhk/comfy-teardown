@@ -1355,7 +1355,7 @@ export default function Teardown() {
   // GPU 변경 시 recipes 재계산 (buildRecipes의 gpu 파라미터 반영)
   const recipes = React.useMemo(() => {
     if (!rawJson) return [];
-    try { return buildRecipes(JSON.parse(rawJson), { gpu: gpuGeneration(env.gpu) || "ampere" }); } catch { return []; }
+    try { return buildRecipes(JSON.parse(rawJson), { gpu: gpuGeneration(env.gpu) || null }); } catch { return []; }
   }, [rawJson, env.gpu]);
 
   // missingText → 직접 지정한 누락 파일명 Set
@@ -1745,6 +1745,7 @@ export default function Teardown() {
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{s.folder}</span> 폴더에 넣으세요. 이미 있으면 건너뛰기</div>
                       {!foundUrl && <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>}
                       {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6 }}>이 GPU에서 안 될 수 있음. 대체 GGUF 확인 필요</div>}
+                      {s.quantUnknown && <div style={{ fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
                       : mr?.loading ? <button className="td-hf" disabled style={{ opacity: 0.55 }}>찾는 중…</button>
@@ -1943,6 +1944,7 @@ export default function Teardown() {
                             <div style={{ minWidth: 0 }}>
                               <div style={{ fontFamily: MONO, fontSize: 14, color: s.quantBad ? C.red : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
                               {s.quantBad && <div style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginTop: 4 }}>⚠ 이 GPU에서 실행되지 않습니다. GGUF 또는 bf16으로 교체하세요.</div>}
+                              {s.quantUnknown && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
                               {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
                                 <div key={ai} style={{ fontFamily: SANS, fontSize: 13, color: C.point, marginTop: 3, lineHeight: 1.5, paddingLeft: 10 }}>
                                   대체 파일: <span style={{ fontFamily: MONO }}>{a.name}</span> · {a.folder}

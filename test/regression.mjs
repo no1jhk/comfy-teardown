@@ -126,6 +126,22 @@ console.log("\n" + "=".repeat(70) + "\n노랑 등급 케이스: yellow_sample.js
   else console.log(`  ✅ 노랑 등급 충족 (실행 차단 없음 + 점검 항목 존재)`);
 }
 
+// === GPU 미입력 케이스 (gpu: null) — quantBad 판정 부재, fp 파일은 quantUnknown, 등급에서 GPU 사유 제외 ===
+console.log("\n" + "=".repeat(70) + "\nGPU 미입력 케이스 (gpu: null)");
+for (const f of files) {
+  const j = JSON.parse(fs.readFileSync(path.join(FIX, f), "utf8"));
+  const rNull = buildRecipes(j, { gpu: null });
+  const rAmp = buildRecipes(j, { gpu: "ampere" });
+  const qbNull = rNull.flatMap((r) => r.slots).filter((s) => s.quantBad).length;
+  const qbAmp = rAmp.flatMap((r) => r.slots).filter((s) => s.quantBad).length;
+  const quNull = rNull.flatMap((r) => r.slots).filter((s) => s.quantUnknown).length;
+  console.log(`  ${f.slice(0, 42)}: ampere quantBad ${qbAmp} → null quantBad ${qbNull} · quantUnknown ${quNull} · 등급 ${gradeFromRecipes(rNull)}`);
+  if (qbNull !== 0) { console.log(`  ❌ GPU 미입력인데 quantBad ${qbNull}(0이어야) → 추정 판정 잔존`); fail++; }
+  if (qbAmp > 0 && quNull !== qbAmp) { console.log(`  ❌ ampere quantBad ${qbAmp} → null quantUnknown ${quNull} 불일치(fp 전환 실패)`); fail++; }
+  if (gradeFromRecipes(rNull) === "red") { console.log(`  ❌ GPU 미입력인데 등급 red → GPU 사유 빨강 잔존`); fail++; }
+}
+console.log(`  ✅ GPU 미입력: quantBad 0(판정 부재) + fp 파일 quantUnknown 전환 + 등급 red 없음(GPU 사유 제외)`);
+
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");
 for (const r of rows) console.log("  " + r.join("  |  "));

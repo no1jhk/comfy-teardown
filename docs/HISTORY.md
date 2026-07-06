@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-06 (GPU 판정 기본값 제거 — 추정 금지 위반 수정)
+**추적(작업0) / 수정**
+0. [추적] quantBad의 gpu 값 출처: recipes useMemo(L1358) `gpuGeneration(env.gpu) || "ampere"` + buildRecipes(redNodeRecipe L178) `{ gpu = "ampere" }`. **미입력 시 "ampere" 강제 추정** → fp8/fp4 파일 quantBad true → 빨강 오탐. (모델표 qwHit=quantWarnings는 이미 gpuGeneration null→[] 반환이라 정상.)
+1. GPU 미입력 시 판정 중단: 두 기본값 "ampere"→null(L1358·redNodeRecipe L178). quantBad = gpu==="ampere" && fp(L189). 미입력 시 quantBad false → 경고/뱃지/GGUF 미렌더, 등급 redGpu에서도 제외.
+2. quantUnknown 조건부 안내: gpu 미입력 + fp 파일 → slot(L1748)·RNF 슬롯표(L1947)에 "이 형식(fp8)은 GPU에 따라 실행되지 않을 수 있습니다. '내 환경 정보'에 GPU 입력하면 판정"(dim, 판정 아님, 등급 무관). slot에 quantFmt·quantUnknown 필드 추가(redNodeRecipe L189~192).
+3. GPU 입력 시 현행 유지(ampere fp→quantBad, 변경 없음).
+4. regression: GPU 미입력(gpu:null) 케이스 추가 — 모든 fixture ampere quantBad>0 → null quantBad 0·quantUnknown 전환·등급 red 없음 검증. Silent Snow도 red→yellow. 통과.
+5. [전수 보고] 미입력 추정 문구: quantBad 조건(L1733·1744·1747·1936·1945)은 gpu 입력 ampere만 → 미입력 안 뜸(수정 완료). qwHit 조건(L2193·2211)은 quantWarnings 미입력 [] → 안 뜸(기존 정상). 모델표(step.models)는 qwHit 경로라 미입력 시 fp 안내 없음 — 추가 필요 시 지시.
+
+**어떻게**
+- 빌드 통과 + regression(GPU 미입력 케이스 포함) 통과.
+
+**다음 할 일**
+- dev 판정 후 push. GPU 미입력 시 빨강 사라지고 안내로 바뀌는지 확인.
+
 ## 2026-07-06 (buildBriefing 형식 통합 + 신규 fixtures 2개 회귀)
 **한 일 / 보고**
 1. buildBriefing 출력 형식 통합: 기존 4섹션(해결요약/표/환경/원인) + 말미 번호목록 → 번호 목록 하나로. 헤더(L1028~1033)에 "(1)문제 (2)명령·노드·슬롯·전후값 (3)완료확인, 서론·일반론 금지 + 이미지 대조" 통합, 말미 중복 제거. 구조 데이터 제공부 유지.
