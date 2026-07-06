@@ -189,7 +189,7 @@ export function buildRecipes(json, { gpu = "ampere" } = {}) {
       const qb = gpu === "ampere" && QUANT_BAD.test(value);
       return { slot, value, ...r, quantBad: qb, ggufAlt: qb ? lookupGgufAlt(value) : null }; // 8. 양자화 비호환 + GGUF 대안
     });
-    const recipe = { id: n.id, type: n.type, tab: n.properties?.pipeline_mode || null, sub: n._inSubgraph || null, slots };
+    const recipe = { id: n.id, type: n.type, tab: n.properties?.pipeline_mode || null, tabColor: n.bgcolor || n.color || null, sub: n._inSubgraph || null, slots };
     if (offsetWarning) recipe.__offset_warning = true;
     recipes.push(recipe);
   }

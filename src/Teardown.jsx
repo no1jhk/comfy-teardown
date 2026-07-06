@@ -318,6 +318,7 @@ function normalizeNode(n, subgraph) {
     ver: n.properties?.ver ?? null, mode: n.mode ?? 0,
     widgets: wv,
     noteText: isNote ? (typeof n.properties?.text === "string" && n.properties.text.trim() ? n.properties.text : wv.filter((w) => typeof w === "string").join("\n")) : null,
+    color: n.color ?? null, bgcolor: n.bgcolor ?? null,
     subgraph: subgraph ?? null };
 }
 function normalize(wf) {
@@ -520,9 +521,10 @@ function analyze(norm, mgrMap) {
 }
 
 // ── AI 정밀 진단(v1.1) ──────────────────────────────────────────
-// 키는 .env.local 의 VITE_ANTHROPIC_API_KEY 에서 읽는다(배포본엔 노출 안 함).
-// 키가 없으면 버튼이 안내문만 띄우고 호출하지 않는다.
-const AI_KEY = import.meta.env?.VITE_ANTHROPIC_API_KEY || "";
+// VITE_ 접두사 env는 빌드 시 클라이언트 번들에 평문 인라인된다 → 배포본에 키를 넣으면 노출됨.
+// 배포 가드: PROD 빌드에선 키를 비워 AI 기능을 끈다(로컬 dev 전용). PROD가 true로 치환되며 키 문자열은 dead-code 제거.
+// 배포본 AI는 백엔드 프록시 필요(로드맵 v1.1). 키가 없으면 버튼이 안내문만 띄우고 호출하지 않는다.
+const AI_KEY = import.meta.env?.PROD ? "" : (import.meta.env?.VITE_ANTHROPIC_API_KEY || "");
 const AI_MODEL = "claude-sonnet-4-5-20250929";
 
 // report(룰 분석 결과)를 LLM에 줄 컨텍스트 문자열로 압축.
@@ -1909,7 +1911,7 @@ export default function Teardown() {
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
-                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[탭: {r.tab}]</span>}
+                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet, display: "inline-flex", alignItems: "center", gap: 5 }}>{r.tabColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: r.tabColor, flexShrink: 0 }} />}[탭: {r.tab}]</span>}
                       {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[서브그래프]</span>}
                       {isAdmin && r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>⚠ offset 보정됨</span>}
                     </div>
