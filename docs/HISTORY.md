@@ -6,9 +6,10 @@
 
 ---
 
-## 2026-07-06 (fix-forward · clone 복사 아이콘 원복)
+## 2026-07-06 (fix-forward · clone 칩 흰색 통일)
 **한 일**
 - 직전 라운드(623ae6e) 작업2 정정: clone 칩 복사 아이콘의 td-outline-w·라운딩 박스화(borderRadius/padding) 제거, 맨 아이콘 형태로 원복 + 색만 point→C.text(흰). Check "복사됨" 피드백도 currentColor라 흰색 정합. GitHub ↗ 흰 pill은 정상이라 유지. L1663.
+- clone 칩 명령 텍스트("git clone …") 색도 point→C.text(흰)로 통일(복사 아이콘·흰 pill과 정합, 코드체·크기·칩 배경 불변). 렌더 위치는 Solution nodegroup 1곳(L1662)뿐 — ENF STEP1은 GitHub 버튼만이라 clone 칩 없음. L1662.
 
 ## 2026-07-06 (표시층 4건 · 패키지 행 재설계 · clone 흰 버튼)
 **한 일**

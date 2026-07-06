@@ -1659,7 +1659,7 @@ export default function Teardown() {
                     <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>해결되는 노드 {g.types.length}개: {g.types.join(" · ")}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                       <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "10px 12px", boxSizing: "border-box" }}>
-                        <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 14, color: C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>git clone {cloneUrl}</code>
+                        <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>git clone {cloneUrl}</code>
                         <button onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)} title="명령 복사" style={{ background: "transparent", border: "none", color: C.text, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
                           {copiedKey === `rx-${t.key}` ? <Check size={15} /> : <Copy size={15} />}</button>
                       </div>
