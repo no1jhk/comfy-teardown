@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-06 (한글 폰트 정합: Pretendard Variable)
+**한 일**
+1. Pretendard Variable 웹폰트 로드: index.html에 공식 jsdelivr CDN link 추가(dynamic subset, 사용 글리프만 로드 → 성능). v1.3.9. index.html L7.
+2. 폰트 스택 교체: SANS "Inter,…" → "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif"(L43). DISPLAY(제목)도 Inter 앞에 Pretendard Variable 추가로 통일(L42, 한글 제목 대비). MONO(코드체) 불변.
+   - [전수] 인라인 fontFamily 직접 문자열 지정 요소 없음 — 전부 SANS/MONO/DISPLAY 상수 참조. divider 30px 원 등도 SANS 상수라 자동 반영.
+   - @import(L1474) Inter/Space Grotesk/Noto Sans KR 유지(라틴·fallback). Pretendard는 index.html link로 로드.
+3. [확인 포인트] 한글·영문 혼용(진단 한 줄·처방 항목) 폰트 일치는 사용자 PC(Windows) 화면 판정.
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- dev/Windows 화면 판정 후 push. 한글 렌더 확인.
+
 ## 2026-07-06 (실기기 반증 반영: quantBad 강등 + 정체미상 정비)
 **배경(실증)**: RTX3090+ComfyUI 0.25.1+comfy-kitchen 0.2.10에서 fp8_scaled가 dequantize 경로로 실행됨(사용자 콘솔). "Ampere=fp8 불가 확정"(구스택) 폐기.
 **한 일**

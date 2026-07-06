@@ -39,8 +39,8 @@ const C = {
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
-const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백.
-const SANS = "Inter,ui-sans-serif,system-ui,-apple-system,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
+const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
+const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
 const MODEL_EXTS = [".safetensors",".ckpt",".pt",".pth",".bin",".gguf",".onnx",".glb",".fbx",".obj",".vrm",".gltf"];
 const WEIGHT_EXTS = [".ckpt",".safetensors",".pt",".pth",".bin",".gguf",".onnx"];
 
