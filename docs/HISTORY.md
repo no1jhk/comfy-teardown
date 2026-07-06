@@ -6,6 +6,10 @@
 
 ---
 
+## 2026-07-06 (fix-forward · clone 복사 아이콘 원복)
+**한 일**
+- 직전 라운드(623ae6e) 작업2 정정: clone 칩 복사 아이콘의 td-outline-w·라운딩 박스화(borderRadius/padding) 제거, 맨 아이콘 형태로 원복 + 색만 point→C.text(흰). Check "복사됨" 피드백도 currentColor라 흰색 정합. GitHub ↗ 흰 pill은 정상이라 유지. L1663.
+
 ## 2026-07-06 (표시층 4건 · 패키지 행 재설계 · clone 흰 버튼)
 **한 일**
 1. 패키지·버전(Findings) 행 재설계로 겹침 근본 해결: 좌측 항상 2행(1행 팩명+버전충돌 뱃지 / 2행 브랜치+repo ellipsis, paddingLeft 24 정렬), 버전 칩 그룹 maxWidth 300+wrap+flexShrink, N종은 flex none width 40 우측 고정 컬럼(침범 불가). 칩 세로 쌓임 허용·겹침 0. L2315~2343.

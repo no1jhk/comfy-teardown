@@ -1660,7 +1660,7 @@ export default function Teardown() {
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                       <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "10px 12px", boxSizing: "border-box" }}>
                         <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 14, color: C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>git clone {cloneUrl}</code>
-                        <button className="td-outline-w" onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)} title="명령 복사" style={{ borderRadius: 6, padding: "5px 7px", cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                        <button onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)} title="명령 복사" style={{ background: "transparent", border: "none", color: C.text, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
                           {copiedKey === `rx-${t.key}` ? <Check size={15} /> : <Copy size={15} />}</button>
                       </div>
                       {ghUrl && <a className="td-hf td-outline-w" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
