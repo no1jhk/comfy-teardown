@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-06 (찾기 경로 slot 통일 + AI 조사 타임아웃)
+**한 일**
+1. slot 처방 "찾기"(L1728~1731)도 "둘 다 제공" 통일: foundUrl 없을 때 loading→"찾는 중…", (!AI_KEY||error||result&&!found)→"웹에서 검색 ↗"(구글 새 창, td-hf td-outline-w), else→"찾기"(AI). 모델 표·Findings와 동일 분기·스타일.
+2. AI 조사(researchModel) 타임아웃: AbortController+setTimeout 20s(L692). 무응답/실패 시 abort→catch→error(loading:false)로 "찾는 중…" 방치 해소. 렌더 조건에 mr?.error 추가(모델표 L2202·Findings L2424·slot L1730)해 타임아웃/실패 시 "웹에서 검색 ↗" 폴백.
+
+**버튼 라벨 흐름(찾기 3경로 공통)**
+- 대기: "찾기"(AI_KEY 있음) / "웹에서 검색 ↗"(AI_KEY 없음, 즉시 새 창)
+- 클릭(AI): "찾는 중…"(disabled, opacity 0.55)
+- 성공+found: "다운로드"(+"이거 맞았어" 적립)
+- 성공+!found / 실패 / 20s 타임아웃: "웹에서 검색 ↗"(구글 새 창 폴백)
+
+**어떻게**
+- 빌드 통과 + regression 통과. dev 화면 판정 전.
+
+**다음 할 일**
+- dev 판정 후 push.
+
 ## 2026-07-06 (찾기 버튼 — 둘 다 제공 반영)
 **한 일**
 - 작업8 지시 확정("둘 다 제공"): AI 검색(researchModel) 유지 + AI_KEY 없거나 AI 조사 실패(result && !found) 시 "확인 필요"→"웹에서 검색 ↗"(구글 파일명+download 새 창) 버튼. 모델 표(L2194)·Findings 모델(L2416) 2곳.

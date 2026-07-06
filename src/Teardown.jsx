@@ -688,27 +688,34 @@ HuggingFace·GitHub·CivitAI 등에서 이 파일을 직접 다운로드할 수 
   "folder": "ComfyUI models/ 아래 어디에 넣을지 (알면, 모르면 빈 문자열)",
   "confidence": "high|mid|low"
 }`;
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "x-api-key": AI_KEY,
-      "anthropic-version": "2023-06-01",
-      "anthropic-dangerous-direct-browser-access": "true",
-    },
-    body: JSON.stringify({
-      model: AI_MODEL,
-      max_tokens: 1024,
-      tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
-      messages: [{ role: "user", content: prompt }],
-    }),
-  });
-  if (!res.ok) throw new Error(`API ${res.status}`);
-  const data = await res.json();
-  const textOut = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
-  const clean = textOut.replace(/```json|```/g, "").trim();
-  const mm = clean.match(/\{[\s\S]*\}/);
-  return JSON.parse(mm ? mm[0] : clean);
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 20000); // 20s 타임아웃 — 무응답 시 "찾는 중…" 방치 방지
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": AI_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: AI_MODEL,
+        max_tokens: 1024,
+        tools: [{ type: "web_search_20250305", name: "web_search", max_uses: 3 }],
+        messages: [{ role: "user", content: prompt }],
+      }),
+      signal: ctrl.signal,
+    });
+    if (!res.ok) throw new Error(`API ${res.status}`);
+    const data = await res.json();
+    const textOut = (data.content || []).filter((b) => b.type === "text").map((b) => b.text).join("\n");
+    const clean = textOut.replace(/```json|```/g, "").trim();
+    const mm = clean.match(/\{[\s\S]*\}/);
+    return JSON.parse(mm ? mm[0] : clean);
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 // 에러 로그(텍스트)를 패턴 매칭해 진단 항목으로 변환 (룰 기반 v1.1 초기 버전, LLM 불필요)
@@ -1719,7 +1726,9 @@ export default function Teardown() {
                       {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6 }}>이 GPU에서 안 될 수 있음. 대체 GGUF 확인 필요</div>}
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
-                      : <button className="td-hf" onClick={() => researchUnknownModel(s.value)} disabled={mr?.loading} style={mr?.result ? { opacity: 0.55 } : undefined}>{mr?.loading ? "찾는 중…" : "찾기"}</button>;
+                      : mr?.loading ? <button className="td-hf" disabled style={{ opacity: 0.55 }}>찾는 중…</button>
+                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(s.value + " download")}`} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a>
+                      : <button className="td-hf" onClick={() => researchUnknownModel(s.value)}>찾기</button>;
                   }
                 }
                 return (
@@ -2190,7 +2199,7 @@ export default function Teardown() {
                                         </>
                                       ) : mr?.loading ? (
                                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>검색 중…</span>
-                                      ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
+                                      ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
                                         <a className="td-hf td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(m.file + " download")}`} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a>
                                       ) : (
                                         <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
@@ -2412,7 +2421,7 @@ export default function Teardown() {
                         </>
                       ) : !isWeight ? null : mr?.loading ? (
                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 14 }}>검색 중…</span>
-                      ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
+                      ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
                         <a className="td-hf-sm td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(m.file + " download")}`} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>웹에서 검색 ↗</a>
                       ) : (
                         <button className="td-hf-sm" onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14 }}>다운로드 링크 찾기</button>
