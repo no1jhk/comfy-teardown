@@ -1330,17 +1330,11 @@ export default function Teardown() {
   const searchUrl = (name) => "https://huggingface.co/models?search=" + encodeURIComponent(name.replace(/\.[^.]+$/, ""));
   const openSearch = (e, name) => { e.preventDefault(); window.open(searchUrl(name), "_blank", "noopener"); };
   const researchUnknownModel = async (filename) => {
-    // DEV 전용 추적 로그(찾기 무반응 원인 특정용). 프로덕션(PROD)에선 출력 안 됨.
-    const dbg = (...a) => { if (import.meta.env?.DEV) console.warn("[찾기 추적]", ...a); };
-    dbg("① onClick 발화 · filename=", filename, "· AI_KEY 존재=", !!AI_KEY);
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
-    dbg("② loading=true set (화면에 '찾는 중…' 떠야 정상)");
     try {
       const r = await researchModel(filename);
-      dbg("③ researchModel 반환 ·", r);
       setModelResearch((s) => ({ ...s, [filename]: { loading: false, result: r } }));
     } catch (e) {
-      dbg("③ researchModel 예외 ·", e?.name, "·", e?.message, "(즉시 error→웹검색 폴백)");
       setModelResearch((s) => ({ ...s, [filename]: { loading: false, error: e.message || "조사 실패" } }));
     }
   };
@@ -1735,7 +1729,7 @@ export default function Teardown() {
                     right = a0.url ? <a className="td-hf" href={a0.url} target="_blank" rel="noopener noreferrer">다운로드</a> : null;
                   } else {
                     const mr = modelResearch[s.value];
-                    const foundUrl = learnedModel(s.value)?.url || (s.url && s.url !== "확인 필요" ? s.url : null); // 검색 결과(mr.result.url)는 '찾기' 라벨 유지 위해 제외
+                    const foundUrl = learnedModel(s.value)?.url || (s.url && s.url !== "확인 필요" ? s.url : null) || (mr?.result?.found && mr.result.url ? mr.result.url : null); // 조사 성공 시 mr.result.url을 다운로드로 노출(모델표·Findings의 directDownloadUrl과 통일)
                     left = (<>
                       <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
                         <span style={{ fontFamily: MONO }}>{s.value}</span> {foundUrl ? "다운로드" : "준비"}

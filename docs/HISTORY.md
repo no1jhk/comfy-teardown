@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-06 (찾기 고착 원인 확정·수정 + DEV 로그 제거)
+**원인 확정 / 수정**
+- 콘솔 실증: ①onClick ②loading set ③researchModel 반환{found:true,url} 전부 정상 = setModelResearch(result)까지 실행됨.
+- 추적 a) researchUnknownModel try에서 ③ 직후 setModelResearch({loading:false,result}) 존재·실행(L1332~). b) 다운로드 분기 admin 게이팅 회귀 아님 — 모델표(L2214)·slot·Findings 다운로드는 dlUrl/foundUrl 기반, isAdmin 무관(적립 요소만 admin). c) setModelResearch spread 새 객체(mutation 아님).
+- [원인] slot foundUrl(L1738)이 mr.result.url을 의도적 제외(옛 주석 "'찾기' 라벨 유지 위해 제외"). 조사 성공 후 slot은 foundUrl=null→loading=false→(result&&!found)=false→'찾기'로 되돌아감(사용자엔 '찾는 중… 후 무반응/고착'). 모델표·Findings는 directDownloadUrl(L105 research.result.url)로 성공 시 '다운로드' 정상.
+- [수정] slot foundUrl에 mr.result.url 포함(L1738) → 3경로 통일. 기대 동작: 찾기 → 찾는 중… → (성공) 다운로드[admin +적립] / (실패·타임아웃) HuggingFace 검색 ↗ + 캡션.
+- DEV [찾기 추적] 로그 제거(researchUnknownModel 원복).
+
+**3경로 확인**
+- slot: foundUrl에 result.url 포함(수정). 모델표(L2214)·Findings(L2425): directDownloadUrl(L105)이 result.url을 dlUrl로 반환(기존 정상).
+
+**어떻게**
+- 빌드 통과 + regression 통과. DEV 로그 잔존 0.
+
+**다음 할 일**
+- dev 판정 후 push. 찾기 성공→다운로드 전환 확인.
+
 ## 2026-07-06 (모델표 안내 병합 + 제작자 주의사항 색 #635537)
 **한 일 / 원인**
 1. 모델 표 안내문 병합: "받아야 할 후보 N개"(개수 줄)+"이미 받아 둔 파일은…"(별개 div) 두 줄 → 한 div 병합, 가운뎃점(·) 연결. 색 현행 유지(후보/개수 dim+point, 안내부 span faint). "이미 있음 N개" 카운트 현행 포함. 서브텍스트(step.desc)↔병합 줄 간격 step.models marginTop 11→19(+8). td-hint1line CSS 제거(L1473). L2164·2158.
