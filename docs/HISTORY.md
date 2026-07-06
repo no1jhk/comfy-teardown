@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-06 (buildBriefing 형식 통합 + 신규 fixtures 2개 회귀)
+**한 일 / 보고**
+1. buildBriefing 출력 형식 통합: 기존 4섹션(해결요약/표/환경/원인) + 말미 번호목록 → 번호 목록 하나로. 헤더(L1028~1033)에 "(1)문제 (2)명령·노드·슬롯·전후값 (3)완료확인, 서론·일반론 금지 + 이미지 대조" 통합, 말미 중복 제거. 구조 데이터 제공부 유지.
+2. 신규 fixtures 2개 회귀 편입 + 등급 보고:
+   - "LTX2.3 8GB VRAM workflow + Audio to Video.json"(사용자 설정 반영본): slots 1, quantBad 0 → **노랑**. 오디오 입력만 필요(이번 오탐 재현 케이스 — 이전엔 모델 슬롯>0로 빨강, 이제 quantBad 0이라 노랑). 오탐 해소 확인.
+   - "Silent Snow LTX2.3 Kjai FP8.json": slots 4, quantBad 2 → **빨강**. 원인 카운트: FP8 모델 2개(ltx-2.3-22b-dev_transformer_only_fp8_scaled·gemma_3_12B_it_fp8_scaled)가 ampere(RTX3090) GPU 비호환 = 정당한 빨강(오탐 아님).
+   - regression: 파일별 GRADE_EXPECT 맵(신규 LTX가 isLTX로 잡혀 기존 quantBad2 기대와 충돌 → 등급 기대는 맵, quantBad/ggufAlt 상세는 기존 LTX2_3_ 파일만). red/yellow 검증 통과.
+
+**어떻게**
+- 빌드 통과 + regression(신규 2개 등급 포함) 통과.
+
+**다음 할 일**
+- dev 판정 후 push. Audio to Video 노랑 표시로 오탐 해소 확인.
+
 ## 2026-07-06 (진단 3등급제 + buildBriefing 형식 강제)
 **추적(작업0) / 개편**
 0. [추적] 빨강 오탐 원인: diagBlocked = diagNodeM||diagModelN||diagBrokenK > 0(구 L1424). diagModelN = recipes.flatMap(slots).length = **전체 모델 슬롯 수**(구 L1416). 즉 모델 쓰는 정상 워크플로우도 슬롯>0 → "모델 N개 점검 필요" → 빨강. 모델 존재만으로 빨강 트리거 = 오탐.

@@ -27,6 +27,12 @@ function gradeFromRecipes(recipes) {
   return redGpu > 0 ? "red" : checkModels > 0 ? "yellow" : "green";
 }
 
+// 파일별 등급 기대값 (신규 fixtures 포함). red=실행불가(quantBad>0) / yellow=점검 / green=문제없음.
+const GRADE_EXPECT = {
+  "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": "red",
+  "LTX2.3 8GB VRAM workflow + Audio to Video.json": "yellow",
+  "Silent Snow LTX2.3 Kjai FP8.json": "red",
+};
 let fail = 0;
 const rows = [];
 
@@ -59,9 +65,13 @@ for (const f of files) {
 
   const grade = gradeFromRecipes(recipes);
   console.log(`  등급(redGpu 기준): ${grade}`);
-  // 기대치 (buildRecipes 범위)
-  if (isLTX) {
-    if (grade !== "red") { console.log(`  ❌ LTX 등급 기대 red, 실제 ${grade}`); fail++; } else console.log(`  ✅ LTX 등급 red(빨강)`);
+  // 파일별 등급 기대 (신규 2개 포함)
+  if (GRADE_EXPECT[f]) {
+    if (grade !== GRADE_EXPECT[f]) { console.log(`  ❌ 등급 기대 ${GRADE_EXPECT[f]}, 실제 ${grade}`); fail++; }
+    else console.log(`  ✅ 등급 ${grade} (기대 ${GRADE_EXPECT[f]} 일치)`);
+  }
+  // quantBad/ggufAlt 상세는 기존 LTX2_3_ 기준 파일만
+  if (f === "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json") {
     if (quantBad.length !== 2) { console.log(`  ❌ 기대 quantBad 2, 실제 ${quantBad.length} → LTX fp4/fp8 모델 감지 불일치 추정`); fail++; }
     const ggAll = ggufFilled.length + ggufPending.length;
     if (ggAll !== 2) { console.log(`  ❌ 기대 ggufAlt 2, 실제 ${ggAll}(채움${ggufFilled.length}+pending${ggufPending.length}) → gguf_file_map 매칭 누락 추정`); fail++; }
