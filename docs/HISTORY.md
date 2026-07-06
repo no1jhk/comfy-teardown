@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-06 (footer 명도↓ + 웹검색→HuggingFace)
+**한 일**
+1. footer 텍스트 명도 30% 하향: C.faint(#76707F) → 신규 C.faintDim(#534E59, 밝기×0.7, 채도·색상 유지). footer span color 교체(L36·2762).
+2. "웹에서 검색 ↗" → "HuggingFace 검색 ↗": searchUrl 구글→https://huggingface.co/models?search={파일명}(확장자 제거 name.replace(/\\.[^.]+$/,"")+encodeURIComponent)(L1330). 라벨 3곳(slot L1750·모델표 L2224·Findings L2449) replace_all. 캡션(L1745 "직접 다운로드 링크…") 유지. td-hf 자동 폭·td-hf-sm 280 내 수용.
+
+**참고(이미 완료)**
+- 첫 요청 블록(워크플로우 30곳·찾기 DEV로그)은 직전 5da6a73 반영 완료. 찾기 무반응은 콘솔 [찾기 추적] ①~③ 회신 대기(정적 분석상 버그 미특정).
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- dev 판정 후 push. 찾기 콘솔 로그 결과 회신 시 원인 확정.
+
 ## 2026-07-06 (워크플로→워크플로우 전면 + 찾기 무반응 추적 로그)
 **한 일 / 추적**
 7. "워크플로"→"워크플로우" 전면 교체(30곳): UI 카피·buildMarkdown·buildBriefing(LLM 프롬프트)·buildInstallScript·플레이스홀더·캡션. 코드 주석 2곳(L1260·1398)은 "워크플로" 유지. CLAUDE.md 카피 규칙 추가("항상 워크플로우, 워크플로 금지"). 대표 예시: L388(절대경로 risk)·L557(브리핑 프롬프트)·L558(진단 프롬프트)·L1799·L2314(패키지 role).

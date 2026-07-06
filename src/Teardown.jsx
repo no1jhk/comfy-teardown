@@ -33,7 +33,7 @@ const C = {
   bg: "#201926", bgDeep: "#1A1420", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248",
   quiet: "#241D2E",
   divider: "rgba(255,255,255,0.09)",
-  text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F",
+  text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#534E59",
   point: "#F4FF75",
   green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0",
 };
@@ -1327,7 +1327,7 @@ export default function Teardown() {
   const linkifyNote = (text) => text.split(/(https?:\/\/[^\s]+)/g).map((p, k) =>
     /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{p}</a> : p);
   // 미확인 모델 파일명 웹 검색 URL (구글, 파일명+download)
-  const searchUrl = (name) => "https://www.google.com/search?q=" + encodeURIComponent(name + " download");
+  const searchUrl = (name) => "https://huggingface.co/models?search=" + encodeURIComponent(name.replace(/\.[^.]+$/, ""));
   const openSearch = (e, name) => { e.preventDefault(); window.open(searchUrl(name), "_blank", "noopener"); };
   const researchUnknownModel = async (filename) => {
     // DEV 전용 추적 로그(찾기 무반응 원인 특정용). 프로덕션(PROD)에선 출력 안 됨.
@@ -1747,7 +1747,7 @@ export default function Teardown() {
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
                       : mr?.loading ? <button className="td-hf" disabled style={{ opacity: 0.55 }}>찾는 중…</button>
-                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={searchUrl(s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, s.value)}>웹에서 검색 ↗</a>
+                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={searchUrl(s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, s.value)}>HuggingFace 검색 ↗</a>
                       : <button className="td-hf" onClick={() => researchUnknownModel(s.value)}>찾기</button>;
                   }
                 }
@@ -2221,7 +2221,7 @@ export default function Teardown() {
                                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>찾는 중…</span>
                                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
                                         <>
-                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)}>웹에서 검색 ↗</a>
+                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)}>HuggingFace 검색 ↗</a>
                                           {(mr?.error || (mr?.result && !mr.result.found)) && <div style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>직접 링크를 찾지 못했습니다</div>}
                                         </>
                                       ) : (
@@ -2446,7 +2446,7 @@ export default function Teardown() {
                       ) : !isWeight ? null : mr?.loading ? (
                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 14 }}>찾는 중…</span>
                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
-                        <a className="td-hf-sm td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)} style={{ marginTop: 14 }}>웹에서 검색 ↗</a>
+                        <a className="td-hf-sm td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)} style={{ marginTop: 14 }}>HuggingFace 검색 ↗</a>
                       ) : (
                         <button className="td-hf-sm" onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14 }}>다운로드 링크 찾기</button>
                       )}
@@ -2759,7 +2759,7 @@ export default function Teardown() {
 
           </div>)}
           <div style={{ marginTop: 64, paddingBottom: 32, textAlign: "center" }}>
-            <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, letterSpacing: "0.02em" }}>
+            <span style={{ fontFamily: MONO, fontSize: 13, color: C.faintDim, letterSpacing: "0.02em" }}>
               <span style={{ fontSize: "1.2em" }}>©</span> 2026 Comfy-Teardown · Built by Joon Hyung Kim
             </span>
           </div>
