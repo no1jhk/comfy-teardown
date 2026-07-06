@@ -6,6 +6,26 @@
 
 ---
 
+## 2026-07-06 (설치노트 2차 차단 + 다운로드 밑줄 + 불릿색 + 확인필요 캡션 + paste 첨부)
+**한 일 / 보고**
+1. "설치 후 주의" 박스 install_note 원문 admin 게이팅: step.installNotes → isAdmin &&(L2129). 박스가 노트 전용이라 기본 화면에선 통째 미렌더. install_note 렌더 전수: ①ENF STEP1 L1879(기이미 admin) ②Install "설치 후 주의" L2129(이번 차단). 남은 노출 없음(L476 analyze 부여·L755 step 생성은 데이터, 렌더 아님).
+2. 인라인 "다운로드" 텍스트 링크 밑줄: 슬롯표 대안(L1942 none→underline)·제작자 권장(L1955 underline 추가). 색 유지, 버튼(td-hf)·표 구조 불변. td-hf 버튼형(L1723·1735·1960·2203·2234·2241·2428)은 인라인 아니라 제외.
+3. "설치 확인하는 법" 마지막 문장 색 통일: 3번째 color C.faint 제거→상속 C.dim(L2125).
+4. 패키지·버전 하단 불릿 색 통일: 버전충돌(red)·점버전(green)·sameRepo(green) 불릿 → 전부 C.dim(L2381·2387·2393). 내용 텍스트 강조색은 유지, 기호만.
+5. "확인 필요" 행동 안내: 표 하단 ※ 통합 채택(L2249, 13 faint). 근거: 파일별 반복은 시각 소음이라 하단 1줄.
+6. Diagnose Ctrl/Cmd+V 붙여넣기: onPasteShot(clipboardData 이미지→onShots, 텍스트 기본 유지)(L1216)+textarea onPaste(L2538)+캡션(L2548).
+
+**6. [현행 동작 보고]**
+- 첨부 이미지(errShots)는 buildBriefing(복사 텍스트)에 미포함. briefingInfo에서 "이미지 N장은 텍스트에 안 담기니 챗에 따로 첨부"(L2584) 안내.
+- AI 정밀 진단: 에러 진단은 buildBriefing 복사 → 외부 LLM 붙여넣기 방식. 자동 API 아님(researchModel fetch는 모델 URL 검색 전용). 붙여넣은 이미지는 UI 미리보기로만 첨부, 복사·API 어느 경로에도 자동 전송 안 됨.
+- 수정 안 함(설계 판단): 이미지 진단 편입엔 vision API 통합 필요. 보고만.
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- dev 판정 후 push. 이미지 vision 진단 편입 여부 결정.
+
 ## 2026-07-06 (STEP 간격 2배 · 노드그룹 간격 · 안내문 한 줄 + 색칩 검증)
 **한 일 / 검증**
 1. ENF STEP 제목~첫항목 간격 8→16: STEP1·STEP2 sopen marginTop 8→16(L1851·1907). 첫항목 paddingTop 0 유지 → 간격 16 통일.

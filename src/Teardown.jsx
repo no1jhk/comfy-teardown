@@ -1213,6 +1213,13 @@ export default function Teardown() {
     setErrShots((prev) => [...prev, ...files.map((f) => ({ name: f.name, url: URL.createObjectURL(f) }))]);
   };
   const removeShot = (idx) => setErrShots((prev) => { const n = [...prev]; const [g] = n.splice(idx, 1); if (g) URL.revokeObjectURL(g.url); return n; });
+  // 클립보드에 이미지가 있으면 캡처 첨부 흐름으로 편입 (텍스트 붙여넣기는 기본 동작 유지)
+  const onPasteShot = (e) => {
+    const items = e.clipboardData?.items; if (!items) return;
+    const imgs = [];
+    for (const it of items) if (it.type?.startsWith("image/")) { const f = it.getAsFile(); if (f) imgs.push(f); }
+    if (imgs.length) onShots(imgs);
+  };
   const copy = (text, key) => { navigator.clipboard?.writeText(text); setCopiedKey(key); setTimeout(() => setCopiedKey(null), 1500); };
   const toggleRx = (k) => setRxChecked((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const saveReport = () => {
@@ -1932,7 +1939,7 @@ export default function Teardown() {
                               {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
                                 <div key={ai} style={{ fontFamily: SANS, fontSize: 13, color: C.point, marginTop: 3, lineHeight: 1.5, paddingLeft: 10 }}>
                                   대체 파일: <span style={{ fontFamily: MONO }}>{a.name}</span> · {a.folder}
-                                  {a.url && <> · <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "none" }}>다운로드</a></>}
+                                  {a.url && <> · <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "underline" }}>다운로드</a></>}
                                   {a.note && <span style={{ color: C.faint, fontSize: 13 }}> ({a.note})</span>}
                                 </div>
                               ))}
@@ -1945,7 +1952,7 @@ export default function Teardown() {
                                 <div style={{ marginTop: 4, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>
                                   제작자 권장: <span style={{ fontFamily: MONO, color: C.point }}>{s.authorRecommend.name}</span> · <span style={{ color: C.point }}>{s.authorRecommend.directory}</span>
                                   {s.authorRecommend.url && s.authorRecommend.url !== "확인 필요" && (
-                                    <> · <a href={s.authorRecommend.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontSize: 13 }}>다운로드</a></>
+                                    <> · <a href={s.authorRecommend.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontSize: 13, textDecoration: "underline" }}>다운로드</a></>
                                   )}
                                 </div>
                               )}
@@ -2115,11 +2122,11 @@ export default function Teardown() {
                               <div style={{ fontWeight: 650, color: C.text, marginBottom: 4 }}>설치 확인하는 법</div>
                               <div>· 실행하면 터미널에 "Cloning into …" 또는 "Successfully installed" 메시지가 뜹니다. 에러 시 빨간 글씨가 나옵니다.</div>
                               <div>· 가장 확실한 확인: ComfyUI를 완전히 재시작한 뒤 워크플로를 다시 로드해서 빨간 노드가 사라졌는지 보세요. 빨간 노드가 없어졌으면 설치 성공.</div>
-                              <div style={{ color: C.faint }}>· 설치했는데도 빨간 노드가 남아 있으면, custom_nodes 폴더 안에 해당 노드 폴더가 실제로 생겼는지 확인하세요.</div>
+                              <div>· 설치했는데도 빨간 노드가 남아 있으면, custom_nodes 폴더 안에 해당 노드 폴더가 실제로 생겼는지 확인하세요.</div>
                             </div>
                           </div>
 
-                          {step.installNotes && (
+                          {isAdmin && step.installNotes && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.06)", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 16px" }}>
                               <div style={{ fontSize: 13, fontWeight: 650, color: C.red, marginBottom: 6 }}>설치 후 주의</div>
                               {step.installNotes.map((n, ni) => (
@@ -2239,6 +2246,7 @@ export default function Teardown() {
                           </div>);
                           })()}
                           <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 12 }}>※ 도구는 PC를 보지 못합니다. 이미 받아둔 모델은 “있음”으로 표시해 건너뛰세요. 표시 안 한 것이 <b style={{ color: C.text }}>받아야 할 후보</b>입니다.</div>
+                          <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, marginTop: 6 }}>※ 폴더 위치나 용량이 “확인 필요”로 나오면 워크플로 제작자의 안내에서 확인하세요.</div>
                           {step.integrity && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 13, color: C.redMuted, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
@@ -2370,19 +2378,19 @@ export default function Teardown() {
                       const hasCommit = p.vers.some((v) => /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v));
                       return (
                       <div key={`cf-${p.id}`} style={{ display: "flex", gap: 7, fontSize: 13, lineHeight: 1.6, color: C.dim, marginBottom: 6 }}>
-                        <span style={{ color: C.red, flexShrink: 0 }}>-</span>
+                        <span style={{ color: C.dim, flexShrink: 0 }}>-</span>
                         <span><b style={{ color: C.text }}>{p.id}</b> 버전 충돌. {hasCommit ? "재현이 목적이면 기록된 커밋으로 git checkout, 아니면 최신 한 버전으로 통일 설치하세요." : "최신 한 버전으로 통일해 재설치하세요."}</span>
                       </div>);
                     })}
                     {report.packs.some((p) => p.vers.some((v) => /^[0-9a-f]{7,}$/i.test(v) && !/^\d+\.\d+/.test(v))) && (
                       <div style={{ display: "flex", gap: 7, fontSize: 13, lineHeight: 1.6, color: C.dim }}>
-                        <span style={{ color: C.green, flexShrink: 0 }}>-</span>
+                        <span style={{ color: C.dim, flexShrink: 0 }}>-</span>
                         <span>점 버전(<span style={{ fontFamily: MONO, color: C.text }}>1.4.5</span>)은 정식 릴리스 태그, <span style={{ fontFamily: MONO, color: C.faint }}>commit</span> 표시(<span style={{ fontFamily: MONO, color: C.text }}>a6645ed…</span>)는 특정 git 커밋에서 설치한 것입니다. 한 pack에 둘이 섞이면 재현 시 그 커밋을 checkout 해야 할 수 있어 <span style={{ color: C.red }}>버전 충돌</span>로 표시됩니다.</span>
                       </div>
                     )}
                     {report.sameRepo.map((s) => (
                       <div key={s.repo} style={{ display: "flex", gap: 7, fontSize: 13, lineHeight: 1.6, color: C.dim }}>
-                        <span style={{ color: C.green, flexShrink: 0 }}>-</span>
+                        <span style={{ color: C.dim, flexShrink: 0 }}>-</span>
                         <span><b style={{ color: C.green }}>{s.ids.join(" + ")}</b> 는 모두 <span style={{ fontFamily: MONO, color: C.green }}>{s.repo}</span> 하나에서 나옵니다. 한 번만 설치하면 됩니다.</span>
                       </div>))}
                   </div>)}
@@ -2527,7 +2535,7 @@ export default function Teardown() {
               </div>
               {open.errAcc && (<>
               <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, marginBottom: 12 }}>pytorch·cuda·python 버전 호환성은 각 pack의 requirements.txt 영역이라 JSON만으로는 확인할 수 없습니다. 에러 로그를 넣으면 AI 진단으로 보완합니다.</div>
-              <textarea value={errlog} onChange={(e) => setErrlog(e.target.value)} spellCheck={false}
+              <textarea value={errlog} onChange={(e) => setErrlog(e.target.value)} onPaste={onPasteShot} spellCheck={false}
                 placeholder={"마지막 Traceback 블록 전체를 붙여넣으세요.\n예) Traceback (most recent call last):\n  File \".../nodes.py\", line 123, in ...\nModuleNotFoundError: No module named 'flash_attn'"}
                 style={{ width: "100%", minHeight: 120, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
                   border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 14px", fontFamily: MONO, fontSize: 13, lineHeight: 1.65, outline: "none" }} />
@@ -2537,7 +2545,7 @@ export default function Teardown() {
                 <button className="td-btn" onClick={() => shotRef.current?.click()}
                   style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "transparent", color: C.dim, border: `1px solid ${C.line}`, borderRadius: 999, padding: "8px 15px", fontFamily: SANS, fontSize: 13, cursor: "pointer" }}>
                   <ImagePlus size={15} /> 캡처 이미지 첨부</button>
-                <span style={{ fontSize: 13, color: C.faint }}>긴 로그는 텍스트 붙여넣기가 더 정확합니다. 캡처는 보조용.</span>
+                <span style={{ fontSize: 13, color: C.faint }}>긴 로그는 텍스트 붙여넣기가 더 정확합니다. 캡처는 보조용. 캡처 후 Ctrl+V(맥 Cmd+V)로 바로 붙여넣을 수 있습니다.</span>
               </div>
               {errShots.length > 0 && (
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>
