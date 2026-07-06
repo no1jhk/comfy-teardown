@@ -1476,7 +1476,7 @@ export default function Teardown() {
     for (const us of Object.values(soloByType)) todos.push({ kind: "node", key: `node-${us[0].type}`, u: us[0], count: us.length });
     // (b) 모델 준비. 노드 카드 단위가 아니라 슬롯 단위로 평탄화
     for (const rc of recipesEnriched) for (const s of rc.slots) {
-      todos.push({ kind: "model", key: `model-${rc.id}-${s.slot}`, s });
+      todos.push({ kind: "model", key: `model-${rc.id}-${s.slot}`, s, nodeType: rc.type });
     }
     // (c) 입력 파일(LoadAudio류). portability 중 미디어 파일명(경로 아님) 승격. 절대경로·flash_attn은 확장자/경로 조건으로 자동 제외.
     for (const h of (report.portability || [])) {
@@ -1486,6 +1486,26 @@ export default function Teardown() {
     }
     return todos;
   }, [report, recipesEnriched]);
+
+  // 액션 테이블(당장 할 일) — rxTodos를 동사 선행 행으로. 표시층 전용(판정·데이터 불변).
+  const actionRows = React.useMemo(() => {
+    const rows = [];
+    let n = 0;
+    const inst = rxTodos.filter((t) => t.kind === "nodegroup" && !packInstalled(t.g.repo || t.g.clone_url, env.installedPacks));
+    if (inst.length) {
+      const nm = inst.map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop());
+      rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), kind: "install" });
+    }
+    for (const t of rxTodos.filter((x) => x.kind === "node")) rows.push({ n: ++n, verb: "확인", text: `${t.u.type} 출처를 확인해 주세요`, kind: "node" });
+    for (const t of rxTodos.filter((x) => x.kind === "model")) {
+      const s = t.s;
+      const conf = s.src === "curated" || s.src === "manager" || s.src === "manager_live";
+      rows.push({ n: ++n, verb: "받기", text: s.value, folder: s.folder !== "확인 필요" ? s.folder : null, badge: conf ? "확정" : "확인 필요", nodeType: t.nodeType, s, kind: "model" });
+    }
+    for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
+    rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
+    return rows;
+  }, [rxTodos, env.installedPacks]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1709,7 +1729,30 @@ export default function Teardown() {
             </div>
             )}
 
-            {rxTodos.length > 0 && (<div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden" }}>
+            {/* 당장 할 일 — 액션 테이블(동사 선행). 상세·근거는 아래 판단 근거 보기(details)로. */}
+            {rxTodos.length > 0 && (
+              <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
+                {actionRows.map((r, ri) => (
+                  <div key={r.n} style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
+                    <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.point }}>{r.n}</span>
+                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontFamily: SANS, fontSize: 15, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
+                      {r.kind === "model" && r.folder && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: <span style={{ fontFamily: MONO }}>{r.folder}</span></div>}
+                      {r.kind === "model" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {r.nodeType}: <span style={{ fontFamily: MONO }}>{r.s.value}</span></div>}
+                    </div>
+                    <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+                      {r.kind === "install" && <a className="td-hf td-outline-w" href="#rx-detail">스크립트 보기</a>}
+                      {r.kind === "model" && (r.s.url && r.s.url !== "확인 필요" ? <a className="td-hf" href={r.s.url} target="_blank" rel="noopener noreferrer">링크 ↗</a> : <a className="td-hf td-outline-w" href={searchUrl(r.s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, r.s.value)}>HuggingFace 검색 ↗</a>)}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <details id="rx-detail" className="td-fade" style={{ marginTop: 4 }}>
+              <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 600, color: C.dim, padding: "10px 0", listStyle: "none" }}>▸ 판단 근거 보기 (GPU·로그·한계 고지·출처 신뢰도는 이 안에)</summary>
+            {rxTodos.length > 0 && (<div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginTop: 12 }}>
               {rxTodos.map((t, i) => {
                 const done = rxChecked.has(t.key);
                 let left = null, right = null;
@@ -1813,6 +1856,7 @@ export default function Teardown() {
                 </div></React.Fragment>);
               })}
             </div>)}
+            </details>
 
             <div style={{ marginTop: 18, marginBottom: 110 }}>
               <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6 }}>※ 모든 항목을 마쳤다면 ComfyUI를 완전히 재시작한 뒤 워크플로우를 다시 열어 주세요. 빨간 노드가 남아 있지 않으면 정상적으로 설치된 것입니다.</div>

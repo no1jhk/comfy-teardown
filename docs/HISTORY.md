@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-07 (처방전 액션 테이블 개편)
+**한 일 / 실측**
+1. 액션 테이블 신설: rxTodos→actionRows(동사 선행 행, L1491). Solution 헤더 다음 렌더(L1732~). 규칙: 미설치 nodegroup(installed 제외)→설치 행([스크립트 보기]), model→받기 행(파일명+[확정/확인 필요] dim 뱃지)+넣기(폴더)+선택(노드명: 파일명), input→확인 행, 실행 행 고정(설치≥1이면 재시작 문구). model todo에 nodeType 추가(L1479, 렌더용).
+   - 실측(받기 행=model 슬롯): LTX2_3=8행 · Silent Snow FP8=4행 · krea2=3행 · Flux Image_Edit=4 · Video To Audio=1.
+2. 근거·한계 details 이동: 기존 처방 카드(nodegroup clone·model 상세·quantBad 조건형·GPU dim·출처 신뢰도)를 "판단 근거 보기"(details, L1753~1859)로. 기본 화면은 접힘 헤더 한 줄. B5/초록 한계 고지는 판정 박스 맥락상 유지(green은 rxTodos 0→details 없음이라 details 안에 두면 사라짐) — 보고.
+3. regression: 액션 테이블 받기 행 수 스냅샷(ACTION_MODEL_EXPECT). 무회귀 통과.
+
+**어떻게**
+- 빌드 통과 + regression(액션 행 스냅샷) 통과.
+
+**다음 할 일**
+- fixtures 17개 편입 확인(Full.json·Video To Audio 포함) → #5288·등급 실측 별도 마감.
+
 ## 2026-07-07 (fixtures 실측 + B5 문구)
 **실측 결과 / 한 일**
 1. [작업1 실측 불가] "Silent Snow LTX2.3 Full.json" fixtures 미편입(krea2만 편입됨) → #5288 서브그래프 실측 불가. 파일 재편입 요청. (서브그래프 대조 로직·regression 단위 테스트는 6b09d45에 이미 반영·통과.)

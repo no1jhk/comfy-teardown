@@ -211,6 +211,22 @@ console.log("\n" + "=".repeat(70) + "\n서브그래프 UUID 대조");
   if (!anomRef && anomUnknown) console.log("  ✅ 서브그래프 UUID 대조: 참조 제외 · 정의없음만 anomalous");
 }
 
+// === 액션 테이블 행 수 스냅샷 (buildRecipes 범위: 받기=model 슬롯 수 · 실행 1 고정. 설치=analyze라 SKIP) ===
+console.log("\n" + "=".repeat(70) + "\n액션 테이블 행 수(받기=model 슬롯 · 동사 받기/넣기/선택/실행)");
+const ACTION_MODEL_EXPECT = { // 받기 행 = 전체 model 슬롯 수(quantBad 여부 무관)
+  "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": 8,
+  "Silent Snow LTX2.3 Kjai FP8.json": 4,
+  "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json": 3,
+};
+for (const f of files) {
+  const recipes = buildRecipes(JSON.parse(fs.readFileSync(path.join(FIX, f), "utf8")), { gpu: null });
+  const modelRows = recipes.flatMap((r) => r.slots).length;
+  const exp = ACTION_MODEL_EXPECT[f];
+  console.log(`  ${f.slice(0, 40)}: 받기 ${modelRows}행${exp !== undefined ? ` (기대 ${exp})` : ""}`);
+  if (exp !== undefined && modelRows !== exp) { console.log(`  ❌ 받기 행 기대 ${exp}, 실제 ${modelRows}`); fail++; }
+}
+console.log("  ✅ 받기 행 = model 슬롯 수 · 실행 1행 고정 (설치 행은 analyze 범위 — SKIP)");
+
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");
 for (const r of rows) console.log("  " + r.join("  |  "));
