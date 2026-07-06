@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-06 (적립 UI admin 게이팅 + 키 노출 확증 보고)
+**한 일 / 확인**
+- [작업1,2,3] 이미 48293f0 반영 확인(td-divtoggle·openSearch window.open·bgDeep·실패 캡션). 재수정 없음.
+- [작업2 추적] 모델표 셀·처방 항목 부모에 클릭 핸들러 없음(L1139는 BlockHead 헤더 토글로 무관). <a> 미열림은 부모 간섭 아님 — 이미 onClick window.open+preventDefault로 수정됨(48293f0). push 전이라 dev 미반영 추정.
+- [작업4] 적립 UI admin 게이팅: "이거 맞았어"·"✓ 적립됨"(모델표 L2201·2202, Findings L2426·2427)에 isAdmin && 추가. 기본 화면은 AI 성공 시 다운로드만. 적립 저장 로직(learnModelLink)은 유지.
+
+**5a. [즉시 보고] AI_KEY 배포본 노출 위험 확증**
+- AI_KEY=import.meta.env.VITE_ANTHROPIC_API_KEY(L525). Vite는 VITE_ 접두사를 빌드 시 클라이언트 번들에 평문 치환.
+- 로컬 dist/assets/index-*.js에서 sk-ant- 실제키 패턴 1건 확인 = 번들에 키 평문 포함.
+- vercel에 VITE_ANTHROPIC_API_KEY env 설정 시 배포본 JS에 키 노출 → 브라우저에서 누구나 추출. L523 주석("배포본엔 노출 안 함")은 부정확/위험.
+- 대책: (1)vercel env에 키 넣지 말 것 (2)AI 조사는 백엔드 프록시(로드맵 v1.1) (3)배포본은 키 없이 AI 기능 비활성. 주석 수정/프록시 착수 지시 대기.
+
+**5b. [재보고] 노드 color/bgcolor**
+- 이전 보고와 동일: color/bgcolor 필드 존재(#3f789e·#232·#353 등), normalizeNode 미추출. 구현안(주석 앞 8~10px 칩, violet 텍스트 유지, 필드 없으면 생략) 지시 대기.
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- 5a 키 노출 대응(주석 수정/프록시) 지시. 5b 노드색 칩 구현 지시. dev 판정 후 push.
+
 ## 2026-07-06 (divider 가독성 · 웹검색 클릭수정 · 상시 어두운 배경 + 노드색 보고)
 **한 일 / 추적**
 1. divider 토글 텍스트+아이콘 통일: 아이콘만 색 안 바뀐 원인은 <Minus/Plus color={C.dim}> 명시(div color 상속 차단). color 제거→currentColor 상속. div color C.divider→className td-divtoggle(faint, hover dim). L1454·1766·1767.
