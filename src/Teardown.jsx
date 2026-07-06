@@ -35,7 +35,7 @@ const C = {
   divider: "rgba(255,255,255,0.09)",
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F",
   point: "#F4FF75",
-  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", violet: "#A678E0",
+  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
@@ -1833,14 +1833,14 @@ export default function Teardown() {
                     </button>
                   </div>
                   {sopen && <div style={{ paddingLeft: 44, marginTop: 8 }}>
-                <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginBottom: 20 }}>
+                <div style={{ marginBottom: 20 }}>
                   {[...report.unmapped.map((u) => ({ t: "u", u })), ...report.broken.map((b) => ({ t: "b", b }))].map((it, i) => {
                     const u = it.u, b = it.b;
                     const ghUrl = it.t === "u" ? (u.clone_url ? u.clone_url.replace(/\.git$/, "") : (u.repo ? (u.repo.startsWith("https://") ? u.repo : `https://github.com/${u.repo}`) : null)) : null;
                     return (
                     <React.Fragment key={i}>
-                      {i > 0 && <div style={{ borderTop: `1px solid ${C.divider}`, marginLeft: 20, marginRight: 20 }} />}
-                      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "16px 20px" }}>
+                      {i > 0 && <div style={{ borderTop: `1px solid ${C.divider}` }} />}
+                      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "16px 0" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           {it.t === "u" ? (<>
                             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -1896,8 +1896,8 @@ export default function Teardown() {
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
-                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: INK, background: C.point, borderRadius: 999, padding: "2px 10px" }}>탭: {r.tab}</span>}
-                      {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.violet, border: `1px solid ${C.violet}`, borderRadius: 999, padding: "2px 10px" }}>서브그래프</span>}
+                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>[탭: {r.tab}]</span>}
+                      {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>[서브그래프]</span>}
                       {isAdmin && r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>⚠ offset 보정됨</span>}
                     </div>
                     {/* 슬롯 표 */}
@@ -2107,7 +2107,7 @@ export default function Teardown() {
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.06)", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 16px" }}>
                               <div style={{ fontSize: 13, fontWeight: 650, color: C.red, marginBottom: 6 }}>설치 후 주의</div>
                               {step.installNotes.map((n, ni) => (
-                                <div key={ni} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, marginTop: ni > 0 ? 6 : 0 }}>
+                                <div key={ni} style={{ fontSize: 13, color: C.redMuted, lineHeight: 1.6, marginTop: ni > 0 ? 6 : 0 }}>
                                   <span style={{ fontFamily: MONO, fontWeight: 600, color: C.text }}>{n.file}</span>. {n.desc}
                                 </div>
                               ))}
@@ -2135,7 +2135,7 @@ export default function Teardown() {
                               ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
                               : <div style={{ fontSize: 13, color: C.dim, marginBottom: 10 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""}</div>;
                           })()}
-                          <div style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있음'을 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
+                          <div style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있으면 체크'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
                           {(() => {
                             // 양자화 비호환 모델 lookup (파일명 → warning+gguf)
                             const qwMap = {};
@@ -2195,7 +2195,7 @@ export default function Teardown() {
                                       ) : (
                                         <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
                                       )}
-                                      <button className="td-havelink" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, padding: "4px 6px", whiteSpace: "nowrap" }}>이미 있음</button>
+                                      <button className="td-havelink" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, padding: "4px 6px", whiteSpace: "nowrap" }}>이미 있으면 체크</button>
                                     </>
                                   )}
                                 </div>
@@ -2221,7 +2221,7 @@ export default function Teardown() {
                           })()}
                           <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 12 }}>※ 도구는 PC를 보지 못합니다. 이미 받아둔 모델은 “있음”으로 표시해 건너뛰세요. 표시 안 한 것이 <b style={{ color: C.text }}>받아야 할 후보</b>입니다.</div>
                           {step.integrity && (
-                            <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 13, color: C.text, lineHeight: 1.6 }}>
+                            <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 13, color: C.redMuted, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
                               <div style={{ fontSize: 13, lineHeight: 1.6 }}>· 받은 파일 용량을 위 표의 “정상 용량”과 비교. 수 KB/MB로 비정상적으로 작으면 삭제 후 재다운로드</div>
                               <div style={{ fontSize: 13, lineHeight: 1.6, marginTop: 4 }}>· 대용량 다운로드 중 ComfyUI·PC 재부팅 금지. 중단되면 빈 파일이 됨</div>

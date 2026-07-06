@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-06 (ENF STEP1 개방형 표 · 뱃지 탈버튼 · 빨간박스 채도 · 라벨)
+**한 일**
+1. ENF STEP1(커스텀 노드 설치) 개방형 표화: 바깥 라운딩 박스(background surface·border·borderRadius 14·overflow) 제거, 항목 좌우 padding 20→0, 구분선 marginLeft/Right 20→0(full 가로선). 내부 2행 메타·GitHub·세로 간격 유지. STEP2 모델 맞추기 표와 같은 결. L1836·1842·1843.
+2. "탭: GGUF Style"·"서브그래프" 뱃지 탈버튼화: pill(배경/테두리/라운딩) 제거, 플레인 텍스트 주석형 "[탭: …]"·"[서브그래프]"(13px, faint, 대괄호). 노드명 옆 위치 유지(탭 선택 행동 지시). L1899·1900.
+3. 빨간 박스 본문 채도 보정: C.dim 명도 유지·저채도 레드 신규 토큰 C.redMuted(#B59A9B) 정의. 설치 후 주의(C.dim→redMuted)·무결성 확인(C.text→redMuted) 본문 공용 적용. 제목 레드는 유지. L38·2110·2224.
+4. "이미 있음" 라벨 교체: 미체크 "이미 있음"→"이미 있으면 체크", 안내문 라벨 참조도 정합. 체크 "있음 ✓ (취소)" 유지. L2138·2198.
+
+**어떻게**
+- 빌드 통과 + regression 통과. dev 화면 판정 전.
+
+**다음 할 일**
+- dev 판정 후 push.
+
 ## 2026-07-06 (제작자 주의사항 블록 정비 · 이상노드 중복 제거)
 **한 일 / 추적 보고**
 1. [추적] "이상 노드 N개" 행은 summary.issues(open.an 밖의 별개 형제)로, 제작자 주의사항 토글(authorNotes만 감쌈)과 무관 = 토글 버그 아님. authorNotes(L462 노드 noteText)와 anomalous는 데이터도 별개. Findings "정체 미상 노드"(상세·행동)와 같은 anomalous라 중복 노출 → Summary 요약에서 이상노드 줄 제거, Findings로 일원화. (Summary 요약 카운트 복원 원하면 fix-forward) L1390.
