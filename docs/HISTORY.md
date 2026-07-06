@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-07-06 (워크플로→워크플로우 전면 + 찾기 무반응 추적 로그)
+**한 일 / 추적**
+7. "워크플로"→"워크플로우" 전면 교체(30곳): UI 카피·buildMarkdown·buildBriefing(LLM 프롬프트)·buildInstallScript·플레이스홀더·캡션. 코드 주석 2곳(L1260·1398)은 "워크플로" 유지. CLAUDE.md 카피 규칙 추가("항상 워크플로우, 워크플로 금지"). 대표 예시: L388(절대경로 risk)·L557(브리핑 프롬프트)·L558(진단 프롬프트)·L1799·L2314(패키지 role).
+8. [추적] 찾기 무반응: 정적 분석 결과 mr은 rxTodos.map/step.models.map 렌더에서 fresh(rxTodos useMemo는 데이터만 반환·deps 무관), 3경로 키(파일명) 일치, loading:true 클릭 시 무조건 set. 코드 경로상 버그 미특정. → DEV 전용 추적 로그(①onClick ②loading set ③researchModel 반환/예외) 삽입(import.meta.env.DEV, PROD 미출력). 사용자 콘솔로 ①~③ 확인 후 원인 확정 예정. 20s 대기 없이 즉시 폴백은 코드상 보장(fetch reject→catch→error→웹검색, finally clearTimeout).
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- 사용자 dev 콘솔 [찾기 추적] ①~③ 결과 회신 후 원인 확정·수정. 확정 후 로그 제거.
+
 ## 2026-07-06 (설치노트 2차 차단 + 다운로드 밑줄 + 불릿색 + 확인필요 캡션 + paste 첨부)
 **한 일 / 보고**
 1. "설치 후 주의" 박스 install_note 원문 admin 게이팅: step.installNotes → isAdmin &&(L2129). 박스가 노트 전용이라 기본 화면에선 통째 미렌더. install_note 렌더 전수: ①ENF STEP1 L1879(기이미 admin) ②Install "설치 후 주의" L2129(이번 차단). 남은 노출 없음(L476 analyze 부여·L755 step 생성은 데이터, 렌더 아님).
