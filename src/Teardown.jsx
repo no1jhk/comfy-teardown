@@ -35,7 +35,7 @@ const C = {
   divider: "rgba(255,255,255,0.09)",
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#534E59",
   point: "#F4FF75",
-  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0",
+  green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#635537",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
@@ -1325,7 +1325,7 @@ export default function Teardown() {
   const toggleHave = (file) => setHaveModels((prev) => { const n = new Set(prev); n.has(file) ? n.delete(file) : n.add(file); return n; });
   // 메모 텍스트 안 URL을 클릭 링크로 (기존 링크 토큰 색 C.point, 새 창)
   const linkifyNote = (text) => text.split(/(https?:\/\/[^\s]+)/g).map((p, k) =>
-    /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{p}</a> : p);
+    /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.memo, overflowWrap: "anywhere", textDecoration: "underline" }}>{p}</a> : p);
   // 미확인 모델 파일명 웹 검색 URL (구글, 파일명+download)
   const searchUrl = (name) => "https://huggingface.co/models?search=" + encodeURIComponent(name.replace(/\.[^.]+$/, ""));
   const openSearch = (e, name) => { e.preventDefault(); window.open(searchUrl(name), "_blank", "noopener"); };
@@ -1470,7 +1470,6 @@ export default function Teardown() {
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-havelink{background:transparent;border:none;color:${C.faint};transition:color .15s;cursor:pointer}.td-havelink:hover{color:${C.text}}
         .td-divtoggle{color:${C.faint};transition:color .15s}.td-divtoggle:hover{color:${C.dim}}
-        .td-hint1line{white-space:nowrap}@media(max-width:640px){.td-hint1line{white-space:normal}}
         .td-acc{transition:opacity .15s;opacity:.9}.td-acc:hover{opacity:1}
         .td-spin{animation:tdSpin .9s linear infinite}@keyframes tdSpin{to{transform:rotate(360deg)}}
         .td-hf{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
@@ -1801,15 +1800,15 @@ export default function Teardown() {
               {report.authorNotes?.length > 0 && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${C.divider}` }}>
                   <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                    <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
-                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber, flex: 1 }}>제작자 주의사항 (워크플로우 메모)</span>
+                    <CircleAlert size={16} color={C.memo} style={{ flexShrink: 0 }} />
+                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.memo, flex: 1 }}>제작자 주의사항 (워크플로우 메모)</span>
                     <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("an"); }} aria-label="펼치기/접기"
-                      style={{ background: "transparent", border: "none", color: C.amber, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
+                      style={{ background: "transparent", border: "none", color: C.memo, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
                       {open.an ? <Minus size={18} strokeWidth={2.25} /> : <Plus size={18} strokeWidth={2.25} />}
                     </button>
                   </div>
                   {open.an && (
-                    <div style={{ marginTop: 10, paddingBottom: 16, paddingLeft: 24, fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                    <div style={{ marginTop: 10, paddingBottom: 16, paddingLeft: 24, fontSize: 13, color: C.memo, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                       {linkifyNote(report.authorNotes.map((t) => t.replace(/\n{2,}/g, "\n")).join("\n"))}
                     </div>
                   )}
@@ -2156,15 +2155,14 @@ export default function Teardown() {
                       )}
                       </>)}
                       {step.models && (
-                        <div style={{ marginTop: 11 }}>
+                        <div style={{ marginTop: 19 }}>
                           {(() => {
                             const need = step.models.filter((m) => !haveModels.has(m.file)).length;
                             const haveN = step.models.length - need;
                             return need === 0
                               ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
-                              : <div style={{ fontSize: 13, color: C.dim, marginBottom: 10 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""}</div>;
+                              : <div style={{ fontSize: 13, color: C.dim, marginBottom: 10, lineHeight: 1.5 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""} · <span style={{ color: C.faint }}>이미 받아 둔 파일은 '이미 있으면 체크 ✓'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</span></div>;
                           })()}
-                          <div className="td-hint1line" style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있으면 체크 ✓'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
                           {(() => {
                             // 양자화 비호환 모델 lookup (파일명 → warning+gguf)
                             const qwMap = {};

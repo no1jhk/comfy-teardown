@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-06 (모델표 안내 병합 + 제작자 주의사항 색 #635537)
+**한 일 / 원인**
+1. 모델 표 안내문 병합: "받아야 할 후보 N개"(개수 줄)+"이미 받아 둔 파일은…"(별개 div) 두 줄 → 한 div 병합, 가운뎃점(·) 연결. 색 현행 유지(후보/개수 dim+point, 안내부 span faint). "이미 있음 N개" 카운트 현행 포함. 서브텍스트(step.desc)↔병합 줄 간격 step.models marginTop 11→19(+8). td-hint1line CSS 제거(L1473). L2164·2158.
+   - [원인] td-hint1line(nowrap)이 안 먹은 게 아니라 범위 밖: nowrap은 안내문 div '내부' 줄바꿈만 막음. 개수 줄과 안내문이 별개 div라 세로 2줄은 그대로. '한 줄'은 두 div 병합이 필요 → 병합으로 대체, 클래스 정리.
+2. 제작자 주의사항 색 #635537: 신규 C.memo 토큰(L38). 헤더 텍스트+ⓘ(L1804·CircleAlert)·토글 +/-(버튼 color, 아이콘 상속)·본문 텍스트(div color) 전부 C.memo. 본문 URL 링크도 C.memo + underline 유지(linkifyNote L1328). 헤더는 이미 "워크플로우 메모"(7번 반영).
+
+**어떻게**
+- 빌드 통과 + regression 통과. td-hint1line 잔존 0.
+
+**다음 할 일**
+- dev 판정 후 push.
+
 ## 2026-07-06 (footer 명도↓ + 웹검색→HuggingFace)
 **한 일**
 1. footer 텍스트 명도 30% 하향: C.faint(#76707F) → 신규 C.faintDim(#534E59, 밝기×0.7, 채도·색상 유지). footer span color 교체(L36·2762).
