@@ -1637,9 +1637,9 @@ export default function Teardown() {
               ) : (
                 <div style={{ fontSize: 18, fontWeight: 700, color: C.green, lineHeight: 1.5 }}>차단 요소 없음. 바로 실행해 보세요.</div>
               )}
-              <button className="td-btn td-outline" onClick={saveReport} title="진단 결과를 Markdown(.md) 파일로 저장"
+              <button className="td-btn td-outline-w" onClick={saveReport} title="처방전을 Markdown(.md) 파일로 저장"
                 style={{ display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 999, padding: "8px 16px", fontFamily: SANS, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-                <Download size={15} /> 결과 저장 (.md)</button>
+                <Download size={15} /> 처방전 저장 (.md)</button>
             </div>
 
             {rxTodos.length > 0 && (<div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden" }}>
@@ -1706,16 +1706,17 @@ export default function Teardown() {
                     right = a0.url ? <a className="td-hf" href={a0.url} target="_blank" rel="noopener noreferrer">다운로드</a> : null;
                   } else {
                     const mr = modelResearch[s.value];
-                    const foundUrl = mr?.result?.url || learnedModel(s.value)?.url || (s.url && s.url !== "확인 필요" ? s.url : null);
+                    const foundUrl = learnedModel(s.value)?.url || (s.url && s.url !== "확인 필요" ? s.url : null); // 검색 결과(mr.result.url)는 '찾기' 라벨 유지 위해 제외
                     left = (<>
                       <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
                         <span style={{ fontFamily: MONO }}>{s.value}</span> {foundUrl ? "다운로드" : "준비"}
                         {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{s.folder}</span> 폴더에 넣으세요. 이미 있으면 건너뛰기</div>
+                      {!foundUrl && <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>}
                       {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6 }}>이 GPU에서 안 될 수 있음. 대체 GGUF 확인 필요</div>}
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
-                      : <button className="td-hf" onClick={() => researchUnknownModel(s.value)} disabled={mr?.loading}>{mr?.loading ? "찾는 중…" : "찾기"}</button>;
+                      : <button className="td-hf" onClick={() => researchUnknownModel(s.value)} disabled={mr?.loading} style={mr?.result ? { opacity: 0.55 } : undefined}>{mr?.loading ? "찾는 중…" : "찾기"}</button>;
                   }
                 }
                 return (
@@ -1726,7 +1727,7 @@ export default function Teardown() {
                     {done ? <Check size={15} color={C.dim} /> : i + 1}
                   </div>
                   <div style={{ flex: 1, minWidth: 0 }}>{left}</div>
-                  {right && <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", marginTop: 1 }}>{right}</div>}
+                  {right && <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", alignSelf: "center" }}>{right}</div>}
                 </div></React.Fragment>);
               })}
             </div>)}
@@ -1900,12 +1901,12 @@ export default function Teardown() {
                     </div>
                     {/* 슬롯 표 */}
                     <div style={{ borderTop: `1px solid ${C.line}` }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 80px", gap: 10, padding: "8px 14px", borderBottom: `1px solid ${C.line}` }}>
+                      <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 110px", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
                         {["#", "슬롯", "현재 값", "폴더", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
                       </div>
                       {r.slots.map((s, si) => (
                         <div key={si}>
-                          <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 80px", gap: 10, padding: "12px 14px", alignItems: "start", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "36px minmax(0,1fr) minmax(0,1.5fr) minmax(0,1fr) 110px", gap: 10, padding: "12px 0", alignItems: "center", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.faint }}>{si + 1}</span>
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
                             <div style={{ minWidth: 0 }}>
@@ -2046,8 +2047,7 @@ export default function Teardown() {
                       {step.key !== "install" && <div style={{ fontSize: 18, color: C.dim, lineHeight: 1.5 }}>{step.desc}</div>}
                       {step.key === "install" && step.command ? (
                         <div style={{ marginTop: 14 }}>
-                          <div style={{ fontSize: 18, color: C.dim, lineHeight: 1.5 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요.</div>
-                          <div style={{ fontSize: 18, color: C.dim, lineHeight: 1.5, marginTop: 4, marginBottom: 10 }}>{step.desc}</div>
+                          <div style={{ fontSize: 18, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요. 해당 폴더에서 git clone (또는 Manager의 Git URL 설치).</div>
 
                           {/* custom_nodes 경로 안내. OS/설치유형별 */}
                           <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
@@ -2134,13 +2134,14 @@ export default function Teardown() {
                               ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
                               : <div style={{ fontSize: 13, color: C.dim, marginBottom: 10 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""}</div>;
                           })()}
+                          <div style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있음'을 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
                           {(() => {
                             // 양자화 비호환 모델 lookup (파일명 → warning+gguf)
                             const qwMap = {};
                             for (const w of quantWarnings(report.models, env.gpu)) qwMap[w.file.toLowerCase()] = w;
                             return (
                           <div style={{ borderTop: `1px solid ${C.divider}` }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>
                               {["받을 파일", "어디에 둘지", "정상 용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "right" : "left" }}>{h}</span>)}
                             </div>
                             {step.models.map((m, k) => {
@@ -2156,7 +2157,7 @@ export default function Teardown() {
                               const have = haveModels.has(m.file);
                               const qwHit = qwMap[m.file.toLowerCase()];
                               return (<React.Fragment key={k}>
-                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "13px 0", alignItems: "start", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : qwHit ? 0.5 : 1 }}>
+                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "13px 0", alignItems: "center", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : qwHit ? 0.5 : 1 }}>
                                 <div style={{ minWidth: 0 }}>
                                   <div style={{ fontFamily: MONO, fontSize: 14, color: qwHit ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
                                   {qwHit && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red }}>⚠ 이 GPU에선 안 돌 수 있음</span>}
@@ -2200,7 +2201,7 @@ export default function Teardown() {
                               </div>
                               {/* GGUF 대체 행. 비호환 모델 바로 아래 */}
                               {qwHit?.gguf && (qwHit.gguf.components || []).map((comp) => comp.files.map((gf, gi) => (
-                                <div key={`gguf-${k}-${comp.role}-${gi}`} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 132px", gap: 14, padding: "10px 0", alignItems: "start", background: "rgba(244,255,117,0.04)", borderTop: `1px solid ${C.divider}` }}>
+                                <div key={`gguf-${k}-${comp.role}-${gi}`} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "10px 0", alignItems: "center", background: "rgba(244,255,117,0.04)", borderTop: `1px solid ${C.divider}` }}>
                                   <div style={{ minWidth: 0 }}>
                                     <div style={{ fontFamily: MONO, fontSize: 14, color: C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{gf.name}</div>
                                     <span style={{ fontFamily: SANS, fontSize: 13, color: C.point }}>대신 받기 · {comp.role}</span>
@@ -2313,13 +2314,13 @@ export default function Teardown() {
                   {report.packs.map((p, i) => (
                     <div key={p.id} style={{ display: "flex", alignItems: "center", gap: 18, paddingTop: i > 0 ? 18 : 0, marginTop: i > 0 ? 18 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
                       {/* 좌: > + pack id + repo */}
-                      <div style={{ display: "flex", alignItems: "center", gap: 14, minWidth: 0, flexWrap: "wrap" }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: "4px 14px", minWidth: 0, flexWrap: "wrap", flex: "1 1 auto" }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
                           <ChevronRight size={16} color={C.amber} style={{ flexShrink: 0 }} />
                           <span style={{ fontFamily: MONO, fontSize: 18, color: p.isCore ? C.dim : C.text, overflowWrap: "anywhere" }}>{p.id}{p.isCore && <span style={{ color: C.faint, fontSize: 13 }}> · 내장</span>}</span>
                         </div>
                         {p.repo && <div style={{ display: "flex", alignItems: "center", gap: 5, minWidth: 0 }}>
-                          <GitBranch size={13} color={C.green} style={{ flexShrink: 0, opacity: 0.6 }} /><span style={{ fontFamily: MONO, fontSize: 13, color: C.green, opacity: 0.6, overflowWrap: "anywhere" }}>{p.repo}</span></div>}
+                          <GitBranch size={13} color={C.green} style={{ flexShrink: 0, opacity: 0.6 }} /><span title={p.repo} style={{ fontFamily: MONO, fontSize: 13, color: C.green, opacity: 0.6, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 240 }}>{p.repo}</span></div>}
                       </div>
                       {/* 버전(빨강) 블록. "버전 충돌" 라벨 좌측(세로중앙) + 우측에 버전 칩들 줄바꿈 채움 */}
                       {(p.conflict || p.vers.length > 0) && (
