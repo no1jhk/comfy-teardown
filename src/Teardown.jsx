@@ -1447,7 +1447,11 @@ export default function Teardown() {
     } else if (redNodes > 0) {
       grade = "red";
       const parts = [];
-      if (missingNodes.length) { const { groups, solo } = groupNodesByRepo(missingNodes); const packN = groups.length + solo.length; parts.push(hasLog ? `커스텀 노드 팩 ${packN}개 미설치` : `커스텀 노드 팩 ${packN}개 설치 확인 필요`); }
+      if (missingNodes.length) {
+        const { groups, solo } = groupNodesByRepo(missingNodes); // 팩 수 = 출처 확정 repo 그룹만(설치 가능 단위). solo(출처 미상)는 확인 행에서 별도 처리 → 이중 계상 방지
+        if (groups.length) parts.push(hasLog ? `커스텀 노드 팩 ${groups.length}개 미설치` : `커스텀 노드 팩 ${groups.length}개 설치 확인 필요`);
+        if (solo.length) parts.push(`출처 미상 노드 ${solo.length}개`);
+      }
       if (failedNodes.length) parts.push(`로드 실패 노드 ${failedNodes.length}개`);
       if (report.anomalous?.length) parts.push(`정체 미상 노드 ${report.anomalous.length}개`);
       if (report.broken?.length) parts.push(`이름 확인 불가 노드 ${report.broken.length}개`);

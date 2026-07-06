@@ -9,14 +9,17 @@
 ## 2026-07-07 (액션 테이블 결함 3건)
 **한 일 / 실측**
 1. 받기 행 파일 단위 그룹핑: 동일 basename(경로 제거·소문자) 슬롯 1행 병합(받기+넣기 폴더[다르면 각각]+선택 N줄). L1500~1511·1749~1751. 실측(regression): Video To Audio 받기 4→2(dev-fp8 3병합+lora). ACTION_MODEL_EXPECT Video 4→2.
-2. 미상 노드 확인 행 병합: node todo N개→1행("출처 미상 노드 N개"+노드명 목록+Manager 검색 안내 버튼). L1497~1499·1751·1755. 실측(node 근사): krea2 solo 9→1행, Full solo 2→1행.
-3. 빨강 판정문 팩 기준: "커스텀 노드 N개"→"커스텀 노드 팩 N개"(groupNodesByRepo 그룹+solo). L1450. 실측(node 근사·prefix 생략): krea2 미매핑 15→팩 13, Full 2→팩 2. [정확값은 Teardown analyze repoForUnmapped prefix(rgthree 접미 등)+mgrMap 포함이라 더 적음 — dev 확인. 사용자 목표 krea2 5·Full 1은 prefix 포함 기준.]
+2. 미상 노드 확인 행 병합: node todo N개→1행("출처 미상 노드 N개"+노드명 목록+Manager 검색 안내 버튼). L1497~1499·1751·1755. 실측(정확): krea2 solo 5→1행, Full solo 0(→확인 행 없음).
+3. 빨강 판정문 팩 기준: "커스텀 노드 N개"→"커스텀 노드 팩 N개". 팩 수 = groupNodesByRepo의 **그룹만(출처 확정 repo·설치 가능 단위)**, solo(출처 미상)는 확인 행에서 별도 처리라 이중 계상 방지. solo는 헤드라인 누락 방지 위해 "출처 미상 노드 N개" 별도 part. L1450~1454.
+   - 정확 실측(analyze repoForUnmapped 완전 복제 = node_repo_map + mgrMap[-1=CORE 드롭] + prefix + rgthree 접미): **krea2 미매핑 13 → 팩 5(그룹) + 출처 미상 5(solo)[CORE 드롭 2]. Silent Snow Full 미매핑 2 → 팩 1(rgthree 그룹, solo 0).**
+   - 그룹 5: rgthree×2, cg-use-everywhere×3, controlnet_aux×1, Thumbnails×1, Model_preset_Pilot×1. solo 5: VAEUtils_VAEDecodeTiled, SmartResolution, Krea2ControlApply/ImageEncode/LoRALoader.
+   - 초기 근사(prefix·mgrMap 생략)가 준 팩 13/2·solo 9는 오류. 사용자 목표 krea2 5·Full 1과 정확 일치 확인.
 
 **어떻게**
-- 빌드 통과 + regression(받기 병합 유니크 basename) 통과.
+- 빌드 통과 + regression(받기 병합 유니크 basename) 통과. 팩 수는 analyze(JSX)라 별도 실측 스크립트로 확정.
 
 **다음 할 일**
-- dev에서 krea2/Full 팩 수·확인 행 실측 확정(prefix 포함).
+- dev에서 krea2/Full 팩 수·확인 행 화면 확정.
 
 ## 2026-07-07 (신규 fixtures 전수 실측 + 중복 판별)
 **실측 결과 / 한 일**
