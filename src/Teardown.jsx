@@ -384,7 +384,7 @@ function portabilityScan(nodes) {
   const hits = [];
   for (const n of nodes) for (const w of n.widgets) {
     if (typeof w !== "string") continue;
-    if (w === "flash_attn") hits.push({ node: n.type, value: w, risk: "flash_attn 어텐션 — Windows 빌드가 까다롭습니다. 설치가 막히면 sdpa로 변경하세요." });
+    if (w === "flash_attn") hits.push({ node: n.type, value: w, risk: "flash_attn 어텐션은 설치(빌드)가 까다로울 수 있습니다(특히 Windows). 설치가 막히면 sdpa로 변경하세요." });
     else if (isAbsPath(w)) hits.push({ node: n.type, value: w, kind: "abspath", risk: "이 경로는 워크플로우를 만든 사람의 PC 폴더예요. 당신 PC엔 이 폴더가 없을 수 있으니, 이 경로는 무시하고 같은 파일을 당신 ComfyUI 폴더에 두면 됩니다." });
     else if (/[A-Za-z0-9._-]+\\[A-Za-z0-9._\\-]+/.test(w)) {
       if (/_\d{8}_/.test(w) && /\.(fbx|glb|obj)$/i.test(w))
@@ -1744,7 +1744,7 @@ export default function Teardown() {
                         {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{s.folder}</span> 폴더에 넣으세요. 이미 있으면 건너뛰기</div>
                       {!foundUrl && <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>}
-                      {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6 }}>이 GPU에서 안 될 수 있음. 대체 GGUF 확인 필요</div>}
+                      {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6 }}>이 GPU에서 실행되지 않습니다. 대체 GGUF로 교체하세요.</div>}
                       {s.quantUnknown && <div style={{ fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>

@@ -28,10 +28,11 @@ function gradeFromRecipes(recipes) {
 }
 
 // 파일별 등급 기대값 (신규 fixtures 포함). red=실행불가(quantBad>0) / yellow=점검 / green=문제없음.
+// GPU 입력 조건별 등급 기대. ampere=GPU 입력 시 / none=GPU 미입력 시(추정 금지 → GPU 사유 red 없음).
 const GRADE_EXPECT = {
-  "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": "red",
-  "LTX2.3 8GB VRAM workflow + Audio to Video.json": "yellow",
-  "Silent Snow LTX2.3 Kjai FP8.json": "red",
+  "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": { ampere: "red", none: "yellow" },
+  "LTX2.3 8GB VRAM workflow + Audio to Video.json": { ampere: "yellow", none: "yellow" },
+  "Silent Snow LTX2.3 Kjai FP8.json": { ampere: "red", none: "yellow" },
 };
 let fail = 0;
 const rows = [];
@@ -66,9 +67,9 @@ for (const f of files) {
   const grade = gradeFromRecipes(recipes);
   console.log(`  등급(redGpu 기준): ${grade}`);
   // 파일별 등급 기대 (신규 2개 포함)
-  if (GRADE_EXPECT[f]) {
-    if (grade !== GRADE_EXPECT[f]) { console.log(`  ❌ 등급 기대 ${GRADE_EXPECT[f]}, 실제 ${grade}`); fail++; }
-    else console.log(`  ✅ 등급 ${grade} (기대 ${GRADE_EXPECT[f]} 일치)`);
+  if (GRADE_EXPECT[f]?.ampere) {
+    if (grade !== GRADE_EXPECT[f].ampere) { console.log(`  ❌ (gpu입력) 등급 기대 ${GRADE_EXPECT[f].ampere}, 실제 ${grade}`); fail++; }
+    else console.log(`  ✅ (gpu입력) 등급 ${grade} (기대 ${GRADE_EXPECT[f].ampere})`);
   }
   // quantBad/ggufAlt 상세는 기존 LTX2_3_ 기준 파일만
   if (f === "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json") {
@@ -138,7 +139,9 @@ for (const f of files) {
   console.log(`  ${f.slice(0, 42)}: ampere quantBad ${qbAmp} → null quantBad ${qbNull} · quantUnknown ${quNull} · 등급 ${gradeFromRecipes(rNull)}`);
   if (qbNull !== 0) { console.log(`  ❌ GPU 미입력인데 quantBad ${qbNull}(0이어야) → 추정 판정 잔존`); fail++; }
   if (qbAmp > 0 && quNull !== qbAmp) { console.log(`  ❌ ampere quantBad ${qbAmp} → null quantUnknown ${quNull} 불일치(fp 전환 실패)`); fail++; }
-  if (gradeFromRecipes(rNull) === "red") { console.log(`  ❌ GPU 미입력인데 등급 red → GPU 사유 빨강 잔존`); fail++; }
+  const gNull = gradeFromRecipes(rNull);
+  if (GRADE_EXPECT[f]?.none && gNull !== GRADE_EXPECT[f].none) { console.log(`  ❌ (gpu미입력) 등급 기대 ${GRADE_EXPECT[f].none}, 실제 ${gNull}`); fail++; }
+  if (gNull === "red") { console.log(`  ❌ GPU 미입력인데 등급 red → GPU 사유 빨강 잔존`); fail++; }
 }
 console.log(`  ✅ GPU 미입력: quantBad 0(판정 부재) + fp 파일 quantUnknown 전환 + 등급 red 없음(GPU 사유 제외)`);
 

@@ -6,6 +6,27 @@
 
 ---
 
+## 2026-07-06 (P0 무입력 판정 전수 감사 + GPU 기본값 제거 완결)
+**전수 감사(작업1) / 수정**
+- [감사] 미입력 정보로 판정하는 지점 전수 스캔. 실질 수정 3건, 유지 5건(근거 병기).
+1. GPU quantBad: 직전(2874449) 완료 확인 — 미입력 시 gpu null, 판정 부재, 등급 제외, quantUnknown 안내.
+2. flash_attn risk(L387): "Windows 빌드가 까다롭습니다"(OS 가정) → "설치(빌드)가 까다로울 수 있습니다(특히 Windows)"로 OS 중립화.
+3. quantBad 확정 문구(L1747): "이 GPU에서 안 될 수 있음. 대체 GGUF 확인 필요"(추정형) → "이 GPU에서 실행되지 않습니다. 대체 GGUF로 교체하세요."(확정형, quantBad=GPU 입력 확정이므로).
+4. regression 2케이스화: GRADE_EXPECT를 {ampere, none} 입력별 분리. Silent Snow FP8: gpu입력=red / 미입력=yellow. 검증 통과.
+
+**유지 지점(근거)**
+- VRAM(L953·118): 모델 요구량은 curated DB 팩트, 사용자 VRAM과 비교 판정 없음.
+- custom_nodes 경로(L2090~): Windows/Mac 전부 나열(사용자 선택), 가정 아님.
+- 경로 구분자(L392): 워크플로 값에 \\ 존재 시 판정(값 기반), 사용자 OS 가정 아님.
+- modelRoot(L1068): 미입력 시 표준 폴더 안내, 가정 아님.
+- torch/cuda(L1014): "JSON에 없어 미표시" 명시적 미판정.
+
+**어떻게**
+- 빌드 통과 + regression(GPU 2케이스) 통과.
+
+**다음 할 일**
+- dev 판정 후 push.
+
 ## 2026-07-06 (GPU 판정 기본값 제거 — 추정 금지 위반 수정)
 **추적(작업0) / 수정**
 0. [추적] quantBad의 gpu 값 출처: recipes useMemo(L1358) `gpuGeneration(env.gpu) || "ampere"` + buildRecipes(redNodeRecipe L178) `{ gpu = "ampere" }`. **미입력 시 "ampere" 강제 추정** → fp8/fp4 파일 quantBad true → 빨강 오탐. (모델표 qwHit=quantWarnings는 이미 gpuGeneration null→[] 반환이라 정상.)
