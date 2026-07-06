@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-07-07 (신규 fixtures 전수 실측 + 중복 판별)
+**실측 결과 / 한 일**
+0. [중복 판별] "Silent Snow LTX2.3 Kjai FP8 2.json" = "…FP8.json" 바이트 동일(shasum 921986…) → 삭제 권장했으나 rm 권한 거부 → 사용자 삭제 요청. "LTX2_3_…(underscore)"(5403) ≠ "LTX2.3 …(space)"(f21d): 노드 74 동일이나 slots 8/quantBad 2 vs slots 1/quantBad 0(설정 반영본 차이) → 유지.
+1. [Full.json #5288] type=5651987d-… = definitions.subgraphs[].id에 존재 → 서브그래프 참조 → anomalous 제외(진짜 미상 0) 동작 확인. regression에 Full.json #5288 실측 케이스 추가.
+2. [Video To Audio] slots 4·quantBad 3(ampere)·grade yellow. JSON 단독(로그 없음) → VNIL red 승격 없음(정상). VNIL 로그 원문 미확보 → JSON+로그 조합 실측 보류(날조 금지).
+3. [신규 5종 스모크] 전부 크래시 없음:
+   - 57_PiD Upscale: slots 3·quantBad 1·yellow. models pid_flux1_bf16·gemma_2_2b_fp8·ae.
+   - Ideogram A: slots 1·quantBad 1·yellow·UUID 1. gemma4_e4b_fp8.
+   - Ideogram B: slots 4·quantBad 3·yellow·UUID 2. ideogram4_fp8·flux2-vae·qwen3vl_8b_fp8.
+   - PixelArtistry default/Anim: slots 0·green(모델 로더 없음).
+   - GRADE_EXPECT·ACTION_MODEL_EXPECT 전 파일 편입.
+
+**어떻게**
+- 빌드 통과 + regression(신규 등급 + Full #5288 + 액션 행) 통과.
+
+**다음 할 일**
+- FP8 2 중복 삭제(사용자). VNIL 로그 원문 확보 시 red 승격 실측.
+
 ## 2026-07-07 (처방전 액션 테이블 개편)
 **한 일 / 실측**
 1. 액션 테이블 신설: rxTodos→actionRows(동사 선행 행, L1491). Solution 헤더 다음 렌더(L1732~). 규칙: 미설치 nodegroup(installed 제외)→설치 행([스크립트 보기]), model→받기 행(파일명+[확정/확인 필요] dim 뱃지)+넣기(폴더)+선택(노드명: 파일명), input→확인 행, 실행 행 고정(설치≥1이면 재시작 문구). model todo에 nodeType 추가(L1479, 렌더용).

@@ -34,6 +34,14 @@ const GRADE_EXPECT = {
   "LTX2.3 8GB VRAM workflow + Audio to Video.json": { ampere: "yellow", none: "yellow" },
   "Silent Snow LTX2.3 Kjai FP8.json": { ampere: "yellow", none: "yellow" },
   "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json": { ampere: "yellow", none: "yellow" }, // 실측: bf16 UNET/CLIP/VAE·quantBad 0
+  // 신규 fixtures 실측 편입 (buildRecipes 범위 grade)
+  "Silent Snow LTX2.3 Full.json": { ampere: "yellow", none: "yellow" },            // slots 3·quantBad 0·#5288 서브그래프 참조
+  "Ltx2.3 Video To Audio Deno workflow.json": { ampere: "yellow", none: "yellow" }, // slots 4·quantBad 3(ampere)
+  "57_PiD Upscale.json": { ampere: "yellow", none: "yellow" },                      // slots 3·quantBad 1
+  "Ideogram40_Layout_builder_A.json": { ampere: "yellow", none: "yellow" },         // slots 1·quantBad 1·UUID 1
+  "Ideogram40_layout_builder_B.json": { ampere: "yellow", none: "yellow" },         // slots 4·quantBad 3·UUID 2
+  "PixelArtistry_Skintoken_default.json": { ampere: "green", none: "green" },        // slots 0(모델 없음)
+  "PixelArtistry_SkintokenAnimWorkflow.json": { ampere: "green", none: "green" },    // slots 0
 };
 let fail = 0;
 const rows = [];
@@ -211,12 +219,31 @@ console.log("\n" + "=".repeat(70) + "\n서브그래프 UUID 대조");
   if (!anomRef && anomUnknown) console.log("  ✅ 서브그래프 UUID 대조: 참조 제외 · 정의없음만 anomalous");
 }
 
+// Full.json 실측: #5288 = 서브그래프 참조(anomalous 제외 확인)
+console.log("\n" + "=".repeat(70) + "\nFull.json #5288 서브그래프 참조 실측");
+{
+  const j = JSON.parse(fs.readFileSync(path.join(FIX, "Silent Snow LTX2.3 Full.json"), "utf8"));
+  const n = (j.nodes || []).find((x) => String(x.id) === "5288");
+  const subIds = new Set((j.definitions?.subgraphs || []).map((s) => s.id));
+  const isRef = n && subIds.has(n.type);
+  console.log(`  #5288 type ${n?.type?.slice(0, 8)}… · subgraphIds(${subIds.size}) 존재 ${isRef}`);
+  if (!isRef) { console.log("  ❌ Full.json #5288 서브그래프 참조 아님(기대: 참조→anomalous 제외)"); fail++; }
+  else console.log("  ✅ Full.json #5288 서브그래프 참조 → anomalous 제외");
+}
+
 // === 액션 테이블 행 수 스냅샷 (buildRecipes 범위: 받기=model 슬롯 수 · 실행 1 고정. 설치=analyze라 SKIP) ===
 console.log("\n" + "=".repeat(70) + "\n액션 테이블 행 수(받기=model 슬롯 · 동사 받기/넣기/선택/실행)");
 const ACTION_MODEL_EXPECT = { // 받기 행 = 전체 model 슬롯 수(quantBad 여부 무관)
   "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": 8,
   "Silent Snow LTX2.3 Kjai FP8.json": 4,
   "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json": 3,
+  "Silent Snow LTX2.3 Full.json": 3,
+  "Ltx2.3 Video To Audio Deno workflow.json": 4,
+  "57_PiD Upscale.json": 3,
+  "Ideogram40_Layout_builder_A.json": 1,
+  "Ideogram40_layout_builder_B.json": 4,
+  "PixelArtistry_Skintoken_default.json": 0,
+  "PixelArtistry_SkintokenAnimWorkflow.json": 0,
 };
 for (const f of files) {
   const recipes = buildRecipes(JSON.parse(fs.readFileSync(path.join(FIX, f), "utf8")), { gpu: null });
