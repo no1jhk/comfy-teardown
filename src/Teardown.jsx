@@ -1317,6 +1317,9 @@ export default function Teardown() {
   // 메모 텍스트 안 URL을 클릭 링크로 (기존 링크 토큰 색 C.point, 새 창)
   const linkifyNote = (text) => text.split(/(https?:\/\/[^\s]+)/g).map((p, k) =>
     /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{p}</a> : p);
+  // 미확인 모델 파일명 웹 검색 URL (구글, 파일명+download)
+  const searchUrl = (name) => "https://www.google.com/search?q=" + encodeURIComponent(name + " download");
+  const openSearch = (e, name) => { e.preventDefault(); window.open(searchUrl(name), "_blank", "noopener"); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1451,6 +1454,7 @@ export default function Teardown() {
         .td-btn:hover{transform:translateY(-1px)} .td-btn:active{transform:translateY(0)}
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-havelink{background:transparent;border:none;color:${C.faint};transition:color .15s;cursor:pointer}.td-havelink:hover{color:${C.text}}
+        .td-divtoggle{color:${C.faint};transition:color .15s}.td-divtoggle:hover{color:${C.dim}}
         .td-acc{transition:opacity .15s;opacity:.9}.td-acc:hover{opacity:1}
         .td-spin{animation:tdSpin .9s linear infinite}@keyframes tdSpin{to{transform:rotate(360deg)}}
         .td-hf{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
@@ -1727,7 +1731,7 @@ export default function Teardown() {
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
                       : mr?.loading ? <button className="td-hf" disabled style={{ opacity: 0.55 }}>찾는 중…</button>
-                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(s.value + " download")}`} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a>
+                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={searchUrl(s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, s.value)}>웹에서 검색 ↗</a>
                       : <button className="td-hf" onClick={() => researchUnknownModel(s.value)}>찾기</button>;
                   }
                 }
@@ -1755,13 +1759,13 @@ export default function Teardown() {
       </div>
 
       {report && (
-        <div style={{ flex: 1, position: "relative", width: "100%", background: detailOpen ? C.bgDeep : "transparent" }}>
+        <div style={{ flex: 1, position: "relative", width: "100%", background: C.bgDeep }}>
           {/* ── 경계 divider: 존 컨테이너의 top edge에 absolute 걸침(translateY -50%). 텍스트가 라인에 수직 중앙, 배경 투명(상반부 밝은/하반부 어두운). 부모(존) 폭 기준 full-bleed(100vw 아님 → 가로 스크롤 없음). ── */}
           <div onClick={() => setDetailOpen((v) => !v)} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.divider, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
+            <div className="td-divtoggle" style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
               <span>자세한 진단 보기</span>
-              {detailOpen ? <Minus size={21} color={C.dim} /> : <Plus size={21} color={C.dim} />}
+              {detailOpen ? <Minus size={21} /> : <Plus size={21} />}
             </div>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
           </div>
@@ -2198,9 +2202,12 @@ export default function Teardown() {
                                           {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>✓ 적립됨</span>}
                                         </>
                                       ) : mr?.loading ? (
-                                        <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>검색 중…</span>
+                                        <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>찾는 중…</span>
                                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
-                                        <a className="td-hf td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(m.file + " download")}`} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a>
+                                        <>
+                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)}>웹에서 검색 ↗</a>
+                                          {(mr?.error || (mr?.result && !mr.result.found)) && <div style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>직접 링크를 찾지 못했습니다</div>}
+                                        </>
                                       ) : (
                                         <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
                                       )}
@@ -2420,9 +2427,9 @@ export default function Teardown() {
                           {eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber, marginTop: 6 }}>✓ 적립됨 (미확정)</span>}
                         </>
                       ) : !isWeight ? null : mr?.loading ? (
-                        <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 14 }}>검색 중…</span>
+                        <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 14 }}>찾는 중…</span>
                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
-                        <a className="td-hf-sm td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(m.file + " download")}`} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>웹에서 검색 ↗</a>
+                        <a className="td-hf-sm td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)} style={{ marginTop: 14 }}>웹에서 검색 ↗</a>
                       ) : (
                         <button className="td-hf-sm" onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14 }}>다운로드 링크 찾기</button>
                       )}

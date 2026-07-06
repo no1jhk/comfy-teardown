@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-06 (divider 가독성 · 웹검색 클릭수정 · 상시 어두운 배경 + 노드색 보고)
+**한 일 / 추적**
+1. divider 토글 텍스트+아이콘 통일: 아이콘만 색 안 바뀐 원인은 <Minus/Plus color={C.dim}> 명시(div color 상속 차단). color 제거→currentColor 상속. div color C.divider→className td-divtoggle(faint, hover dim). L1454·1766·1767.
+2. [추적/수정] "웹에서 검색 ↗" 클릭 미작동: <a href target=_blank>가 실환경 미열림. onClick 동기 window.open(url,'_blank','noopener')+e.preventDefault로 결정적 수정(팝업 차단·부모 이벤트 간섭 배제). searchUrl/openSearch 헬퍼로 3곳(slot L1734·모델표·Findings) 통일. "검색 중…"→"찾는 중…" 라벨 통일. 조사 실패 시 폴백 버튼 아래 캡션 "직접 링크를 찾지 못했습니다"(13 faint, error||!found일 때만). L1321·1734·2205·2209·2430.
+3. 점선 아래 상시 bgDeep: background detailOpen?bgDeep:transparent → 항상 bgDeep. 접힘 시도 divider~footer 짧은 어두운 스트립. divider는 존 top absolute translateY라 y위치 불변(접힘/펼침 무관). L1762.
+
+**4. [보고/지시대기] [탭][서브그래프] 노드 컬러**
+- 워크플로 JSON 노드에 color/bgcolor 필드 존재 확인. 실데이터: color "#3f789e"(파랑)·"#232"/"#233"(어두운 초록)·"#432", bgcolor "#353"/"#355"/"#29699c"/"#000" 등(ComfyUI 표준: color=타이틀바, bgcolor=본문). fixtures 4개 중 Flux계열 다수·LTX 일부.
+- 현재 normalizeNode(L314)는 color/bgcolor 미추출. 구현안: normalizeNode에 필드 추가 → recipe r.tab/r.sub 노드 색을 주석 앞 8~10px 라운드 칩으로(텍스트 violet 유지, 필드 없으면 칩 생략). 지시 대기.
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- 작업4 노드색 칩 구현 지시 대기. dev 판정 후 push.
+
 ## 2026-07-06 (찾기 경로 slot 통일 + AI 조사 타임아웃)
 **한 일**
 1. slot 처방 "찾기"(L1728~1731)도 "둘 다 제공" 통일: foundUrl 없을 때 loading→"찾는 중…", (!AI_KEY||error||result&&!found)→"웹에서 검색 ↗"(구글 새 창, td-hf td-outline-w), else→"찾기"(AI). 모델 표·Findings와 동일 분기·스타일.
