@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-06 (표시층 3건: STEP 간격 · 경로행 여백 · 소제목 레벨)
+**한 일**
+1. ENF STEP 제목~첫항목 간격 통일: STEP1 24 → 8(STEP2 값). 변경 전 STEP1=marginTop8+paddingTop16=24, STEP2=marginTop8+paddingTop0=8. STEP1 첫 항목(i===0) padding "16px 0"→"0 0 16px"(위 0). L1858.
+2. custom_nodes 경로 박스 행 여백 균일: 직전 minHeight40+paddingTop(pi>0?8:6, 하단 padding 없음)이 2줄 Desktop 행에서 상하 비대칭 유발. → 전 행 padding "9px 0"(상하 동일)+alignItems center, minHeight/marginTop/비대칭 paddingTop 제거. 1줄/2줄 무관 위아래 균일. L2077.
+3. 소제목 3개 레벨 통일: custom_nodes 폴더 찾기(15/700/C.text)·방법 A(15/700/C.point)·방법 B(15/700/C.point) → 셋 다 15/700/C.text. 방법 A·B 노랑 제거. L2069(불변)·2090·2102.
+
+**마감블록 3건(이미 완료 확인)**
+- 적립 admin 게이팅: L2203·2204·2428·2429(6d37282). AI_KEY 가드: L527(9fcaef4). 탭칩: L1914(9fcaef4). 재수정 없음.
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- dev 판정 후 push.
+
 ## 2026-07-06 (5a 키 배포가드 + 5b 탭 색칩)
 **한 일**
 5a. AI_KEY 배포 가드: L523~525 주석 정정(VITE_는 번들 인라인, 배포본 넣으면 노출) + AI_KEY=import.meta.env.PROD ? "" : (VITE_ANTHROPIC_API_KEY||"")(L527). PROD 빌드 시 true 치환→키 문자열 dead-code 제거. 검증: dist sk-ant- 0건(이전 1건). dev(로컬)만 AI 작동, 배포본 AI 비활성(프록시 v1.1 전까지).

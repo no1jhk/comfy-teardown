@@ -1855,7 +1855,7 @@ export default function Teardown() {
                     return (
                     <React.Fragment key={i}>
                       {i > 0 && <div style={{ borderTop: `1px solid ${C.divider}` }} />}
-                      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "16px 0" }}>
+                      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: i === 0 ? "0 0 16px" : "16px 0" }}>
                         <div style={{ flex: 1, minWidth: 0 }}>
                           {it.t === "u" ? (<>
                             <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -2074,7 +2074,7 @@ export default function Teardown() {
                               { os: "Windows", label: "Portable/일반", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
                               { os: "macOS/Linux", label: "일반 설치", path: "~/ComfyUI/custom_nodes" },
                             ].map((p, pi) => (
-                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, paddingTop: pi > 0 ? 8 : 6, marginTop: pi > 0 ? 8 : 6, borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
+                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
                                 <span style={{ fontSize: 13, color: C.faint, flexShrink: 0, minWidth: 110 }}>{p.os} · {p.label}:</span>
                                 <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, overflowWrap: "anywhere", flex: 1, minWidth: 0 }}>{p.path}</code>
                                 <button className="td-copy" onClick={() => copy(p.path, `cn-${p.os}-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
@@ -2087,7 +2087,7 @@ export default function Teardown() {
 
                           {/* 방법 A. 직접 */}
                           <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginTop: 30, marginBottom: 12 }}>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>방법 A. 직접</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 A. 직접</div>
                             <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>custom_nodes 폴더에서 우클릭해 Git Bash Here(또는 터미널)를 열고, 아래 명령을 붙여넣으세요:</div>
                             <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
                               <button className="td-copy" onClick={() => copy(step.command, step.key)} title="전체 복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
@@ -2099,7 +2099,7 @@ export default function Teardown() {
 
                           {/* 방법 B. 자동 스크립트 */}
                           <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px" }}>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
+                            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
                             <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
                             <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
                               <button className="td-outline" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat"))}
