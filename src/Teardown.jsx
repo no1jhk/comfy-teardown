@@ -1441,6 +1441,7 @@ export default function Teardown() {
         .td-btn{transition:transform .12s,opacity .18s}
         .td-btn:hover{transform:translateY(-1px)} .td-btn:active{transform:translateY(0)}
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
+        .td-havelink{background:transparent;border:none;color:${C.faint};transition:color .15s;cursor:pointer}.td-havelink:hover{color:${C.text}}
         .td-acc{transition:opacity .15s;opacity:.9}.td-acc:hover{opacity:1}
         .td-spin{animation:tdSpin .9s linear infinite}@keyframes tdSpin{to{transform:rotate(360deg)}}
         .td-hf{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
@@ -1748,7 +1749,7 @@ export default function Teardown() {
           <div onClick={() => setDetailOpen((v) => !v)} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
             <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.dim, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
-              <span>자세한 진단 보기 (노드별 슬롯 · 설치 스크립트 · 전체 리포트)</span>
+              <span>자세한 진단 보기</span>
               {detailOpen ? <Minus size={21} color={C.dim} /> : <Plus size={21} color={C.dim} />}
             </div>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
@@ -2052,15 +2053,15 @@ export default function Teardown() {
                           {/* custom_nodes 경로 안내. OS/설치유형별 */}
                           <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
                           <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>내 설치 유형에 맞는 경로를 탐색기/터미널 주소창에 붙여넣으세요.</div>
-                          <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 16px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
+                          <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 12px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
                             {[
                               { os: "Windows", label: "Desktop 앱", path: "%LOCALAPPDATA%\\Comfy-Desktop\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\custom_nodes" },
                               { os: "Windows", label: "Portable/일반", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
                               { os: "macOS/Linux", label: "일반 설치", path: "~/ComfyUI/custom_nodes" },
                             ].map((p, pi) => (
-                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "center", gap: 8, paddingTop: pi > 0 ? 8 : 6, marginTop: pi > 0 ? 8 : 6, borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
+                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, paddingTop: pi > 0 ? 8 : 6, marginTop: pi > 0 ? 8 : 6, borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
                                 <span style={{ fontSize: 13, color: C.faint, flexShrink: 0, minWidth: 110 }}>{p.os} · {p.label}:</span>
-                                <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, overflowWrap: "anywhere", flex: 1 }}>{p.path}</code>
+                                <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, overflowWrap: "anywhere", flex: 1, minWidth: 0 }}>{p.path}</code>
                                 <button className="td-copy" onClick={() => copy(p.path, `cn-${p.os}-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
                                   {copiedKey === `cn-${p.os}-${p.label}` ? <Check size={13} /> : <Copy size={13} />}
                                 </button>
@@ -2084,7 +2085,7 @@ export default function Teardown() {
                           {/* 방법 B. 자동 스크립트 */}
                           <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px" }}>
                             <div style={{ fontSize: 15, fontWeight: 700, color: C.point, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
-                            <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
+                            <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
                             <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
                               <button className="td-outline" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat"))}
                                 style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
@@ -2094,7 +2095,7 @@ export default function Teardown() {
                                 <Download size={14} /> install.sh (Mac/Linux)</button>
                             </div>
                             <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>※ 초보자는 이 방법 권장. 반드시 custom_nodes 폴더 안에서 실행하세요.</div>
-                            <div style={{ marginTop: 12, fontSize: 13, color: C.dim, lineHeight: 1.65, borderTop: `1px solid ${C.divider}`, paddingTop: 10 }}>
+                            <div style={{ marginTop: 20, fontSize: 13, color: C.dim, lineHeight: 1.65, borderTop: `1px solid ${C.divider}`, paddingTop: 10 }}>
                               <div style={{ fontWeight: 650, color: C.text, marginBottom: 4 }}>설치 확인하는 법</div>
                               <div>· 실행하면 터미널에 "Cloning into …" 또는 "Successfully installed" 메시지가 뜹니다. 에러 시 빨간 글씨가 나옵니다.</div>
                               <div>· 가장 확실한 확인: ComfyUI를 완전히 재시작한 뒤 워크플로를 다시 로드해서 빨간 노드가 사라졌는지 보세요. 빨간 노드가 없어졌으면 설치 성공.</div>
@@ -2174,9 +2175,9 @@ export default function Teardown() {
                                     </>
                                   ) : <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>확인 필요</span>}
                                 </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "flex-end" }}>
+                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
                                   {have ? (
-                                    <button onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.green, background: "transparent", border: `1px solid ${C.green}55`, borderRadius: 999, padding: "4px 11px", cursor: "pointer", whiteSpace: "nowrap" }}>✓ 있음 (취소)</button>
+                                    <button className="td-copy" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.green, background: "transparent", border: "none", padding: "4px 6px", cursor: "pointer", whiteSpace: "nowrap" }}>있음 ✓ (취소)</button>
                                   ) : qwHit?.gguf ? (
                                     <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>원본 (이 GPU 비권장)</span>
                                   ) : (
@@ -2194,7 +2195,7 @@ export default function Teardown() {
                                       ) : (
                                         <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
                                       )}
-                                      <button onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, color: C.faint, background: "transparent", border: `1px solid ${C.line}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" }}>이미 있음</button>
+                                      <button className="td-havelink" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, padding: "4px 6px", whiteSpace: "nowrap" }}>이미 있음</button>
                                     </>
                                   )}
                                 </div>
@@ -2726,7 +2727,7 @@ export default function Teardown() {
           </div>)}
           <div style={{ marginTop: 64, paddingBottom: 32, textAlign: "center" }}>
             <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, letterSpacing: "0.02em" }}>
-              © 2026 Comfy-teardown · Built by Joon Hyung Kim
+              © 2026 Comfy-Teardown · Built by Joon Hyung Kim
             </span>
           </div>
             </div>

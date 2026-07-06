@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-06 (표시층 6건 · 이미있음 링크형 · 방법B 간격)
+**한 일**
+1. footer: "© 2026 Comfy-teardown" → "Comfy-Teardown"(T 대문자). L2730.
+2. custom_nodes 경로 박스 폭 확장: 박스 좌우 padding 16→12, code minWidth 0(정확 축소), 행 alignItems center→flex-start, code-복사 gap 8→10(붙지 않게). 라벨 컬럼(minWidth 110) 유지. Windows Desktop 경로는 길이상 2줄 남을 수 있음(폭 최대 확보). L2056·2062·2064.
+3. 모델 받기 표 버튼 컬럼 alignItems flex-end→center: 다운로드/찾기와 아래 "이미 있음"이 같은 세로 중심축. L2178.
+4. "이미 있음" 상태 링크형 재스타일: 라운딩 박스 제거. 미체크="이미 있음"(td-havelink, faint→hover text), 체크="있음 ✓ (취소)"(플레인 green, td-copy hover, 체크 글리프 뒤로). 클릭영역 padding 4px 6px. CSS .td-havelink 추가. L1444·2180·2198.
+5. divider 토글 축약: "자세한 진단 보기 (노드별 슬롯 · 설치 스크립트 · 전체 리포트)" → "자세한 진단 보기"(괄호부 삭제, 점선 자연 확장). L1752.
+6. 방법 B 간격: 부제-버튼 사이 marginBottom 10→18, ※캡션-구분선 사이 marginTop 12→20. L2088·2098.
+
+**어떻게**
+- 빌드 통과 + regression 통과. dev 화면 판정 전.
+
+**다음 할 일**
+- dev 화면 판정 후 push(사용자). 불합격 fix-forward.
+
 ## 2026-07-06 (fix-forward · clone 칩 흰색 통일)
 **한 일**
 - 직전 라운드(623ae6e) 작업2 정정: clone 칩 복사 아이콘의 td-outline-w·라운딩 박스화(borderRadius/padding) 제거, 맨 아이콘 형태로 원복 + 색만 point→C.text(흰). Check "복사됨" 피드백도 currentColor라 흰색 정합. GitHub ↗ 흰 pill은 정상이라 유지. L1663.
