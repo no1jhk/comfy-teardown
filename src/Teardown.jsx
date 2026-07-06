@@ -1307,6 +1307,9 @@ export default function Teardown() {
   // 다운로드 표 "이미 있음" 체크 — 도구가 PC를 못 보므로 사용자가 직접 표시(받아야 할 후보에서 제외).
   const [haveModels, setHaveModels] = useState(() => new Set());
   const toggleHave = (file) => setHaveModels((prev) => { const n = new Set(prev); n.has(file) ? n.delete(file) : n.add(file); return n; });
+  // 메모 텍스트 안 URL을 클릭 링크로 (기존 링크 토큰 색 C.point, 새 창)
+  const linkifyNote = (text) => text.split(/(https?:\/\/[^\s]+)/g).map((p, k) =>
+    /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{p}</a> : p);
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1387,8 +1390,7 @@ export default function Teardown() {
     const issues = [];
     if (report.broken?.length) issues.push({ head: `깨진 노드 ${report.broken.length}개`, severity: "high",
       body: "type이 없는 노드입니다. 해당 커스텀 노드가 설치되지 않으면 워크플로 실행이 불가합니다." });
-    if (report.anomalous?.length) issues.push({ head: `이상 노드 ${report.anomalous.length}개`, severity: "high",
-      body: "type이 UUID 형태인 노드입니다. 노드 정의가 누락됐거나 내보내기가 잘못됐을 수 있어 점검이 필요합니다." });
+    // 이상 노드(anomalous)는 Findings "정체 미상 노드"(상세·행동)로 일원화 — 요약 중복 제거
     // 진단 한 줄 수치
     const diagNodeM = report.unmapped?.length || 0;
     const diagBrokenK = report.broken?.length || 0;
@@ -1768,7 +1770,7 @@ export default function Teardown() {
                 <MetricBox value={report.customPackCount} label="커스텀 pack" unit="개" />
               </div>
               {report.authorNotes?.length > 0 && (
-                <div style={{ marginTop: 24, paddingTop: 20, borderTop: `1px solid ${C.divider}` }}>
+                <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${C.divider}` }}>
                   <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
                     <CircleAlert size={16} color={C.amber} style={{ flexShrink: 0 }} />
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.amber, flex: 1 }}>제작자 주의사항 (워크플로 메모)</span>
@@ -1778,10 +1780,8 @@ export default function Teardown() {
                     </button>
                   </div>
                   {open.an && (
-                    <div style={{ marginTop: 8 }}>
-                      {report.authorNotes.map((t, i) => (
-                        <div key={i} style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>{t}</div>
-                      ))}
+                    <div style={{ marginTop: 10, paddingBottom: 16, fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                      {linkifyNote(report.authorNotes.join("\n\n"))}
                     </div>
                   )}
                 </div>

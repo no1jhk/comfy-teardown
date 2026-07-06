@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-06 (제작자 주의사항 블록 정비 · 이상노드 중복 제거)
+**한 일 / 추적 보고**
+1. [추적] "이상 노드 N개" 행은 summary.issues(open.an 밖의 별개 형제)로, 제작자 주의사항 토글(authorNotes만 감쌈)과 무관 = 토글 버그 아님. authorNotes(L462 노드 noteText)와 anomalous는 데이터도 별개. Findings "정체 미상 노드"(상세·행동)와 같은 anomalous라 중복 노출 → Summary 요약에서 이상노드 줄 제거, Findings로 일원화. (Summary 요약 카운트 복원 원하면 fix-forward) L1390.
+2. 열림 줄 간격 정상화: 노드별 메모를 per-원소 div(구분선+margin 8·8)로 쌓던 것 → authorNotes.join("\\n\\n") 단일 div(whiteSpace pre-wrap + lineHeight 1.6). 문단 구분(빈 줄) 유지, 한 줄마다 벌어짐 해소. 메모 내 URL은 linkifyNote로 클릭 링크(새 창, C.point). L1311·1783.
+3. 여백: 닫힘 헤더 컨테이너 paddingTop 20→24(Summary marginTop 24 토큰 통일), 열림 마지막 행 아래 paddingBottom 16(하단 경계 숨쉴 공간). L1773·1783.
+
+**어떻게**
+- 빌드 통과 + regression 통과. dev 화면 판정 전.
+
+**다음 할 일**
+- dev 판정 후 push. 이상노드 Summary 요약 복원 여부 확인.
+
 ## 2026-07-06 (표시층 6건 · 이미있음 링크형 · 방법B 간격)
 **한 일**
 1. footer: "© 2026 Comfy-teardown" → "Comfy-Teardown"(T 대문자). L2730.
