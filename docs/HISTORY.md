@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-07 (긴급: Value not in list 실패 감지 → red 승격)
+**배경(실증)**: 사용자 PC ComfyUI "Value not in list: ckpt_name: 'X' not in [...]" 검증 실패했으나 teardown은 노랑으로만 판정(판정 공백). 노드·파일명·형식만으론 실제 보유 파일 불일치를 모름.
+**한 일**
+1. 파싱: parseValueNotInList(L302)는 이미 존재했으나 별도 섹션(L2653) 렌더만 하고 등급 미반영이 공백. summary에서 parseValueNotInList(errlog) 계산.
+2. 등급 오버라이드: valueErrors.length>0 → quantBad·설치확인과 무관하게 최상위 빨강. diagLine "실행 시 값 오류가 확인되었습니다. ComfyUI가 거부한 값 N건 (예: {widget}={required})". 로그 기반 확정이라 확정형. L1440~. 로그 미입력 시 valueErrors 0 → 판정 없음(침묵) → 등급이 로그 유무에 따라 달라짐.
+3. 섹션 정합: 파일 이름 불일치 섹션(L2655~2658) point→red, 제목 "실행 시 값 오류 N건. ComfyUI가 이 값을 거부했습니다"로 판정 박스와 정합.
+4. regression: Value not in list 샘플 → 파싱 1건 + red 승격 테스트. 통과.
+5. [검토·보고] 한계 문구: 로그 없이 JSON만으론 파일 보유 불명 → 노랑/초록에 "에러 로그를 붙여넣으면 실행 시 값 오류(파일 불일치)까지 판정합니다" 한 줄 추가 제안(지시 대기).
+
+**어떻게**
+- 빌드 통과 + regression(VNIL red 승격) 통과.
+
+**다음 할 일**
+- 요청 A(서브그래프 UUID 대조·중복 확인) + 한계 문구 지시.
+
 ## 2026-07-06 (GGUF 박스 정비 + 양자화 카피 신판 통일 + 산출물 동기화)
 **한 일**
 1. GGUF 대체 세트 박스 그룹 구분: components(diffusion/텍스트인코더/VAE) 사이 + 필요 노드에 가로 구분선(개방형)+상하 15px(L2321·2328).

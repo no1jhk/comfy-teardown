@@ -173,6 +173,28 @@ console.log("\n" + "=".repeat(70) + "\nImport times 로그 파싱");
   else { console.log(`  ❌ 기대 installed 2/failed 1, 실제 ${pit.installed.length}/${pit.failed.length}`); fail++; }
 }
 
+// === Value not in list 파싱 → 로그 기반 red 승격 테스트 (실제 실행 실패 증거) ===
+console.log("\n" + "=".repeat(70) + "\nValue not in list (로그 기반 red 승격)");
+{
+  const parseVNIL = (log) => {
+    const out = [];
+    const re = /(\w+):\s*'([^']+?)'\s+not in\s+\[([^\]]+)\]/g;
+    let m;
+    while ((m = re.exec(log))) {
+      const cands = (m[3].match(/'([^']+)'/g) || []).map((s) => s.slice(1, -1));
+      if (cands.length) out.push({ widget: m[1], required: m[2], candidates: cands });
+    }
+    return out;
+  };
+  const SAMPLE = "Value not in list: ckpt_name: 'model_v2.ckpt' not in ['model_v1.ckpt', 'other.ckpt']";
+  const hits = parseVNIL(SAMPLE);
+  const gradeOverride = hits.length > 0 ? "red" : "none";
+  console.log(`  파싱 ${hits.length}건 (widget=${hits[0]?.widget}, 후보 ${hits[0]?.candidates.length}) · 등급 오버라이드 ${gradeOverride}`);
+  if (hits.length !== 1 || hits[0].widget !== "ckpt_name") { console.log("  ❌ VNIL 파싱 실패"); fail++; }
+  else if (gradeOverride !== "red") { console.log("  ❌ VNIL 감지 시 red 승격 실패"); fail++; }
+  else console.log("  ✅ Value not in list → red 승격 (ckpt_name · 후보 2)");
+}
+
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");
 for (const r of rows) console.log("  " + r.join("  |  "));

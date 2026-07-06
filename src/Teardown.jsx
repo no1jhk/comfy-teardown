@@ -1437,7 +1437,13 @@ export default function Teardown() {
     const checkInputs = (report.portability || []).filter((h) => /\.(png|jpe?g|webp|bmp|gif|tiff?|mp4|mov|webm|mkv|avi|wav|mp3|flac|ogg)$/i.test(h.value) && !/[\\/]/.test(h.value)).length; // 입력 파일 준비
     const yellowN = checkModels + checkInputs + gpuCheck;
     let grade, diagLine;
-    if (redNodes > 0) {
+    // 로그 기반 실제 실행 실패(Value not in list) — quantBad·설치확인과 무관하게 최상위 빨강 오버라이드(확정 증거)
+    const valueErrors = parseValueNotInList(errlog || "");
+    if (valueErrors.length > 0) {
+      grade = "red";
+      const fe = valueErrors[0];
+      diagLine = `실행 시 값 오류가 확인되었습니다. ComfyUI가 거부한 값 ${valueErrors.length}건 (예: ${fe.widget} = '${fe.required}')`;
+    } else if (redNodes > 0) {
       grade = "red";
       const parts = [];
       if (missingNodes.length) parts.push(hasLog ? `커스텀 노드 ${missingNodes.length}개 미설치` : `커스텀 노드 ${missingNodes.length}개 설치 확인 필요`);
@@ -2646,10 +2652,10 @@ export default function Teardown() {
             {/* 파일 이름 불일치. "Value not in list" errlog 직접 파싱 (PC에 있는 후보로 교체) */}
             {(() => { const hits = parseValueNotInList(errlog); return hits.length > 0 ? (
               <div className="td-fade" style={{ marginTop: 24 }}>
-                <div style={{ background: C.surface, border: `1px solid ${C.point}`, borderRadius: 14, padding: "20px 24px" }}>
+                <div style={{ background: C.surface, border: `1px solid ${C.red}`, borderRadius: 14, padding: "20px 24px" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
-                    <CircleAlert size={18} color={C.point} style={{ flexShrink: 0 }} />
-                    <span style={{ fontSize: 16, fontWeight: 700, color: C.point }}>파일 이름 불일치 {hits.length}건. PC에 있는 후보로 교체</span>
+                    <CircleAlert size={18} color={C.red} style={{ flexShrink: 0 }} />
+                    <span style={{ fontSize: 16, fontWeight: 700, color: C.red }}>실행 시 값 오류 {hits.length}건. ComfyUI가 이 값을 거부했습니다</span>
                   </div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
                     {hits.map((h, i) => (
