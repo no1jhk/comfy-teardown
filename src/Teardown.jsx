@@ -746,11 +746,11 @@ function buildPrescription(r, envGpu) {
   if (qw.length) {
     steps.push({
       key: "quant",
-      title: `양자화 비호환 ${qw.length}건 — 이 GPU에서 안 돌아갈 수 있음`,
-      severity: "high",
+      title: `GPU 점검 권장 모델 ${qw.length}건`,
+      severity: "mid",
       items: qw.map((w) => ({
         file: w.file,
-        desc: `${w.quant}은 ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "지원 안 됨" : "부분 지원(불안정)"} → ${w.alt}(으)로 교체하세요`,
+        desc: `${w.quant} 형식은 이 GPU(${GEN_LABEL[w.gen] || w.gen})에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 ${w.alt}${/fp8/i.test(w.quant) ? " 또는 bf16" : ""} 대체를 권장합니다.`,
         gguf: w.gguf,
       })),
     });
@@ -1002,7 +1002,7 @@ function buildMarkdown(report, summary, rx, env) {
   const mdQw = quantWarnings(report.models, env?.gpu);
   if (mdQw.length) {
     L.push(`### 3. 양자화 호환성 (${mdQw.length})`);
-    for (const w of mdQw) L.push(`- \`${w.file}\`: ${w.quant} → ${GEN_LABEL[w.gen] || w.gen} ${w.support === false ? "미지원" : "부분지원"} → ${w.alt} 권장`);
+    for (const w of mdQw) L.push(`- \`${w.file}\`: ${w.quant} 형식은 ${GEN_LABEL[w.gen] || w.gen}에서 기본 미지원(변환 경로로 실행될 수 있으나 불안정). ${w.alt}${/fp8/i.test(w.quant) ? " 또는 bf16" : ""} 대체 권장`);
     const seen = new Set();
     for (const w of mdQw) {
       if (!w.gguf) continue;
@@ -1055,7 +1055,7 @@ function buildBriefing(report, errlog, env) {
   L.push(``);
   if (qw.length) {
     L.push(`## 이미 발견된 양자화 호환성 문제 (Teardown 룰)`);
-    for (const w of qw) L.push(`- ${w.file}: ${w.quant} 형식 → ${GEN_LABEL[w.gen] || w.gen} GPU에서 ${w.support === false ? "미지원" : "부분지원"} → ${w.alt} 권장`);
+    for (const w of qw) L.push(`- ${w.file}: ${w.quant} 형식은 ${GEN_LABEL[w.gen] || w.gen}에서 기본 미지원(변환 경로로 실행될 수 있으나 불안정). ${w.alt}${/fp8/i.test(w.quant) ? " 또는 bf16" : ""} 대체 권장`);
     const seen = new Set();
     for (const w of qw) {
       if (!w.gguf) continue;
@@ -1765,7 +1765,7 @@ export default function Teardown() {
                     const a0 = alts[0];
                     left = (<>
                       <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                        <span style={{ fontFamily: MONO }}>{a0.name}</span> 다운로드</div>
+                        <span style={{ fontFamily: MONO }}>{a0.name}</span> 다운로드 <span style={{ fontSize: 15, color: C.faint, fontWeight: 400 }}>(권장)</span></div>
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{a0.folder}</span> 폴더에 넣으세요</div>
                       <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>
                         원본 <span style={{ fontFamily: MONO }}>{s.value}</span>은 이 GPU에서 기본 미지원. 안정 실행엔 GGUF 권장
@@ -2312,20 +2312,20 @@ export default function Teardown() {
                               {it.file ? (
                                 <div style={{ minWidth: 0, flex: 1 }}>
                                   <div style={{ fontSize: 20, fontWeight: 600, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.file}</div>
-                                  <div style={{ fontSize: 20, fontWeight: 400, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere", marginTop: 4 }}>{it.desc}</div>
+                                  <div style={{ fontSize: 18, fontWeight: 400, color: C.dim, lineHeight: 1.5, overflowWrap: "anywhere", marginTop: 4 }}>{it.desc}</div>
                                   {it.gguf && (
                                     <div style={{ marginTop: 10, background: C.bg, border: `1px solid ${C.point}55`, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
-                                      <div style={{ fontWeight: 700, color: C.point, marginBottom: 6, fontSize: 14 }}>GGUF 대체 세트 (이 GPU에서 동작)</div>
+                                      <div style={{ fontWeight: 700, color: C.point, marginBottom: 6, fontSize: 14 }}>GGUF 대체 세트 (권장 · 이 GPU에서 안정 동작)</div>
                                       <div>{it.gguf.note}</div>
                                       {(it.gguf.components || []).map((c, ci) => (
-                                        <div key={ci} style={{ marginTop: 9 }}>
+                                        <div key={ci} style={{ marginTop: ci > 0 ? 15 : 9, paddingTop: ci > 0 ? 15 : 0, borderTop: ci > 0 ? `1px solid ${C.line}` : "none" }}>
                                           <div style={{ fontWeight: 650, color: C.text, fontSize: 13 }}>{c.role} · <span style={{ fontFamily: MONO, color: C.point }}>{c.folder}</span></div>
                                           {c.files.map((f, fi) => (
                                             <div key={fi} style={{ marginTop: 3, paddingLeft: 12, overflowWrap: "anywhere" }}>· <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point }}>{f.name}</a>{f.size ? <span style={{ color: C.faint }}> ({f.size})</span> : ""}{f.note ? <span style={{ color: C.faint }}>. {f.note}</span> : ""}</div>
                                           ))}
                                         </div>
                                       ))}
-                                      {it.gguf.node && <div style={{ marginTop: 9 }}>필요 노드: <a href={it.gguf.node.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.node.name}</a></div>}
+                                      {it.gguf.node && <div style={{ marginTop: 15, paddingTop: 15, borderTop: `1px solid ${C.line}` }}>필요 노드: <a href={it.gguf.node.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.node.name}</a></div>}
                                     </div>
                                   )}
                                 </div>

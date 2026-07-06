@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-06 (GGUF 박스 정비 + 양자화 카피 신판 통일 + 산출물 동기화)
+**한 일**
+1. GGUF 대체 세트 박스 그룹 구분: components(diffusion/텍스트인코더/VAE) 사이 + 필요 노드에 가로 구분선(개방형)+상하 15px(L2321·2328).
+2. 양자화 부연 스타일: it.desc color C.text→C.dim, fontSize 20→18(Install desc 토큰 정합, L2315).
+3. 양자화 카피 신판 통일(fc21fa7 미교체분):
+   - env step 제목 "양자화 비호환 N건 — 이 GPU에서 안 돌아갈 수 있음"→"GPU 점검 권장 모델 N건"(em dash 제거)(L749). severity high→mid → 번호 원·제목 C.red→C.point 자동(빨강 제거).
+   - desc 확정형→조건형: "{quant}은 …지원 안 됨 → 교체"→"{quant} 형식은 이 GPU(Ampere)에서 기본 지원되지 않습니다. …변환 경로로 실행될 수 있으나 불안정…. 안정 실행에는 GGUF(fp8은 +bf16) 대체를 권장"(L753).
+   - GGUF 세트 박스 제목 "(이 GPU에서 동작)"→"(권장 · 이 GPU에서 안정 동작)"(L2318). slot GGUF 대체 다운로드에 "(권장)" 라벨(L1768). 차단 카운트 미포함(quantBad=노랑).
+   - [전수] 확정형/화살표 잔존: GPU 관련 전부 교체 완료. broken "실행 불가"(L1424·2355)·Manager "검색 안 됨"(L766·840)은 실제 차단/팩트라 유지.
+4. 산출물 동기화: buildMarkdown(L1005)·buildBriefing(L1058) 양자화 문구 신판(기본 미지원·변환 경로·대체 권장).
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- dev 판정 후 push.
+
 ## 2026-07-06 (콘솔 로그 설치 확인 + 표기 정직화)
 **한 일**
 1. Import/Prestartup times 파싱: parseComfyLog에 "N seconds: /path/Pack" 경로 마지막 폴더명 → installedPacks, "(IMPORT FAILED)" → importFailed(소문자 basename). 브라우저 로컬. packInstalled 헬퍼. L188~. env 상태 + onEnvLog 반영.
