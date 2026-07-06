@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-06 (P0 마무리 — 모델표 GPU 미입력 안내 + 잔여 축 감사)
+**한 일 / 감사**
+1. 모델표(step.models)에 GPU 미입력 fp 안내: qwHit(quantWarnings 미입력 [])+gpuGeneration falsy+detectQuant(fp) 조건 → dim 안내(slot·RNF와 동일 문구). 판정 아님(등급 무영향). L2199.
+2. [잔여 축 전수 감사] GPU 제외 판정 지점 재스캔 → 추가 수정 대상 없음(GPU가 유일). 스캔 키워드·필드: || "ampere"(GPU·완료), vram_gb/size_gb(DB 표시), env.os(필드 없음), rule.alt·folder||(DB fallback), modelRoot(표준 폴더), torch/cuda(명시적 미판정), || fallback(표시용). 전부 표시/DB팩트/값기반/명시적 미판정 → 미입력 추정 판정 없음.
+   - regression: GPU 입력 케이스 Silent Snow FP8 quantBad 2 + 등급 red 검증 추가. gpu입력=red·quantBad2 / 미입력=yellow·quantBad0 2케이스 완비.
+
+**어떻게**
+- 빌드 통과 + regression(2케이스 + quantBad 2 검증) 통과.
+
+**다음 할 일**
+- dev 판정 후 push. 모델표 GPU 미입력 시 fp 안내 확인.
+
 ## 2026-07-06 (P0 무입력 판정 전수 감사 + GPU 기본값 제거 완결)
 **전수 감사(작업1) / 수정**
 - [감사] 미입력 정보로 판정하는 지점 전수 스캔. 실질 수정 3건, 유지 5건(근거 병기).

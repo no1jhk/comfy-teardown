@@ -2196,6 +2196,7 @@ export default function Teardown() {
                                   {src && !qwHit && <span style={{ fontFamily: SANS, fontSize: 13, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
                                   {m.rename && <div style={{ fontSize: 13, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>⤷ {m.rename}</div>}
                                   {al && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>다른 이름: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div>}
+                                  {!qwHit && !gpuGeneration(env.gpu) && detectQuant(m.file) && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>이 형식({detectQuant(m.file)})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
                                 </div>
                                 <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 13, color: qwHit ? C.faint : C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{dest}</div>
                                 <div style={{ minWidth: 0 }}>

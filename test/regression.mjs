@@ -142,6 +142,11 @@ for (const f of files) {
   const gNull = gradeFromRecipes(rNull);
   if (GRADE_EXPECT[f]?.none && gNull !== GRADE_EXPECT[f].none) { console.log(`  ❌ (gpu미입력) 등급 기대 ${GRADE_EXPECT[f].none}, 실제 ${gNull}`); fail++; }
   if (gNull === "red") { console.log(`  ❌ GPU 미입력인데 등급 red → GPU 사유 빨강 잔존`); fail++; }
+  // GPU 입력 케이스: Silent Snow FP8은 gpu 지정 시 quantBad 2 + 등급 red
+  if (f === "Silent Snow LTX2.3 Kjai FP8.json") {
+    if (qbAmp !== 2) { console.log(`  ❌ Silent Snow gpu입력 quantBad 기대 2, 실제 ${qbAmp}`); fail++; }
+    else console.log(`  ✅ Silent Snow gpu입력 quantBad 2 + 등급 ${gradeFromRecipes(rAmp)}`);
+  }
 }
 console.log(`  ✅ GPU 미입력: quantBad 0(판정 부재) + fp 파일 quantUnknown 전환 + 등급 red 없음(GPU 사유 제외)`);
 
