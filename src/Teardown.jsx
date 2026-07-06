@@ -1447,7 +1447,7 @@ export default function Teardown() {
     } else if (redNodes > 0) {
       grade = "red";
       const parts = [];
-      if (missingNodes.length) parts.push(hasLog ? `커스텀 노드 ${missingNodes.length}개 미설치` : `커스텀 노드 ${missingNodes.length}개 설치 확인 필요`);
+      if (missingNodes.length) { const { groups, solo } = groupNodesByRepo(missingNodes); const packN = groups.length + solo.length; parts.push(hasLog ? `커스텀 노드 팩 ${packN}개 미설치` : `커스텀 노드 팩 ${packN}개 설치 확인 필요`); }
       if (failedNodes.length) parts.push(`로드 실패 노드 ${failedNodes.length}개`);
       if (report.anomalous?.length) parts.push(`정체 미상 노드 ${report.anomalous.length}개`);
       if (report.broken?.length) parts.push(`이름 확인 불가 노드 ${report.broken.length}개`);
@@ -1496,11 +1496,20 @@ export default function Teardown() {
       const nm = inst.map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop());
       rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), kind: "install" });
     }
-    for (const t of rxTodos.filter((x) => x.kind === "node")) rows.push({ n: ++n, verb: "확인", text: `${t.u.type} 출처를 확인해 주세요`, kind: "node" });
+    // 확인 — 출처 미상 노드를 1행으로 병합(노드명 목록 + 폴백)
+    const nodeTodos = rxTodos.filter((x) => x.kind === "node");
+    if (nodeTodos.length) rows.push({ n: ++n, verb: "확인", text: `출처 미상 노드 ${nodeTodos.length}개`, nodes: nodeTodos.map((t) => t.u.type), kind: "node" });
+    // 받기 — 동일 파일명(경로 제거·소문자 basename)을 1행으로 병합(넣기 폴더·선택 N줄)
+    const byFile = {};
     for (const t of rxTodos.filter((x) => x.kind === "model")) {
-      const s = t.s;
-      const conf = s.src === "curated" || s.src === "manager" || s.src === "manager_live";
-      rows.push({ n: ++n, verb: "받기", text: s.value, folder: s.folder !== "확인 필요" ? s.folder : null, badge: conf ? "확정" : "확인 필요", nodeType: t.nodeType, s, kind: "model" });
+      const base = t.s.value.replace(/\\/g, "/").split("/").pop().toLowerCase();
+      (byFile[base] ||= []).push(t);
+    }
+    for (const grp of Object.values(byFile)) {
+      const s0 = grp[0].s;
+      const conf = s0.src === "curated" || s0.src === "manager" || s0.src === "manager_live";
+      const folders = [...new Set(grp.map((t) => t.s.folder).filter((f) => f && f !== "확인 필요"))];
+      rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: conf ? "확정" : "확인 필요", selects: grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value })), s: s0, kind: "model" });
     }
     for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
@@ -1738,12 +1747,14 @@ export default function Teardown() {
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: SANS, fontSize: 15, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
-                      {r.kind === "model" && r.folder && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: <span style={{ fontFamily: MONO }}>{r.folder}</span></div>}
-                      {r.kind === "model" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {r.nodeType}: <span style={{ fontFamily: MONO }}>{r.s.value}</span></div>}
+                      {r.kind === "model" && r.folders && r.folders.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {r.folders.map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
+                      {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
+                      {r.kind === "node" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.nodes.map((nd, ni) => <span key={ni} style={{ fontFamily: MONO }}>{ni > 0 ? " · " : ""}{nd}</span>)}</div>}
                     </div>
                     <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {r.kind === "install" && <a className="td-hf td-outline-w" href="#rx-detail">스크립트 보기</a>}
                       {r.kind === "model" && (r.s.url && r.s.url !== "확인 필요" ? <a className="td-hf" href={r.s.url} target="_blank" rel="noopener noreferrer">링크 ↗</a> : <a className="td-hf td-outline-w" href={searchUrl(r.s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, r.s.value)}>HuggingFace 검색 ↗</a>)}
+                      {r.kind === "node" && <a className="td-hf td-outline-w" href="#rx-detail">Manager 검색 안내</a>}
                     </div>
                   </div>
                 ))}

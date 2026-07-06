@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-07 (액션 테이블 결함 3건)
+**한 일 / 실측**
+1. 받기 행 파일 단위 그룹핑: 동일 basename(경로 제거·소문자) 슬롯 1행 병합(받기+넣기 폴더[다르면 각각]+선택 N줄). L1500~1511·1749~1751. 실측(regression): Video To Audio 받기 4→2(dev-fp8 3병합+lora). ACTION_MODEL_EXPECT Video 4→2.
+2. 미상 노드 확인 행 병합: node todo N개→1행("출처 미상 노드 N개"+노드명 목록+Manager 검색 안내 버튼). L1497~1499·1751·1755. 실측(node 근사): krea2 solo 9→1행, Full solo 2→1행.
+3. 빨강 판정문 팩 기준: "커스텀 노드 N개"→"커스텀 노드 팩 N개"(groupNodesByRepo 그룹+solo). L1450. 실측(node 근사·prefix 생략): krea2 미매핑 15→팩 13, Full 2→팩 2. [정확값은 Teardown analyze repoForUnmapped prefix(rgthree 접미 등)+mgrMap 포함이라 더 적음 — dev 확인. 사용자 목표 krea2 5·Full 1은 prefix 포함 기준.]
+
+**어떻게**
+- 빌드 통과 + regression(받기 병합 유니크 basename) 통과.
+
+**다음 할 일**
+- dev에서 krea2/Full 팩 수·확인 행 실측 확정(prefix 포함).
+
 ## 2026-07-07 (신규 fixtures 전수 실측 + 중복 판별)
 **실측 결과 / 한 일**
 0. [중복 판별] "Silent Snow LTX2.3 Kjai FP8 2.json" = "…FP8.json" 바이트 동일(shasum 921986…) → 삭제 권장했으나 rm 권한 거부 → 사용자 삭제 요청. "LTX2_3_…(underscore)"(5403) ≠ "LTX2.3 …(space)"(f21d): 노드 74 동일이나 slots 8/quantBad 2 vs slots 1/quantBad 0(설정 반영본 차이) → 유지.
