@@ -150,6 +150,29 @@ for (const f of files) {
 }
 console.log(`  ✅ GPU 미입력: quantBad 0(판정 부재) + fp 파일 quantUnknown 전환 + 등급 red 없음(GPU 사유 제외)`);
 
+// === Import times 로그 파싱 단위 테스트 (Teardown parseComfyLog Import 블록과 동일 정규식) ===
+console.log("\n" + "=".repeat(70) + "\nImport times 로그 파싱");
+{
+  const parseImportTimes = (text) => {
+    const installed = [], failed = [];
+    const re = /^\s*[\d.]+\s*seconds?\s*(\(IMPORT FAILED\))?\s*:\s*(.+?)\s*$/gim;
+    let m;
+    while ((m = re.exec(text))) {
+      const base = m[2].replace(/[\\/]+$/, "").split(/[\\/]/).pop().replace(/\.py$/i, "").toLowerCase();
+      if (!base) continue;
+      if (m[1]) failed.push(base); else installed.push(base);
+    }
+    return { installed, failed };
+  };
+  const SAMPLE = "Import times for custom nodes:\n   0.0 seconds: /root/ComfyUI/custom_nodes/websocket_image_save.py\n   0.3 seconds: /root/ComfyUI/custom_nodes/ComfyUI-KJNodes\n   1.2 seconds (IMPORT FAILED): /root/ComfyUI/custom_nodes/ComfyUI-Trellis2";
+  const pit = parseImportTimes(SAMPLE);
+  console.log(`  installed: ${pit.installed.join(", ")} · failed: ${pit.failed.join(", ")}`);
+  if (!pit.installed.includes("comfyui-kjnodes")) { console.log("  ❌ ComfyUI-KJNodes 설치 파싱 실패"); fail++; }
+  if (!pit.failed.includes("comfyui-trellis2")) { console.log("  ❌ IMPORT FAILED 파싱 실패"); fail++; }
+  if (pit.installed.length === 2 && pit.failed.length === 1) console.log("  ✅ Import times 파싱: installed 2(kjnodes·websocket) + failed 1(trellis2)");
+  else { console.log(`  ❌ 기대 installed 2/failed 1, 실제 ${pit.installed.length}/${pit.failed.length}`); fail++; }
+}
+
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");
 for (const r of rows) console.log("  " + r.join("  |  "));

@@ -185,13 +185,27 @@ function buildLearnedSnippet(learned) {
 
 // ComfyUI 시작 로그에서 GPU/torch/CUDA 추출
 function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "" };
+  const out = { gpu: "", torch: "", cuda: "", installedPacks: [], importFailed: [] };
   const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
   if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
   const g = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?RTX\s*(\d{4})\s*(Ti|Super)?/i);
   if (g) out.gpu = "RTX " + g[1] + (g[2] ? " " + g[2] : "");
   else { const g2 = text.match(/([AB]\d{3,4}|RTX\s*A?\d{4,5})/i); if (g2) out.gpu = g2[0].trim(); }
+  // Import/Prestartup times 블록: "0.1 seconds: /path/PackName" 경로 마지막 폴더명 → 설치 확인(로컬 파싱). "(IMPORT FAILED)"는 로드 실패.
+  const re = /^\s*[\d.]+\s*seconds?\s*(\(IMPORT FAILED\))?\s*:\s*(.+?)\s*$/gim;
+  let m;
+  while ((m = re.exec(text))) {
+    const base = m[2].replace(/[\\/]+$/, "").split(/[\\/]/).pop().replace(/\.py$/i, "").toLowerCase();
+    if (!base) continue;
+    if (m[1]) out.importFailed.push(base); else out.installedPacks.push(base);
+  }
   return out;
+}
+// 처방 repo 폴더명이 로그의 설치 팩에 있는지 (소문자 basename 비교)
+function packInstalled(repoOrClone, installedPacks) {
+  if (!repoOrClone || !installedPacks?.length) return false;
+  const base = repoOrClone.replace(/\.git$/, "").replace(/[\\/]+$/, "").split(/[\\/]/).pop().toLowerCase();
+  return installedPacks.includes(base);
 }
 
 const GPU_OPTIONS = ["RTX 3060","RTX 3070","RTX 3080","RTX 3090","RTX 4060","RTX 4070","RTX 4080","RTX 4090","RTX 5070","RTX 5080","RTX 5090"];
@@ -1194,14 +1208,14 @@ export default function Teardown() {
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const [envOpen, setEnvOpen] = useState(false);
   const [envLog, setEnvLog] = useState("");
-  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", modelRoot: "" });
+  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", modelRoot: "", installedPacks: [], importFailed: [] });
   const [cmdOpen, setCmdOpen] = useState(false);
   const [mgrMap, setMgrMap] = useState(null); // manager_node_map.json (비동기 로드)
   useEffect(() => { fetch("/manager_node_map.json").then((r) => r.ok ? r.json() : null).then(setMgrMap).catch(() => {}); }, []);
   const onEnvLog = (text) => {
     setEnvLog(text);
     const parsed = parseComfyLog(text);
-    setEnv((prev) => ({ gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda }));
+    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed }));
   };
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);
@@ -1413,7 +1427,12 @@ export default function Teardown() {
     const allSlots = recipes.flatMap((r) => r.slots);
     // 실증(RTX3090+ComfyUI 0.25.1): fp8_scaled가 변환(dequantize) 경로로 실행됨 → quantBad는 '실행 불가 확정'이 아니라 'GPU 점검 권장'(노랑).
     const gpuCheck = allSlots.filter((s) => s.quantBad).length;   // fp8 등 GPU 점검 권장(빨강 아님, 노랑 카운트)
-    const redNodes = (report.unmapped?.length || 0) + (report.anomalous?.length || 0) + (report.broken?.length || 0); // 미설치·정체미상·깨진 노드(실행 불가 확정)
+    // 콘솔 로그 설치 확인: installed는 제외, importFailed(로드 실패)는 빨강 유지(실제 차단)
+    const instPacks = env?.installedPacks || [], failPacks = env?.importFailed || [];
+    const hasLog = instPacks.length > 0 || failPacks.length > 0;
+    const missingNodes = (report.unmapped || []).filter((u) => !packInstalled(u.repo || u.clone_url, instPacks) && !packInstalled(u.repo || u.clone_url, failPacks));
+    const failedNodes = (report.unmapped || []).filter((u) => packInstalled(u.repo || u.clone_url, failPacks));
+    const redNodes = missingNodes.length + failedNodes.length + (report.anomalous?.length || 0) + (report.broken?.length || 0); // 미설치·로드실패·정체미상·깨진 노드
     const checkModels = allSlots.filter((s) => !s.quantBad).length; // 점검 대상 모델 슬롯
     const checkInputs = (report.portability || []).filter((h) => /\.(png|jpe?g|webp|bmp|gif|tiff?|mp4|mov|webm|mkv|avi|wav|mp3|flac|ogg)$/i.test(h.value) && !/[\\/]/.test(h.value)).length; // 입력 파일 준비
     const yellowN = checkModels + checkInputs + gpuCheck;
@@ -1421,7 +1440,8 @@ export default function Teardown() {
     if (redNodes > 0) {
       grade = "red";
       const parts = [];
-      if (report.unmapped?.length) parts.push(`커스텀 노드 ${report.unmapped.length}개 미설치`);
+      if (missingNodes.length) parts.push(hasLog ? `커스텀 노드 ${missingNodes.length}개 미설치` : `커스텀 노드 ${missingNodes.length}개 설치 확인 필요`);
+      if (failedNodes.length) parts.push(`로드 실패 노드 ${failedNodes.length}개`);
       if (report.anomalous?.length) parts.push(`정체 미상 노드 ${report.anomalous.length}개`);
       if (report.broken?.length) parts.push(`이름 확인 불가 노드 ${report.broken.length}개`);
       diagLine = `현재 상태로는 실행되지 않습니다. ${parts.join(" · ")}`;
@@ -1690,10 +1710,22 @@ export default function Teardown() {
                   const cloneUrl = g.clone_url || (g.repo ? (g.repo.startsWith("https://") ? g.repo.replace(/\/?$/, ".git") : `https://github.com/${g.repo}.git`) : null);
                   const ghUrl = g.clone_url ? g.clone_url.replace(/\.git$/, "") : (g.repo ? (g.repo.startsWith("https://") ? g.repo : `https://github.com/${g.repo}`) : null);
                   const repoEl = <span style={{ fontFamily: MONO, color: C.point }}>{repoFull}</span>;
-                  left = (<>
+                  const installed = packInstalled(g.repo || g.clone_url, env.installedPacks);
+                  const loadFailed = packInstalled(g.repo || g.clone_url, env.importFailed);
+                  const typeCounts = {}; for (const ty of g.types) typeCounts[ty] = (typeCounts[ty] || 0) + 1;
+                  const typesLabel = Object.entries(typeCounts).map(([n, c]) => c > 1 ? `${n} ${c}개` : n).join(" · ");
+                  left = installed ? (<>
+                    <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: C.faint, textDecoration: "line-through", lineHeight: 1.3, overflowWrap: "anywhere" }}>
+                      <span style={{ fontFamily: MONO }}>{repoName}</span> 설치 확인됨</div>
+                    <div style={{ fontSize: 14, color: C.green, marginTop: 6, lineHeight: 1.5 }}>콘솔 로그에서 설치가 확인됐습니다. (해결 노드: {typesLabel})</div>
+                  </>) : loadFailed ? (<>
+                    <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: C.red, lineHeight: 1.3, overflowWrap: "anywhere" }}>
+                      <span style={{ fontFamily: MONO }}>{repoName}</span> 로드 실패</div>
+                    <div style={{ fontSize: 14, color: C.red, marginTop: 6, lineHeight: 1.5 }}>설치됐지만 로드에 실패했습니다. 로그의 해당 에러를 확인하세요. (해결 노드: {typesLabel})</div>
+                  </>) : (<>
                     <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
                       <span style={{ fontFamily: MONO }}>{repoName}</span> 설치</div>
-                    <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>해결되는 노드 {g.types.length}개: {g.types.join(" · ")}</div>
+                    <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>해결되는 노드 {g.types.length}개: {typesLabel}</div>
                     <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
                       <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "10px 12px", boxSizing: "border-box" }}>
                         <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>git clone {cloneUrl}</code>
@@ -1703,7 +1735,7 @@ export default function Teardown() {
                       {ghUrl && <a className="td-hf td-outline-w" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
                     </div>
                     <div style={{ fontSize: 14, color: C.text, marginTop: 8, lineHeight: 1.6 }}>
-                      {g.repoSrc === "prefix" ? <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장 {repoEl} 가 설치되어 있지 않습니다.</>}
+                      {g.repoSrc === "prefix" ? <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장 {repoEl} 가 설치돼 있는지 확인해 주세요.</>}
                     </div>
                     <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>
                       {g.repoSrc === "manager" ? "ComfyUI Manager에서 설치할 수 있습니다." : g.repoSrc === "prefix" ? "설치 전 저장소를 확인해 주세요." : "출처 확인된 저장소입니다."}
@@ -1888,7 +1920,7 @@ export default function Teardown() {
                               const repoEl = <span style={{ fontFamily: MONO, color: C.point }}>{(u.repo || u.clone_url || "").replace("https://github.com/", "").replace(/\.git$/, "")}</span>;
                               return (<>
                               <div style={{ marginTop: 8, fontSize: 14, color: C.text, lineHeight: 1.6 }}>
-                                {u.repoSrc === "prefix" ? <>이 노드를 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>이 노드를 제공하는 확장 {repoEl} 가 설치되어 있지 않습니다.</>}
+                                {u.repoSrc === "prefix" ? <>이 노드를 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>이 노드를 제공하는 확장 {repoEl} 가 설치돼 있는지 확인해 주세요.</>}
                               </div>
                               <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>
                                 {u.repoSrc === "manager" ? "ComfyUI Manager에서 설치할 수 있습니다." : u.repoSrc === "prefix" ? "설치 전 저장소를 확인해 주세요." : "출처 확인된 저장소입니다."}

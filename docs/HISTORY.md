@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-06 (콘솔 로그 설치 확인 + 표기 정직화)
+**한 일**
+1. Import/Prestartup times 파싱: parseComfyLog에 "N seconds: /path/Pack" 경로 마지막 폴더명 → installedPacks, "(IMPORT FAILED)" → importFailed(소문자 basename). 브라우저 로컬. packInstalled 헬퍼. L188~. env 상태 + onEnvLog 반영.
+2. 처방·등급 반영: nodegroup 항목이 installedPacks에 있으면 "설치 확인됨"(line-through+green, clone 미표시), importFailed면 "로드 실패"(red 유지). 등급 redNodes = 미설치(missingNodes)+로드실패(failedNodes)+정체미상+깨진. installed 제외로 빨강 오탐 해소. L1430~1443·1707~.
+   - 문구 정직화: 로그 미입력 시 "N개 미설치"→"N개 설치 확인 필요"(hasLog 분기). "설치되어 있지 않습니다"→"설치돼 있는지 확인해 주세요" 2곳(L1738·1923).
+3. 중복 표기: 해결 노드 같은 이름 합산 "Label (rgthree) 2개"(typeCounts, L1710 typesLabel).
+5. regression: Import times 파싱 단위 테스트(샘플→installed 2+failed 1) 추가. 통과.
+- [작업4 GGUF (권장) 라벨은 이어지는 GGUF 박스 정비 라운드에서 통합]
+
+**어떻게**
+- 빌드 통과 + regression(Import times 파싱) 통과.
+
+**다음 할 일**
+- dev 판정 후 push. GGUF 박스 정비(별건) 이어서.
+
 ## 2026-07-06 (한글 폰트 정합: Pretendard Variable)
 **한 일**
 1. Pretendard Variable 웹폰트 로드: index.html에 공식 jsdelivr CDN link 추가(dynamic subset, 사용 글리프만 로드 → 성능). v1.3.9. index.html L7.
