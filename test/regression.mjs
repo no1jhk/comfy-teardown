@@ -33,6 +33,7 @@ const GRADE_EXPECT = {
   "LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json": { ampere: "yellow", none: "yellow" },
   "LTX2.3 8GB VRAM workflow + Audio to Video.json": { ampere: "yellow", none: "yellow" },
   "Silent Snow LTX2.3 Kjai FP8.json": { ampere: "yellow", none: "yellow" },
+  "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json": { ampere: "yellow", none: "yellow" }, // 실측: bf16 UNET/CLIP/VAE·quantBad 0
 };
 let fail = 0;
 const rows = [];

@@ -6,6 +6,23 @@
 
 ---
 
+## 2026-07-07 (fixtures 실측 + B5 문구)
+**실측 결과 / 한 일**
+1. [작업1 실측 불가] "Silent Snow LTX2.3 Full.json" fixtures 미편입(krea2만 편입됨) → #5288 서브그래프 실측 불가. 파일 재편입 요청. (서브그래프 대조 로직·regression 단위 테스트는 6b09d45에 이미 반영·통과.)
+2. [작업2 실측 불가] "Ltx2.3 Video To Audio Deno workflow.json" fixtures 미편입 → 등급 실측 불가. VNIL 로그 샘플도 인수인계/테스트에 없음 → 로그 샘플 필요(날조 금지).
+3. [작업3 krea2 실측 완료] normalize/buildRecipes 크래시 없음(recipes 3).
+   - 참조 모델: ema_vae_fp16 · Krea 2\\krea2_raw_bf16 · qwen3vl_4b_bf16 · Wan2.1_VAE_upscale2x · depth_anything_v2_vitl.pth · seedvr2_ema_7b_sharp_fp8_e4m3fn_mixed · krea 2\\krea2DepthControlnet_v10.
+   - Note "RAW"/"turbo" 존재: "TURBO LORA … Use the Raw main model … leave turbo lora on 1.0", "full turbo model is not good at realism", "Main Model: Krea 2 RAW … Bf16 & FP8 … GGUF versions".
+   - UNETLoader: unet_name=Krea 2\\krea2_raw_bf16.safetensors → 폴더 models/unet(src rule).
+   - regression: krea2 GRADE_EXPECT {ampere:yellow, none:yellow}(bf16·quantBad 0) 추가. 통과. (로직 변경 없음.)
+4. [B5 문구] 판정 박스 아래(노랑·초록 + 로그 미입력) dim 한 줄 "에러 로그를 붙여넣으면 실행 시 값 오류까지 판정해 드립니다."(L1699). GPU 미입력 dim 안내와 같은 톤·위치.
+
+**어떻게**
+- 빌드 통과 + regression(krea2 yellow) 통과.
+
+**다음 할 일**
+- Full.json·Video To Audio.json 재편입 후 #5288·등급 실측.
+
 ## 2026-07-07 (서브그래프 UUID 대조 + 중복 합산 확인)
 **한 일 / 보고**
 1. 정체 미상(UUID형) 노드 서브그래프 대조: normalize에 subgraphIds(definitions.subgraphs[].id) 추출(L352). analyze isUuidType 판정 시 norm.subgraphIds에 있으면 anomalous 제외(정상 서브그래프 참조 — 재귀로 내부 진단, Findings 미노출·빨강 카운트 제외)(L483). 정의 없는 진짜 미상만 anomalous 유지.

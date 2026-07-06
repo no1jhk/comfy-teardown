@@ -1695,6 +1695,9 @@ export default function Teardown() {
                 <span style={{ fontSize: 15, fontWeight: 700, color: gc, lineHeight: 1.5 }}>{summary.diagLine}</span>
               </div>);
             })()}
+            {summary && (summary.grade === "yellow" || summary.grade === "green") && !errlog?.trim() && (
+              <div style={{ fontSize: 13, color: C.dim, marginTop: 8, marginBottom: 20, lineHeight: 1.5 }}>에러 로그를 붙여넣으면 실행 시 값 오류까지 판정해 드립니다.</div>
+            )}
             {rxTodos.length > 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
               <div style={{ minWidth: 0 }}>
