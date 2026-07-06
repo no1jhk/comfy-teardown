@@ -1750,7 +1750,7 @@ export default function Teardown() {
           {/* ── 경계 divider: 존 컨테이너의 top edge에 absolute 걸침(translateY -50%). 텍스트가 라인에 수직 중앙, 배경 투명(상반부 밝은/하반부 어두운). 부모(존) 폭 기준 full-bleed(100vw 아님 → 가로 스크롤 없음). ── */}
           <div onClick={() => setDetailOpen((v) => !v)} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
-            <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.dim, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, color: C.divider, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
               <span>자세한 진단 보기</span>
               {detailOpen ? <Minus size={21} color={C.dim} /> : <Plus size={21} color={C.dim} />}
             </div>
@@ -1780,8 +1780,8 @@ export default function Teardown() {
                     </button>
                   </div>
                   {open.an && (
-                    <div style={{ marginTop: 10, paddingBottom: 16, fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
-                      {linkifyNote(report.authorNotes.join("\n\n"))}
+                    <div style={{ marginTop: 10, paddingBottom: 16, paddingLeft: 24, fontSize: 13, color: C.dim, lineHeight: 1.6, whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
+                      {linkifyNote(report.authorNotes.map((t) => t.replace(/\n{2,}/g, "\n")).join("\n"))}
                     </div>
                   )}
                 </div>
@@ -1896,8 +1896,8 @@ export default function Teardown() {
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
-                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>[탭: {r.tab}]</span>}
-                      {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>[서브그래프]</span>}
+                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[탭: {r.tab}]</span>}
+                      {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[서브그래프]</span>}
                       {isAdmin && r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>⚠ offset 보정됨</span>}
                     </div>
                     {/* 슬롯 표 */}
@@ -2059,7 +2059,7 @@ export default function Teardown() {
                               { os: "Windows", label: "Portable/일반", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
                               { os: "macOS/Linux", label: "일반 설치", path: "~/ComfyUI/custom_nodes" },
                             ].map((p, pi) => (
-                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "flex-start", gap: 10, paddingTop: pi > 0 ? 8 : 6, marginTop: pi > 0 ? 8 : 6, borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
+                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "center", gap: 10, minHeight: 40, paddingTop: pi > 0 ? 8 : 6, marginTop: pi > 0 ? 8 : 6, borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
                                 <span style={{ fontSize: 13, color: C.faint, flexShrink: 0, minWidth: 110 }}>{p.os} · {p.label}:</span>
                                 <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, overflowWrap: "anywhere", flex: 1, minWidth: 0 }}>{p.path}</code>
                                 <button className="td-copy" onClick={() => copy(p.path, `cn-${p.os}-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
@@ -2135,7 +2135,7 @@ export default function Teardown() {
                               ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
                               : <div style={{ fontSize: 13, color: C.dim, marginBottom: 10 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""}</div>;
                           })()}
-                          <div style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있으면 체크'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
+                          <div style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있으면 체크 ✓'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
                           {(() => {
                             // 양자화 비호환 모델 lookup (파일명 → warning+gguf)
                             const qwMap = {};
@@ -2143,7 +2143,7 @@ export default function Teardown() {
                             return (
                           <div style={{ borderTop: `1px solid ${C.divider}` }}>
                             <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>
-                              {["받을 파일", "어디에 둘지", "정상 용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "right" : "left" }}>{h}</span>)}
+                              {["받을 파일", "어디에 둘지", "정상 용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "center" : "left" }}>{h}</span>)}
                             </div>
                             {step.models.map((m, k) => {
                               const live = liveCompat[m.file];
@@ -2195,7 +2195,7 @@ export default function Teardown() {
                                       ) : (
                                         <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
                                       )}
-                                      <button className="td-havelink" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, padding: "4px 6px", whiteSpace: "nowrap" }}>이미 있으면 체크</button>
+                                      <button className="td-havelink" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, padding: "4px 6px", whiteSpace: "nowrap" }}>이미 있으면 체크 ✓</button>
                                     </>
                                   )}
                                 </div>
@@ -2727,7 +2727,7 @@ export default function Teardown() {
           </div>)}
           <div style={{ marginTop: 64, paddingBottom: 32, textAlign: "center" }}>
             <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, letterSpacing: "0.02em" }}>
-              © 2026 Comfy-Teardown · Built by Joon Hyung Kim
+              <span style={{ fontSize: "1.2em" }}>©</span> 2026 Comfy-Teardown · Built by Joon Hyung Kim
             </span>
           </div>
             </div>

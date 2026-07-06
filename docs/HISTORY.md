@@ -6,6 +6,28 @@
 
 ---
 
+## 2026-07-06 (표시층 7건 + 찾기 버튼 동작 추적)
+**한 일 / 추적 보고**
+1. custom_nodes 경로 박스 3행 높이 통일: alignItems flex-start→center, minHeight 40(한 줄/두 줄 무관 수직 중앙). L2062.
+2. 모델 표 "다운로드" 헤더 우측→중앙 정렬(버튼 컬럼 alignItems center와 정합). L2146.
+3. "이미 있으면 체크"→"이미 있으면 체크 ✓"(미체크 faint), 안내문 참조도 동일. L2138·2198.
+4. divider 토글 텍스트 색 C.dim→C.divider(점선과 동일 토큰). [주의] divider는 알파 0.09라 텍스트가 매우 흐릴 수 있음 — dev 확인 요망, 불합격 시 faint로 fix-forward. 아이콘(±)은 C.dim 유지. L1753.
+5. footer © 글자만 1.2em span(주변 대비 확대). L2730.
+6. 제작자 주의사항 본문: paddingLeft 24(헤더 대비 한 단 들여쓰기), 연속 빈 줄 축약(\\n{2,}→\\n)으로 문단 벌어짐 해소, lineHeight 1.6 유지. L1783·1784.
+7. [탭: …]·[서브그래프] 주석 색 C.faint→C.violet(이전 보라 토큰, 플레인+대괄호 형태 유지). L1899·1900.
+
+**8. [추적 보고] 찾기 버튼 — 수정 보류(지시 대기)**
+- researchUnknownModel(L1313, async) → researchModel(L678)은 Anthropic API fetch(web_search 도구)로 모델 다운로드 URL을 AI 조사하는 실제 비동기 로직. 새 창 열기 아님.
+- 목적: 미확인 모델 파일의 직접 다운로드 URL 탐색. 결과 mr.result={found,url,folder,confidence}.
+- 결과 사용처: found+url이면 다운로드 버튼(dlUrl)·"이거 맞았어"(learnModelLink 적립). AI_KEY 없으면 찾기 버튼 미표시("확인 필요").
+- "찾는 중…"+명도저하는 fetch 대기 상태라 정당. 새 창 검색으로 바꾸려면 이 AI 조사 기능 제거/대체 필요 → 지시 대기.
+
+**어떻게**
+- 빌드 통과 + regression 통과. dev 화면 판정 전.
+
+**다음 할 일**
+- 작업4 divider 텍스트 가독성 dev 확인. 작업8 찾기 버튼 처리 방향 지시 대기.
+
 ## 2026-07-06 (ENF STEP1 개방형 표 · 뱃지 탈버튼 · 빨간박스 채도 · 라벨)
 **한 일**
 1. ENF STEP1(커스텀 노드 설치) 개방형 표화: 바깥 라운딩 박스(background surface·border·borderRadius 14·overflow) 제거, 항목 좌우 padding 20→0, 구분선 marginLeft/Right 20→0(full 가로선). 내부 2행 메타·GitHub·세로 간격 유지. STEP2 모델 맞추기 표와 같은 결. L1836·1842·1843.
