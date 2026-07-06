@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-07 (서브그래프 UUID 대조 + 중복 합산 확인)
+**한 일 / 보고**
+1. 정체 미상(UUID형) 노드 서브그래프 대조: normalize에 subgraphIds(definitions.subgraphs[].id) 추출(L352). analyze isUuidType 판정 시 norm.subgraphIds에 있으면 anomalous 제외(정상 서브그래프 참조 — 재귀로 내부 진단, Findings 미노출·빨강 카운트 제외)(L483). 정의 없는 진짜 미상만 anomalous 유지.
+   - [실측 보고] "Silent Snow LTX2.3 Full.json"은 fixtures에 없음("Silent Snow LTX2.3 Kjai FP8.json"만 존재). 노드 #5288 실측 불가 → 파일 편입 요청.
+   - regression: 서브그래프 UUID 대조 단위 테스트(참조=제외·정의없음=미상) 추가. 통과.
+2. [확인] 처방 부연 중복 합산: bbed87f에 이미 포함(typeCounts→typesLabel, L1716). "해결되는 노드 2개: Label (rgthree) 2개" 합산 동작. 누락 없음.
+
+**어떻게**
+- 빌드 통과 + regression(서브그래프 대조) 통과.
+
+**다음 할 일**
+- Silent Snow Full.json 편입 후 #5288 실측. 한계 문구(VNIL) 지시 대기.
+
 ## 2026-07-07 (긴급: Value not in list 실패 감지 → red 승격)
 **배경(실증)**: 사용자 PC ComfyUI "Value not in list: ckpt_name: 'X' not in [...]" 검증 실패했으나 teardown은 노랑으로만 판정(판정 공백). 노드·파일명·형식만으론 실제 보유 파일 불일치를 모름.
 **한 일**

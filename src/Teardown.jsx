@@ -349,7 +349,8 @@ function normalize(wf) {
         }
       }
     }
-    return { format: "UI", nodes, links: Array.isArray(wf.links) ? wf.links : [] };
+    const subgraphIds = new Set((Array.isArray(subs) ? subs : []).map((s) => s?.id).filter(Boolean)); // 서브그래프 정의 ID(UUID) — anomalous 대조용
+    return { format: "UI", nodes, links: Array.isArray(wf.links) ? wf.links : [], subgraphIds };
   }
   if (wf && typeof wf === "object") {
     const e = Object.entries(wf).filter(([, v]) => v && typeof v === "object");
@@ -480,7 +481,7 @@ function analyze(norm, mgrMap) {
   const noteLinks = extractNoteLinks(authorNotes);
   for (const n of norm.nodes) {
     if (!n.type) { broken.push({ id: n.id }); continue; }
-    if (isUuidType(n.type)) { anomalous.push({ id: n.id, type: n.type }); continue; }
+    if (isUuidType(n.type)) { if (norm.subgraphIds?.has(n.type)) continue; anomalous.push({ id: n.id, type: n.type }); continue; } // 서브그래프 정의 ID면 정상 참조(재귀로 내부 진단) → anomalous·Findings 제외
     if (n.cnr_id) { (packVers[n.cnr_id] ||= new Set()).add(n.ver); (packNodes[n.cnr_id] ||= new Set()).add(n.type); }
     else if (FRONTEND_ONLY.has(n.type)) frontendOnly.push(n.type);
     else {
