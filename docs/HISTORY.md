@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-06 (진단 3등급제 + buildBriefing 형식 강제)
+**추적(작업0) / 개편**
+0. [추적] 빨강 오탐 원인: diagBlocked = diagNodeM||diagModelN||diagBrokenK > 0(구 L1424). diagModelN = recipes.flatMap(slots).length = **전체 모델 슬롯 수**(구 L1416). 즉 모델 쓰는 정상 워크플로우도 슬롯>0 → "모델 N개 점검 필요" → 빨강. 모델 존재만으로 빨강 트리거 = 오탐.
+1. 3등급제: 빨강=미설치노드(unmapped+anomalous+broken)≥1 OR GPU비호환(quantBad)≥1 / 노랑=빨강0+점검모델(quantBad아닌 슬롯)+입력파일≥1 / 초록=둘다0. summary.grade 추가(L1440). 판정 박스 등급색(red C.red·yellow C.point 8%틴트·green C.green), 항상 렌더(L1662). Solution 헤더·저장은 rxTodos>0(빨강/노랑)만, 초록은 판정 박스만(L1672). 초록 문구에 도구 한계 고지.
+2. buildBriefing 말미 답변 형식 강제(L1083): 번호 목록 (1)문제 한 문장 (2)명령 또는 노드·슬롯·전값·후값 (3)완료 확인. 서론·일반론 금지. 이미지 첨부 시 빨간 노드 대조 지시.
+- regression: gradeFromRecipes(redGpu 기준, L23) + LTX 등급 red 기대 + yellow_sample.json(quantBad 0 정상 모델) 노랑 케이스. 빨강/노랑 각 1개 검증. 통과.
+
+**어떻게**
+- 빌드 통과 + regression(등급 포함) 통과.
+
+**다음 할 일**
+- dev 판정 후 push. 정상 워크플로우 초록/노랑 표시 확인(오탐 해소).
+
 ## 2026-07-06 (슬롯표 컬럼 재배분 + 헤더 카피 + footer/메모 명도)
 **한 일**
 1. 모델 맞추기 슬롯표 컬럼 폭 재배분: #36→24px(두 자리 최소), 슬롯 1fr→0.8fr, 현재값 1.5fr→2fr(회수분 흡수), 폴더 1fr 유지, 다운로드 110→90px(버튼 우측만). gap 10 유지(단일값). 현재값 비중 43%→53%로 긴 파일명 줄바꿈 감소. L1927·1932(헤더+셀 replace_all).

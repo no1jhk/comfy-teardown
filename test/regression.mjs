@@ -18,6 +18,15 @@ const files = fs.readdirSync(FIX).filter((f) => f.endsWith(".json")).sort();
 // RTX 3090 = Ampere. buildRecipes는 gpu==="ampere"에서 quantBad(nvfp4/fp4/fp8) 판정.
 const GPU = "ampere";
 
+// 3등급(buildRecipes 범위): redGpu(quantBad)>0 → red / 그 외 점검 모델>0 → yellow / 0 → green.
+// 실제 grade는 미설치 노드(analyze)도 red 트리거하나 regression은 buildRecipes만 → redGpu 기준.
+function gradeFromRecipes(recipes) {
+  const slots = recipes.flatMap((r) => r.slots);
+  const redGpu = slots.filter((s) => s.quantBad).length;
+  const checkModels = slots.filter((s) => !s.quantBad).length;
+  return redGpu > 0 ? "red" : checkModels > 0 ? "yellow" : "green";
+}
+
 let fail = 0;
 const rows = [];
 
@@ -48,8 +57,11 @@ for (const f of files) {
   console.log(`  quantBad 파일: ${quantBad.map((s) => s.value).join(", ") || "-"}`);
   if (ggufNone.length) console.log(`  확인필요 남은 파일: ${ggufNone.map((s) => s.value).join(", ")}`);
 
+  const grade = gradeFromRecipes(recipes);
+  console.log(`  등급(redGpu 기준): ${grade}`);
   // 기대치 (buildRecipes 범위)
   if (isLTX) {
+    if (grade !== "red") { console.log(`  ❌ LTX 등급 기대 red, 실제 ${grade}`); fail++; } else console.log(`  ✅ LTX 등급 red(빨강)`);
     if (quantBad.length !== 2) { console.log(`  ❌ 기대 quantBad 2, 실제 ${quantBad.length} → LTX fp4/fp8 모델 감지 불일치 추정`); fail++; }
     const ggAll = ggufFilled.length + ggufPending.length;
     if (ggAll !== 2) { console.log(`  ❌ 기대 ggufAlt 2, 실제 ${ggAll}(채움${ggufFilled.length}+pending${ggufPending.length}) → gguf_file_map 매칭 누락 추정`); fail++; }
@@ -90,6 +102,18 @@ console.log("\n" + "=".repeat(70) + "\nAPI 포맷: api_sample.json");
     else console.log(`  ✅ API 기대치(recipes>0 · quantBad 2 · ggufAlt 2) 충족`);
     rows.push(["api_sample (API포맷)", recipes.length + "/" + slots.length, quantBad.length, ggAll, ggufNone.length, JSON.stringify(srcDist)]);
   }
+}
+
+// === 노랑 등급 케이스 (yellow_sample.json — quantBad 0, 정상 모델) ===
+console.log("\n" + "=".repeat(70) + "\n노랑 등급 케이스: yellow_sample.json");
+{
+  const j = JSON.parse(fs.readFileSync(path.join(DIR, "yellow_sample.json"), "utf8"));
+  const recipes = buildRecipes(j, { gpu: GPU });
+  const slots = recipes.flatMap((r) => r.slots);
+  const grade = gradeFromRecipes(recipes);
+  console.log(`  슬롯 ${slots.length} · quantBad ${slots.filter((s) => s.quantBad).length} · 등급 ${grade}`);
+  if (grade !== "yellow") { console.log(`  ❌ 기대 yellow(quantBad 0 + 점검 모델>0), 실제 ${grade}`); fail++; }
+  else console.log(`  ✅ 노랑 등급 충족 (실행 차단 없음 + 점검 항목 존재)`);
 }
 
 console.log("\n" + "=".repeat(70));

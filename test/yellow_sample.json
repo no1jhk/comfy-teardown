@@ -1,0 +1,5 @@
+{
+  "_comment": "합성 노랑 케이스 — quantBad 없는 정상 safetensors 모델. buildRecipes 기준 grade=yellow(빨강 GPU 0 + 점검 모델>0). 미설치 노드는 analyze라 여기선 SKIP. IP 무관 합성.",
+  "10": { "inputs": { "unet_name": "flux1-dev.safetensors", "weight_dtype": "default" }, "class_type": "UNETLoader", "_meta": { "title": "Load Diffusion Model" } },
+  "11": { "inputs": { "vae_name": "ae.safetensors" }, "class_type": "VAELoader", "_meta": { "title": "Load VAE" } }
+}
