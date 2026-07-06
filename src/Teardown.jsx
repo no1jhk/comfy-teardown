@@ -2191,7 +2191,7 @@ export default function Teardown() {
                                       ) : mr?.loading ? (
                                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>검색 중…</span>
                                       ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
-                                        <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>확인 필요</span>
+                                        <a className="td-hf td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(m.file + " download")}`} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a>
                                       ) : (
                                         <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
                                       )}
@@ -2413,7 +2413,7 @@ export default function Teardown() {
                       ) : !isWeight ? null : mr?.loading ? (
                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 14 }}>검색 중…</span>
                       ) : (!AI_KEY || (mr?.result && !mr.result.found)) ? (
-                        <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 14 }}>확인 필요</span>
+                        <a className="td-hf-sm td-outline-w" href={`https://www.google.com/search?q=${encodeURIComponent(m.file + " download")}`} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>웹에서 검색 ↗</a>
                       ) : (
                         <button className="td-hf-sm" onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14 }}>다운로드 링크 찾기</button>
                       )}

@@ -6,6 +6,11 @@
 
 ---
 
+## 2026-07-06 (찾기 버튼 — 둘 다 제공 반영)
+**한 일**
+- 작업8 지시 확정("둘 다 제공"): AI 검색(researchModel) 유지 + AI_KEY 없거나 AI 조사 실패(result && !found) 시 "확인 필요"→"웹에서 검색 ↗"(구글 파일명+download 새 창) 버튼. 모델 표(L2194)·Findings 모델(L2416) 2곳.
+- 버튼 스타일: td-hf/td-hf-sm + td-outline-w(흰 pill·라인, 다운로드 노랑과 구분). slot 처방 찾기(L1722)는 AI_KEY 분기 없이 항상 AI 시도라 별개 유지.
+
 ## 2026-07-06 (표시층 7건 + 찾기 버튼 동작 추적)
 **한 일 / 추적 보고**
 1. custom_nodes 경로 박스 3행 높이 통일: alignItems flex-start→center, minHeight 40(한 줄/두 줄 무관 수직 중앙). L2062.
