@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-07-06 (STEP 간격 2배 · 노드그룹 간격 · 안내문 한 줄 + 색칩 검증)
+**한 일 / 검증**
+1. ENF STEP 제목~첫항목 간격 8→16: STEP1·STEP2 sopen marginTop 8→16(L1851·1907). 첫항목 paddingTop 0 유지 → 간격 16 통일.
+2. STEP2 노드 그룹 간 간격 32→42: recipesEnriched 카드 paddingTop ri>0?32→42(L1910). 다음 노드 헤딩이 위 표에 붙던 간격 완화.
+3. "이미 있으면 체크 ✓" 안내문 한 줄: CSS .td-hint1line(white-space nowrap, @max-width640 normal) 추가(L1460) + 안내문 className(L2154). 넓은 화면 한 줄, 640 이하 자연 줄바꿈.
+
+**4. [검증 보고] [탭:] 색 칩 — 정상 생략**
+- fixtures 중 pipeline_mode(r.tab) 있는 파일: LTX2_3_8GB_VRAM_workflow___Audio_to_Video.json 1개.
+- buildRecipes 실행: r.tab 있는 recipe = DenoLTX23PresetLoader(tab "GGUF Style"), tabColor=null. 그 노드에 color/bgcolor 없음 → 칩 정상 생략(버그 아님).
+- LTX2_3의 bgcolor(#29699c 등)는 pipeline_mode 없는 다른 노드에 있어 [탭:]과 무관.
+- 색 있는 테스트 케이스: 현 fixtures엔 [탭:]+color 동시 만족 노드 없음. 칩 시각 검증하려면 pipeline_mode+color/bgcolor 둘 다 가진 노드가 있는 워크플로 필요.
+
+**어떻게**
+- 빌드 통과 + regression 통과.
+
+**다음 할 일**
+- dev 판정 후 push. 작업3 안내문은 부모 폭이 문장보다 좁으면 넘칠 수 있어 dev 확인.
+
 ## 2026-07-06 (표시층 3건: STEP 간격 · 경로행 여백 · 소제목 레벨)
 **한 일**
 1. ENF STEP 제목~첫항목 간격 통일: STEP1 24 → 8(STEP2 값). 변경 전 STEP1=marginTop8+paddingTop16=24, STEP2=marginTop8+paddingTop0=8. STEP1 첫 항목(i===0) padding "16px 0"→"0 0 16px"(위 0). L1858.

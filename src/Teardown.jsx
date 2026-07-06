@@ -1457,6 +1457,7 @@ export default function Teardown() {
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-havelink{background:transparent;border:none;color:${C.faint};transition:color .15s;cursor:pointer}.td-havelink:hover{color:${C.text}}
         .td-divtoggle{color:${C.faint};transition:color .15s}.td-divtoggle:hover{color:${C.dim}}
+        .td-hint1line{white-space:nowrap}@media(max-width:640px){.td-hint1line{white-space:normal}}
         .td-acc{transition:opacity .15s;opacity:.9}.td-acc:hover{opacity:1}
         .td-spin{animation:tdSpin .9s linear infinite}@keyframes tdSpin{to{transform:rotate(360deg)}}
         .td-hf{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
@@ -1847,7 +1848,7 @@ export default function Teardown() {
                       {sopen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
                     </button>
                   </div>
-                  {sopen && <div style={{ paddingLeft: 44, marginTop: 8 }}>
+                  {sopen && <div style={{ paddingLeft: 44, marginTop: 16 }}>
                 <div style={{ marginBottom: 20 }}>
                   {[...report.unmapped.map((u) => ({ t: "u", u })), ...report.broken.map((b) => ({ t: "b", b }))].map((it, i) => {
                     const u = it.u, b = it.b;
@@ -1903,10 +1904,10 @@ export default function Teardown() {
                       {sopen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
                     </button>
                   </div>
-                  {sopen && <div style={{ paddingLeft: 44, marginTop: 8 }}>
+                  {sopen && <div style={{ paddingLeft: 44, marginTop: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {recipesEnriched.map((r, ri) => (
-                  <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 32 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
+                  <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
                     {/* 카드 헤더 */}
                     <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
@@ -2150,7 +2151,7 @@ export default function Teardown() {
                               ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
                               : <div style={{ fontSize: 13, color: C.dim, marginBottom: 10 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""}</div>;
                           })()}
-                          <div style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있으면 체크 ✓'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
+                          <div className="td-hint1line" style={{ fontSize: 13, color: C.faint, marginBottom: 10, lineHeight: 1.5 }}>이미 받아 둔 파일은 '이미 있으면 체크 ✓'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</div>
                           {(() => {
                             // 양자화 비호환 모델 lookup (파일명 → warning+gguf)
                             const qwMap = {};
