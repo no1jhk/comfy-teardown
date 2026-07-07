@@ -1,0 +1,64 @@
+{
+  "_meta": {
+    "purpose": "모델 패밀리 카탈로그 — 감지(detect)/폴더(folders)/변형(variants)/출처(source). 환경 기반 추천(modelRecommender)의 모델 축.",
+    "confidence": "krea2는 사용자 실측 스펙(변형·출처 확정). ltx23/flux2/seedvr2는 감지+폴더만(변형·출처 미확정=null·[]). 카탈로그 밖 패밀리 날조 금지 — 미확정은 비워 두고 기존 폴백 유지.",
+    "folders_note": "folders 값은 models/ 하위 폴더명(ComfyUI 표준). 슬롯 타입은 slotByNode로 노드→슬롯 매핑.",
+    "slotByNode": {
+      "UNETLoader": "main_model",
+      "UnetLoaderGGUF": "main_model",
+      "CheckpointLoaderSimple": "main_model",
+      "CheckpointLoader": "main_model",
+      "CLIPLoader": "text_encoder",
+      "DualCLIPLoader": "text_encoder",
+      "TripleCLIPLoader": "text_encoder",
+      "CLIPLoaderGGUF": "text_encoder",
+      "VAELoader": "vae",
+      "LoraLoader": "lora",
+      "LoraLoaderModelOnly": "lora"
+    },
+    "slotByNodePattern": [
+      ["UNETLoader|UnetLoader", "main_model"],
+      ["CLIPLoader|TextEncoderLoader|DualCLIP|TripleCLIP", "text_encoder"],
+      ["VAELoader", "vae"],
+      ["LoraLoader|LoRALoader", "lora"],
+      ["UpscaleModelLoader", "upscale_model"]
+    ]
+  },
+  "families": {
+    "krea2": {
+      "label": "Krea 2",
+      "detect": { "filename": ["krea2", "krea 2", "krea_2"], "nodeType": ["Krea2"] },
+      "folders": { "main_model": "diffusion_models", "text_encoder": "text_encoders", "vae": "vae", "lora": "loras" },
+      "variants": [
+        { "match": "raw_bf16", "quant": "bf16", "kind": "base" },
+        { "match": "raw_int8_convrot", "quant": "int8", "kind": "base" },
+        { "match": "raw_fp8_scaled", "quant": "fp8_scaled", "kind": "base" },
+        { "match": "turbo_bf16", "quant": "bf16", "kind": "turbo" },
+        { "match": "turbo_fp8_scaled", "quant": "fp8_scaled", "kind": "turbo" },
+        { "match": "turbo_nvfp4", "quant": "nvfp4", "kind": "turbo" }
+      ],
+      "source": "Comfy-Org/Krea-2"
+    },
+    "ltx23": {
+      "label": "LTX-2.3",
+      "detect": { "filename": ["ltx2", "ltx-2", "ltxv2", "ltx 2", "ltx23", "ltx-2.3"], "nodeType": ["LTX"] },
+      "folders": { "main_model": "diffusion_models", "text_encoder": "text_encoders", "vae": "vae", "lora": "loras" },
+      "variants": [],
+      "source": null
+    },
+    "flux2": {
+      "label": "FLUX.2",
+      "detect": { "filename": ["flux2", "flux_2", "flux.2", "flux-2"], "nodeType": [] },
+      "folders": { "main_model": "diffusion_models", "text_encoder": "text_encoders", "vae": "vae", "lora": "loras" },
+      "variants": [],
+      "source": null
+    },
+    "seedvr2": {
+      "label": "SeedVR2",
+      "detect": { "filename": ["seedvr2", "seedvr_2", "seedvr-2"], "nodeType": ["SeedVR2"] },
+      "folders": { "main_model": "diffusion_models", "vae": "vae" },
+      "variants": [],
+      "source": null
+    }
+  }
+}
