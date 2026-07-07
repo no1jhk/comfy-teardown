@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-07 (P2 마감: modelPlan 단일화 + 실측 file DB + 뱃지 4단계)
+**한 일**(40bd30a) — ChatGPT 제안서(검증 엔진 중심) 반영
+- **file DB**: model_catalog krea2에 files[] 10건(Fable 웹 실측 2026-07-07). int8_convrot 제거(실파일 부재), turbo_mxfp8 편입. confirmed 자격 = files DB 실존만(size·repo_path 실측값).
+- **buildModelPlan 단일 진실 공급원**(src/lib/modelPlan.js): report+env → {items, alternatives, exclusions, unknowns} + 4단계 confidence. 드리프트 4곳(Solution·인벤토리·MD·브리핑) 전부 plan 통일 → models/unet 잔존 제거.
+- **뱃지 4단계**: confirmed/workflow_author/inferred(추정 후보)/unknown. 대체는 "OOM 시 대체 후보"(추천 아님, GPU 있을 때만). 브리핑 표: 파일·폴더·용량·직링크·근거, "확인 필요"는 unknowns만.
+- e2e 9케이스(confirmed 실측·대체 raw_fp8_scaled만·turbo 4제외·단일 소스 결정성). startsWith fixture.
+
+**판단 결정 반영**: confirmed 데이터는 사용자 제공 Fable 실측값만 주입(날조 금지 준수). 파일 존재 confirmed는 GPU 무관, 대체 후보(quant OOM 판정)만 GPU 게이트(불변①).
+
+**막힌 점/한계**: buildBriefing·buildMarkdown은 JSX라 node import 불가 → 공유 소스(buildModelPlan) 검증 + 소스 참조 스냅샷으로 단일 소스 보장.
+
+**다음 할 일**: dev 확인 후 미푸시 전체 일괄 push. ltx23/flux2/seedvr2 files[] 실측 편입.
+
 ## 2026-07-07 (P2 최종 보강: Note 링크 승격 + 버튼 재배선 + 로그 입력층)
 **한 일**
 - **Note 링크 승격**(7bfce9a): parseNoteSections(## / ** 헤더 → links/folder/strength) + promoteNoteLinks(링크→슬롯 매칭: 정확 파일명>헤더 키워드, lora는 파일명 유사도만). 액션 테이블: 매칭 슬롯 '링크 ↗'(제작자 직링크)+[워크플로우 안내] 뱃지, 강도 한 줄, 미매칭 링크 '참고' 행 일괄. krea2 실측: Main Model·Text Encoder·VAE(Wan2.1 정확 매칭) 링크 승격, Turbo Lora 강도 0.6 authorLink.
