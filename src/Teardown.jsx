@@ -10,6 +10,7 @@ import { buildRecipes, groupNodesByRepo } from "./data/redNodeRecipe.js";
 import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType } from "./logParse.js";
 import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkflow.js";
 import { recommend } from "./lib/modelRecommender.js";
+import { buildModelPlan } from "./lib/modelPlan.js";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
 import modelAliases from "./data/model_aliases.json";
@@ -673,9 +674,11 @@ function buildMarkdown(report, summary, rx, env) {
   // Inventory
   L.push(`## Inventory`);
   L.push(``);
-  L.push(`### 1. 모델 · 자산 (${report.models.length})`);
-  if (report.models.length === 0) L.push(`- 없음`);
-  else for (const m of report.models) L.push(`- \`${m.file}\` → ${m.folder}${m.rename ? ` (⤷ ${m.rename})` : ""}`);
+  const mdPlan = buildModelPlan(report, env); // 단일 진실 공급원 — 인벤토리 폴더·근거도 plan에서(드리프트 제거)
+  const mdAll = [...mdPlan.items, ...mdPlan.unknowns];
+  L.push(`### 1. 모델 · 자산 (${mdAll.length})`);
+  if (mdAll.length === 0) L.push(`- 없음`);
+  else for (const it of mdAll) L.push(`- \`${it.selectedFile}\` → ${it.fullPath || it.folder || "확인 필요"} [${it.confidence}]${it.size ? ` · ${it.size}` : ""}`);
   L.push(``);
   L.push(`### 2. 비활성 노드 (${report.muted.length})`);
   if (report.muted.length === 0) L.push(`- 없음`);
@@ -727,21 +730,18 @@ function buildBriefing(report, errlog, env) {
     rx.forEach((step, i) => L.push(`${i + 1}. ${step.title}`));
     L.push(``);
   }
-  // 받을 모델 표 — 파일명·폴더(내 경로)·정상 용량·직링크를 LLM에 같이 넘겨 왕복을 줄인다.
-  const dlModels = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)));
-  if (dlModels.length) {
-    L.push(`## 받을 모델 (파일명 · 폴더 · 정상 용량 · 직링크)`);
-    L.push(`| 받을 파일 | 어느 폴더에 둘지 | 정상 용량 | 직링크 |`);
-    L.push(`|---|---|---|---|`);
-    for (const m of dlModels) {
-      const eff = m.compat;
-      const ks = knownModelSize(m.file);
-      const sz = eff?.size_gb ? fmtSize(eff.size_gb) : eff?.size_label || (ks ? fmtSize(ks) : "확인 필요");
-      const dest = (env?.modelRoot && rewritePath(m.file, env.modelRoot)) || m.folder;
-      const url = directDownloadUrl(m.compat, m.file, null, m.noteUrl) || "확인 필요";
-      L.push(`| ${m.file} | ${dest} | ${sz} | ${url} |`);
-    }
-    L.push(`> 받은 뒤 위 "정상 용량"과 비교. 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운로드. 직링크가 "확인 필요"면 정확한 출처를 같이 찾아 주세요.`);
+  // 받을 모델 표 — modelPlan(단일 진실 공급원)에서. 파일·폴더·용량·직링크·근거 등급. "확인 필요"는 unknowns에만.
+  const plan = buildModelPlan(report, env);
+  if (plan.items.length || plan.unknowns.length) {
+    L.push(`## 받을 모델 (파일 · 넣을 폴더 · 용량 · 직링크 · 근거)`);
+    L.push(`| 받을 파일 | 넣을 폴더 | 용량 | 직링크 | 근거 |`);
+    L.push(`|---|---|---|---|---|`);
+    for (const it of plan.items) L.push(`| ${it.selectedFile} | ${it.fullPath || it.folder || "확인 필요"} | ${it.size || "미실측"} | ${it.downloadUrl || "확인 필요"} | ${it.confidence} |`);
+    L.push(``);
+    if (plan.alternatives.length) { L.push(`### 대체 후보 (OOM 발생 시에만. 1순위 대체용, 추천 아님)`); for (const a of plan.alternatives) L.push(`- ${a.filename}${a.size ? ` · ${a.size}` : ""} · ${a.reason}`); L.push(``); }
+    if (plan.exclusions.length) { L.push(`### 받지 말 것 (이 워크플로우에 부적합)`); for (const e of plan.exclusions) L.push(`- ${e.filename} (${e.quant}) · ${e.reason}`); L.push(``); }
+    if (plan.unknowns.length) { L.push(`### 확인 필요 (출처 미확인 — 지어내지 말고 함께 찾아 주세요)`); for (const it of plan.unknowns) L.push(`- ${it.selectedFile} → ${it.folder || "폴더 확인 필요"}`); L.push(``); }
+    L.push(`> 받은 뒤 "용량"과 비교. 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운로드.`);
     L.push(``);
   }
   L.push(`## 에러 로그`);
@@ -1172,15 +1172,9 @@ export default function Teardown() {
     return todos;
   }, [report, recipesEnriched]);
 
-  // 환경 기반 모델 추천(카탈로그 패밀리). GPU 있을 때만 확정 판정, 없으면 needs=gpu(안내).
-  const rec = React.useMemo(() => (report ? recommend(report, env) : null), [report, env.gpu, env.basePath, env.modelRoot]);
-  const recByBase = React.useMemo(() => {
-    const map = new Map();
-    if (rec && rec.family && !rec.needs.includes("gpu")) for (const s of rec.slots) map.set(s.workflowValue.replace(/\\/g, "/").split("/").pop().toLowerCase(), s);
-    return map;
-  }, [rec]);
-  // Note 링크 승격 맵(카탈로그·GPU 무관 — 제작자 직링크는 GPU 판정 아님).
-  const noteLinkByBase = React.useMemo(() => (rec?.noteLinkByBase instanceof Map ? rec.noteLinkByBase : new Map()), [rec]);
+  // modelPlan — 단일 진실 공급원. Solution·인벤토리·MD·브리핑 전부 이것만 참조(드리프트 제거).
+  const plan = React.useMemo(() => (report ? buildModelPlan(report, env) : null), [report, env.gpu, env.basePath, env.modelRoot]);
+  const planByFile = React.useMemo(() => { const m = new Map(); if (plan) for (const it of [...plan.items, ...plan.unknowns]) m.set(it.selectedFile, it); return m; }, [plan]);
 
   // 액션 테이블(당장 할 일) — rxTodos를 동사 선행 행으로. 표시층 전용(판정·데이터 불변).
   const actionRows = React.useMemo(() => {
@@ -1204,39 +1198,19 @@ export default function Teardown() {
         "ComfyUI 본체가 구버전이면 코어 신규 노드일 수 있습니다. ComfyUI를 업데이트한 뒤 다시 확인해 주세요.",
       ] });
     // 패밀리 감지됐는데 GPU 미입력 → 추천 대신 안내(불변①). 확정 판정 안 함.
-    if (rec && rec.family && rec.needs.includes("gpu")) rows.push({ n: ++n, verb: "안내", text: `이 워크플로우는 ${rec.label}로 보입니다. GPU를 입력하면 넣을 위치와 환경에 맞는 변형을 추천해 드립니다.`, kind: "gpuhint" });
-    // 받기 — 동일 파일명(경로 제거·소문자 basename)을 1행으로 병합(넣기 폴더·선택 N줄). 카탈로그 패밀리 슬롯은 추천 폴더·뱃지·품질/속도로 대체.
-    const byFile = {};
-    for (const t of rxTodos.filter((x) => x.kind === "model")) {
-      const base = t.s.value.replace(/\\/g, "/").split("/").pop().toLowerCase();
-      (byFile[base] ||= []).push(t);
-    }
-    for (const grp of Object.values(byFile)) {
-      const s0 = grp[0].s;
-      const base = s0.value.replace(/\\/g, "/").split("/").pop().toLowerCase();
-      const recSlot = recByBase.get(base);
-      const noteLink = noteLinkByBase.get(base);
-      const selects = grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value }));
-      if (recSlot) {
-        // 카탈로그 슬롯: 넣기(folders)+품질/속도/받지않기. 뱃지 — 카탈로그 확정 유지, 폴더만(추정)인데 Note 링크 있으면 [워크플로우 안내]로 승격.
-        const badge = recSlot.badge === "확정" ? "확정" : (noteLink ? "워크플로우 안내" : "추정");
-        rows.push({ n: ++n, verb: "받기", text: s0.value, folders: [recSlot.absoluteFolder || recSlot.folder], badge, selects, s: s0, kind: "model", rec: recSlot, noteLink });
-      } else if (noteLink) {
-        // 카탈로그 밖이지만 제작자 직링크 있음 → [워크플로우 안내] + 링크 버튼(HF 검색 폴백 대신). 넣기는 Note 폴더 지시 or 기존 추정.
-        const folders = noteLink.folder ? [noteLink.folder] : [...new Set(grp.map((t) => t.s.folder).filter((f) => f && f !== "확인 필요"))];
-        rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: "워크플로우 안내", selects, s: s0, kind: "model", noteLink });
-      } else {
-        const conf = s0.src === "curated" || s0.src === "manager" || s0.src === "manager_live";
-        const folders = [...new Set(grp.map((t) => t.s.folder).filter((f) => f && f !== "확인 필요"))];
-        rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: conf ? "확정" : "확인 필요", selects, s: s0, kind: "model" });
-      }
-    }
+    if (plan && plan.family && plan.needs.includes("gpu")) rows.push({ n: ++n, verb: "안내", text: `이 워크플로우는 ${plan.label}로 보입니다. GPU를 입력하면 넣을 위치와 환경에 맞는 변형을 추천해 드립니다.`, kind: "gpuhint" });
+    // 받기 — modelPlan.items(단일 진실 공급원). 근거 4단계 뱃지. 넣기=fullPath(절대) 또는 folder(상대), 용량·직링크·근거는 planItem에.
+    for (const it of plan?.items || []) rows.push({ n: ++n, verb: "받기", text: it.workflowValue, folders: it.fullPath ? [it.fullPath] : (it.folder ? [it.folder] : []), badge: it.badge, selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
+    // 대체 후보 / 제외(주 모델) — "OOM 시 대체 후보" 톤(추천 아님). 별도 1행.
+    if ((plan?.alternatives?.length || 0) + (plan?.exclusions?.length || 0) > 0) rows.push({ n: ++n, verb: "참고", text: "메인 모델 대체·제외 안내", kind: "altexcl", alternatives: plan.alternatives, exclusions: plan.exclusions });
+    // 확인 필요 — 출처 확인 못한 모델(unknowns)
+    for (const it of plan?.unknowns || []) rows.push({ n: ++n, verb: "확인", text: it.workflowValue, folders: it.folder ? [it.folder] : [], badge: "확인 필요", selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
     for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
     // 슬롯 매칭 실패한 제작자 안내 링크 → 일괄 1행(버리지 않음). 강도 지시 병기.
-    if (rec?.authorLinks?.length) rows.push({ n: ++n, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: rec.authorLinks });
+    if (plan?.authorLinks?.length) rows.push({ n: ++n, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: plan.authorLinks });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
     return rows;
-  }, [rxTodos, logEnv.installedPacks, errlog, recByBase, noteLinkByBase, rec]);
+  }, [rxTodos, logEnv.installedPacks, errlog, plan]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1471,16 +1445,14 @@ export default function Teardown() {
                     <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.point }}>{r.n}</span>
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
+                      <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
                       {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
                       {r.kind === "model" && r.folders && r.folders.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {r.folders.map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
                       {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
-                      {r.kind === "model" && r.noteLink && r.noteLink.strength && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>강도: {r.noteLink.strength}으로 설정해 주세요.</div>}
-                      {r.kind === "model" && r.noteLink && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 4, lineHeight: 1.45 }}>제작자 안내 링크: {r.noteLink.label}{r.noteLink.sectionHeader ? ` (${r.noteLink.sectionHeader})` : ""}</div>}
-                      {r.kind === "model" && r.rec && (r.rec.quality || r.rec.speed || r.rec.exclude.length > 0) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 5, lineHeight: 1.5 }}>
-                        {r.rec.quality && <span style={{ marginRight: 14 }}>품질 우선: <span style={{ fontFamily: MONO, color: C.text }}>{r.rec.quality.kind}·{r.rec.quality.quant}</span></span>}
-                        {r.rec.speed && <span style={{ marginRight: 14 }}>속도 우선: <span style={{ fontFamily: MONO, color: C.text }}>{r.rec.speed.kind}·{r.rec.speed.quant}</span></span>}
-                        {r.rec.exclude.length > 0 && <span>받지 않기: <span style={{ fontFamily: MONO }}>{r.rec.exclude.join("·")}</span></span>}
+                      {r.kind === "model" && r.planItem && (r.planItem.size || r.planItem.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.size ? `용량 ${r.planItem.size}` : ""}{r.planItem.size && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
+                      {r.kind === "altexcl" && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+                        {r.alternatives.map((a, ai) => <div key={"a" + ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>대체 후보: <span style={{ fontFamily: MONO, color: C.text }}>{a.filename}</span>{a.size ? ` · ${a.size}` : ""} · {a.reason}</div>)}
+                        {r.exclusions.map((e, ei) => <div key={"e" + ei} style={{ fontFamily: SANS, fontSize: 13.5, color: C.faint, lineHeight: 1.5 }}>받지 말 것: <span style={{ fontFamily: MONO }}>{e.filename}</span> ({e.quant}) · {e.reason}</div>)}
                       </div>}
                       {r.kind === "authorlinks" && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 7 }}>{r.links.map((al, ai) => (
                         <div key={ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.45, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
@@ -1495,9 +1467,8 @@ export default function Teardown() {
                     <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {r.kind === "install" && <a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>스크립트 보기</a>}
                       {r.kind === "model" && (
-                        r.noteLink ? <a className="td-hf" href={r.noteLink.url} target="_blank" rel="noopener noreferrer">링크 ↗</a>
-                        : (r.s.url && r.s.url !== "확인 필요") ? <a className="td-hf" href={r.s.url} target="_blank" rel="noopener noreferrer">링크 ↗</a>
-                        : <a className="td-hf td-outline-w" href={searchUrl(r.s.value)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
+                        r.planItem?.downloadUrl ? <a className="td-hf" href={r.planItem.downloadUrl} target="_blank" rel="noopener noreferrer">링크 ↗</a>
+                        : <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
                       )}
                     </div>
                   </div>
@@ -1589,7 +1560,7 @@ export default function Teardown() {
                         <span style={{ fontFamily: MONO }}>{s.value}</span> {foundUrl ? "다운로드" : "준비"}
                         {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{s.folder}</span> 폴더에 넣으세요. 이미 있으면 건너뛰기</div>
-                      {(() => { const rs = recByBase.get(s.value.replace(/\\/g, "/").split("/").pop().toLowerCase()); return rs && rs.reasons?.length ? <div style={{ fontSize: 13, color: C.faint, marginTop: 8, lineHeight: 1.65 }}>{rs.reasons.map((rr, ri) => <div key={ri}>· {rr}</div>)}</div> : null; })()}
+                      {(() => { const pit = planByFile.get(s.value.replace(/\\/g, "/").split("/").pop().toLowerCase()); return pit ? <div style={{ fontSize: 13, color: C.faint, marginTop: 8, lineHeight: 1.65 }}><div>· 근거 등급: {pit.confidence} ({pit.badge})</div><div>· {pit.reason}</div>{pit.downloadUrl && <div style={{ overflowWrap: "anywhere" }}>· 직링크: {pit.downloadUrl}</div>}</div> : null; })()}
                       {!foundUrl && <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>}
                       {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장합니다.</div>}
                       {s.quantUnknown && <div style={{ fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
@@ -2280,8 +2251,10 @@ export default function Teardown() {
                     return (
                     <div key={i} style={{ minHeight: 150, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                       <span style={{ fontFamily: MONO, fontSize: 18, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
-                      <span style={{ fontFamily: SANS, fontSize: 14, color: m.folder === "확인 필요" ? C.faint : C.point, opacity: 1, marginTop: 8, lineHeight: 1.4 }}>{m.folder}</span>
-                      {env.modelRoot && rewritePath(m.file, env.modelRoot) && <span style={{ fontFamily: MONO, fontSize: 13, color: C.point, opacity: 0.7, marginTop: 4 }}>내 경로: {rewritePath(m.file, env.modelRoot)}</span>}
+                      {(() => { const pit = planByFile.get(m.file.replace(/\\/g, "/").split("/").pop().toLowerCase()); const folder = pit?.folder || m.folder; return (<>
+                        <span style={{ fontFamily: SANS, fontSize: 14, color: folder === "확인 필요" ? C.faint : C.point, opacity: 1, marginTop: 8, lineHeight: 1.4 }}>{folder}{pit && pit.badge ? ` [${pit.badge}]` : ""}</span>
+                        {(pit?.fullPath || (env.modelRoot && rewritePath(m.file, env.modelRoot))) && <span style={{ fontFamily: MONO, fontSize: 13, color: C.point, opacity: 0.7, marginTop: 4 }}>내 경로: {pit?.fullPath || rewritePath(m.file, env.modelRoot)}</span>}
+                      </>); })()}
                       {(() => { const ks = knownModelSize(m.file); const sz = eff?.size_gb ? fmtSize(eff.size_gb) : eff?.size_label || (ks ? fmtSize(ks) : null); return (eff?.vram_gb || sz) ? <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.3 }}>{eff?.vram_gb ? `VRAM ${eff.vram_gb} GB` : ""}{eff?.vram_gb && sz ? " · " : ""}{sz ? `정상 ${sz}` : ""}</span> : null; })()}
                       {!eff?.size_gb && !eff?.size_label && !knownModelSize(m.file) && WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)) && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 4 }}>용량 확인 필요</span>}
                       {m.rename && <span style={{ fontSize: 13, color: C.amber, marginTop: 7, lineHeight: 1.4 }}>⤷ {m.rename}</span>}

@@ -31,13 +31,26 @@
       "folders": { "main_model": "diffusion_models", "text_encoder": "text_encoders", "vae": "vae", "lora": "loras" },
       "variants": [
         { "match": "raw_bf16", "quant": "bf16", "kind": "base" },
-        { "match": "raw_int8_convrot", "quant": "int8", "kind": "base" },
         { "match": "raw_fp8_scaled", "quant": "fp8_scaled", "kind": "base" },
         { "match": "turbo_bf16", "quant": "bf16", "kind": "turbo" },
         { "match": "turbo_fp8_scaled", "quant": "fp8_scaled", "kind": "turbo" },
+        { "match": "turbo_mxfp8", "quant": "mxfp8", "kind": "turbo" },
         { "match": "turbo_nvfp4", "quant": "nvfp4", "kind": "turbo" }
       ],
-      "source": "Comfy-Org/Krea-2"
+      "source": "Comfy-Org/Krea-2",
+      "_files_note": "Fable 웹 실측(2026-07-07 HuggingFace main 기준). 이 값만 confirmed 자격. 임의 추가 금지. int8_convrot는 README엔 있으나 실파일 트리에 없어 제외.",
+      "files": [
+        { "filename": "krea2_raw_bf16.safetensors", "role": "main_model", "variant": "raw", "quant": "bf16", "repo": "Comfy-Org/Krea-2", "repo_path": "diffusion_models/krea2_raw_bf16.safetensors", "folder": "diffusion_models", "size": "26.3GB", "confidence": "confirmed" },
+        { "filename": "krea2_raw_fp8_scaled.safetensors", "role": "main_model", "variant": "raw", "quant": "fp8_scaled", "repo": "Comfy-Org/Krea-2", "repo_path": "diffusion_models/krea2_raw_fp8_scaled.safetensors", "folder": "diffusion_models", "size": "13.1GB", "confidence": "confirmed" },
+        { "filename": "krea2_turbo_bf16.safetensors", "role": "main_model", "variant": "turbo", "quant": "bf16", "repo": "Comfy-Org/Krea-2", "repo_path": "diffusion_models/krea2_turbo_bf16.safetensors", "folder": "diffusion_models", "size": "26.3GB", "confidence": "confirmed" },
+        { "filename": "krea2_turbo_fp8_scaled.safetensors", "role": "main_model", "variant": "turbo", "quant": "fp8_scaled", "repo": "Comfy-Org/Krea-2", "repo_path": "diffusion_models/krea2_turbo_fp8_scaled.safetensors", "folder": "diffusion_models", "size": "13.1GB", "confidence": "confirmed" },
+        { "filename": "krea2_turbo_mxfp8.safetensors", "role": "main_model", "variant": "turbo", "quant": "mxfp8", "repo": "Comfy-Org/Krea-2", "repo_path": "diffusion_models/krea2_turbo_mxfp8.safetensors", "folder": "diffusion_models", "size": "13.5GB", "confidence": "confirmed" },
+        { "filename": "krea2_turbo_nvfp4.safetensors", "role": "main_model", "variant": "turbo", "quant": "nvfp4", "repo": "Comfy-Org/Krea-2", "repo_path": "diffusion_models/krea2_turbo_nvfp4.safetensors", "folder": "diffusion_models", "size": "7.67GB", "confidence": "confirmed" },
+        { "filename": "qwen3vl_4b_bf16.safetensors", "role": "text_encoder", "variant": null, "quant": "bf16", "repo": "Comfy-Org/Krea-2", "repo_path": "text_encoders/qwen3vl_4b_bf16.safetensors", "folder": "text_encoders", "size": "8.88GB", "confidence": "confirmed" },
+        { "filename": "qwen3vl_4b_fp8_scaled.safetensors", "role": "text_encoder", "variant": null, "quant": "fp8_scaled", "repo": "Comfy-Org/Krea-2", "repo_path": "text_encoders/qwen3vl_4b_fp8_scaled.safetensors", "folder": "text_encoders", "size": "5.24GB", "confidence": "confirmed" },
+        { "filename": "krea2_turbo_lora_rank_64_bf16.safetensors", "role": "lora", "variant": "turbo", "quant": "bf16", "repo": "Comfy-Org/Krea-2", "repo_path": "loras/krea2_turbo_lora_rank_64_bf16.safetensors", "folder": "loras", "size": null, "confidence": "confirmed" },
+        { "filename": "Wan2.1_VAE_upscale2x_imageonly_real_v1.safetensors", "role": "vae", "variant": null, "quant": null, "repo": "spacepxl/Wan2.1-VAE-upscale2x", "repo_path": "Wan2.1_VAE_upscale2x_imageonly_real_v1.safetensors", "folder": "vae", "size": null, "confidence": "confirmed" }
+      ]
     },
     "ltx23": {
       "label": "LTX-2.3",
