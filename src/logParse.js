@@ -13,12 +13,15 @@ export function tokenSim(a, b) {
 
 // ComfyUI 콘솔 로그 → GPU/torch/CUDA + Import times 블록에서 설치 팩·로드 실패 팩(경로 마지막 폴더명, 소문자).
 export function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", basePath: "", installedPacks: [], importFailed: [] };
+  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [] };
   const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
   if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
   // ComfyUI 본체 버전 (로그 서두: "ComfyUI version: 0.25.1" / "ComfyUI v0.27.0"). 코어 기능 요구 판정용.
   const cv = text.match(/ComfyUI\s*(?:version)?\s*[:\s]\s*v?(\d+\.\d+(?:\.\d+)?)/i);
   if (cv) out.comfyVersion = cv[1];
+  // custom_nodes 경로 (설치 스크립트·브리핑 clone 대상). Import/Prestartup 경로의 custom_nodes 디렉터리.
+  const cn = text.match(/([A-Za-z]:[\\/][^\n]*?[\\/]custom_nodes)[\\/]/i) || text.match(/(\/[^\n]*?\/custom_nodes)\//);
+  if (cn) out.customNodesPath = cn[1];
   const g = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?RTX\s*(\d{4})\s*(Ti|Super)?/i);
   if (g) out.gpu = "RTX " + g[1] + (g[2] ? " " + g[2] : "");
   else { const g2 = text.match(/([AB]\d{3,4}|RTX\s*A?\d{4,5})/i); if (g2) out.gpu = g2[0].trim(); }

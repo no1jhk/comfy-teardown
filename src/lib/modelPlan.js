@@ -31,6 +31,15 @@ function quantStance(quant, profile) {
 // 근거 등급 → 사용자 표시 뱃지(4단계).
 export const BADGE = { confirmed: "확정", workflow_author: "워크플로우 안내", inferred: "추정 후보", unknown: "확인 필요" };
 
+// "26.3GB"/"484MB" → GB 숫자. 모르면 null.
+function sizeToGB(s) {
+  if (!s) return null;
+  const m = String(s).match(/([\d.]+)\s*(GB|MB)/i);
+  if (!m) return null;
+  const v = parseFloat(m[1]);
+  return /mb/i.test(m[2]) ? v / 1000 : v;
+}
+
 export function buildModelPlan(report, env) {
   const rec = recommend(report, env); // 패밀리/슬롯/폴더 override/note/exclude 재사용
   const models = report?.models || [];
@@ -66,7 +75,12 @@ export function buildModelPlan(report, env) {
       confidence = "unknown";
       reason = `출처를 확인하지 못했습니다.`;
     }
-    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], nodeSelection: m.file, reason };
+    // VRAM 경고: 선택 모델 용량이 VRAM의 1.5배 초과면 대용량 경고(대체 후보 권장). 실측 정합: 3090 24GB에서 26.3GB는 36 미만이라 무경고(실제 실행됨), 8GB에서는 경고.
+    const gb = sizeToGB(size);
+    const vramWarning = (gb && profile?.vram && gb > profile.vram * 1.5)
+      ? `이 모델은 ${size}로 ${profile.vram}GB VRAM에서 매우 느리거나 실행되지 않을 수 있습니다. 대체 후보를 권합니다.`
+      : null;
+    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, nodeSelection: m.file, reason };
     (confidence === "unknown" ? unknowns : items).push(item);
   }
   // 대체 후보 / 제외(주 모델). files DB + note 제외 지시 기준. "추천" 아니라 "OOM 시 대체 후보".

@@ -30,6 +30,7 @@
     "RTX 3080": { "arch": "ampere", "vram": 10 },
     "RTX 3070": { "arch": "ampere", "vram": 8 },
     "RTX 3060": { "arch": "ampere", "vram": 12 },
+    "RTX 3060 8GB": { "arch": "ampere", "vram": 8 },
     "RTX 4090": { "arch": "ada", "vram": 24 },
     "RTX 4080": { "arch": "ada", "vram": 16 },
     "RTX 4070": { "arch": "ada", "vram": 12 },

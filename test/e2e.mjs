@@ -181,7 +181,64 @@ console.log("\n" + "=".repeat(70) + "\n[9] 화면=브리핑 모델 값 동일성
   if (ok) console.log(`  ✅ buildModelPlan 결정적 · 참조 ${usages}곳(액션·브리핑·MD·인벤토리) · models/unet 없음`);
 }
 
+// ── 케이스 10: krea2 + RTX 3060 8GB → 대용량 경고 + raw 대체(turbo 제외 유지) ──
+console.log("\n" + "=".repeat(70) + "\n[10] krea2 + RTX 3060 8GB (대용량 경고 · raw 대체)");
+{
+  const plan = buildModelPlan(loadReport(KREA2), { gpu: "RTX 3060 8GB", basePath: "N:\\ComfyUI_models" });
+  const main = plan.items.find((i) => i.role === "main_model");
+  let ok = true;
+  // (a) bf16(26.3GB)이 경고·대체 없이 단독 확정 추천이면 실패
+  if (!main.vramWarning && plan.alternatives.length === 0) { console.log("  ❌ bf16이 경고·대체 없이 단독 추천됨(8GB 부적합 미고지)"); fail++; ok = false; }
+  // (b) VRAM 대용량 경고 발화
+  if (!/8GB VRAM/.test(main.vramWarning || "")) { console.log(`  ❌ 대용량 경고 미발화: ${main.vramWarning}`); fail++; ok = false; }
+  // (c) turbo 제외 유지 + raw 계열 안에서만 대체
+  const altNames = plan.alternatives.map((a) => a.filename);
+  if (!(altNames.length === 1 && altNames[0] === "krea2_raw_fp8_scaled.safetensors")) { console.log(`  ❌ 대체 기대 raw_fp8_scaled만, 실제 ${JSON.stringify(altNames)}`); fail++; ok = false; }
+  if (plan.alternatives.some((a) => /turbo/.test(a.filename))) { console.log("  ❌ Note RAW 강제인데 turbo가 대체에 포함"); fail++; ok = false; }
+  if (!plan.exclusions.every((e) => /turbo/.test(e.filename))) { console.log("  ❌ turbo 제외 목록 이상"); fail++; ok = false; }
+  if (ok) { console.log(`  ✅ 경고: ${main.vramWarning}`); console.log(`  ✅ 대체 후보 raw_fp8_scaled(13.1GB) · turbo 제외 유지(Note RAW 강제 정합)`); }
+}
+
+// ── 케이스 11: krea2 + RTX 3090 무회귀(케이스 1과 diff 0: vramWarning 없음, 동일 items) ──
+console.log("\n" + "=".repeat(70) + "\n[11] krea2 + RTX 3090 무회귀(케이스 1 diff 0)");
+{
+  const p = buildModelPlan(loadReport(KREA2), { gpu: "RTX 3090", basePath: "N:\\ComfyUI_models" });
+  let ok = true;
+  if (p.items.some((i) => i.vramWarning)) { console.log("  ❌ 3090에 vramWarning 발생(26.3<36이라 무경고여야 — 실측: 3090 실행됨)"); fail++; ok = false; }
+  const main = p.items.find((i) => i.role === "main_model");
+  if (main.confidence !== "confirmed" || main.selectedFile !== "krea2_raw_bf16.safetensors" || main.size !== "26.3GB") { console.log("  ❌ 케이스 1과 메인 모델 불일치(무회귀 위반)"); fail++; ok = false; }
+  if (p.alternatives.length !== 1 || p.alternatives[0].filename !== "krea2_raw_fp8_scaled.safetensors") { console.log("  ❌ 케이스 1과 대체 후보 불일치"); fail++; ok = false; }
+  if (ok) console.log("  ✅ 3090 vramWarning 0 · 메인 bf16 confirmed 26.3GB · 대체 raw_fp8_scaled(케이스 1 diff 0)");
+}
+
+// ── 케이스 12(후속): Silent Snow Full + 3090 — ltx23 confirmed 없이 폴백 정합 ──
+console.log("\n" + "=".repeat(70) + "\n[12] Silent Snow Full + 3090 (ltx23 폴백 정합)");
+{
+  const FULL = findFix("Silent Snow LTX2.3 Full");
+  const plan = buildModelPlan(loadReport(FULL), { gpu: "RTX 3090" });
+  let ok = true;
+  if (plan.family !== "ltx23") { console.log(`  ❌ family 기대 ltx23, 실제 ${plan.family}`); fail++; ok = false; }
+  if (plan.items.some((i) => i.confidence === "confirmed")) { console.log("  ❌ ltx23는 files DB 미등재라 confirmed 없어야(폴백 유지)"); fail++; ok = false; }
+  if (plan.items.some((i) => /models[\\/]unet/.test(i.folder || ""))) { console.log("  ❌ modelPlan 경유인데 models/unet 잔존"); fail++; ok = false; }
+  const badges = [...new Set(plan.items.map((i) => i.badge))];
+  if (ok) console.log(`  ✅ family ltx23 · confirmed 0(폴백) · 받기 ${plan.items.length}행 뱃지 ${JSON.stringify(badges)} · models/unet 없음`);
+}
+
+// ── 케이스 13(후속): Video To Audio + 3060 8GB — quantBad(recipe) + gpu_rules 저VRAM 공존 ──
+console.log("\n" + "=".repeat(70) + "\n[13] Video To Audio + 3060 8GB (quantBad·저VRAM 공존)");
+{
+  const V2A = findFix("Ltx2.3 Video To Audio Deno");
+  const j = JSON.parse(fs.readFileSync(path.join(FIX, V2A), "utf8"));
+  const quantBad = buildRecipes(j, { gpu: "ampere" }).flatMap((r) => r.slots).filter((s) => s.quantBad).length;
+  const plan = buildModelPlan(analyze(normalize(j), mgrMap), { gpu: "RTX 3060 8GB" });
+  let ok = true;
+  if (quantBad !== 3) { console.log(`  ❌ quantBad(recipe) 기대 3, 실제 ${quantBad}`); fail++; ok = false; }
+  // 두 판정 레이어가 크래시·충돌 없이 공존(quantBad=recipe층, vramWarning=plan층). 크기 미상이라 vramWarning은 없음이 정상.
+  const vw = plan.items.filter((i) => i.vramWarning).length;
+  if (ok) { console.log(`  ✅ quantBad(recipe층)=${quantBad} · plan items=${plan.items.length}(confidence ${[...new Set(plan.items.map((i) => i.confidence))].join(",")}) · vramWarning(plan층)=${vw}(크기 미상이라 무발화, 정상)`); console.log("  ✅ 두 판정 레이어 크래시·충돌 없이 공존"); }
+}
+
 console.log("\n" + "=".repeat(70));
 console.log(`fixtures: krea2=${!!KREA2} pixel=${!!PIXEL} ltx=${!!LTX}`);
-console.log(fail === 0 ? "✅ e2e 9케이스 전부 통과" : `❌ e2e ${fail}건 실패`);
+console.log(fail === 0 ? "✅ e2e 13케이스 전부 통과" : `❌ e2e ${fail}건 실패`);
 process.exit(fail === 0 ? 0 : 1);
