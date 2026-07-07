@@ -5,7 +5,57 @@
 //       카탈로그 밖 패밀리 날조 금지 → 미감지 시 family null(호출부는 기존 폴백 유지).
 import catalog from "../data/model_catalog.json" with { type: "json" };
 import gpuRules from "../data/gpu_rules.json" with { type: "json" };
-import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder } from "./parseWorkflowNotes.js";
+import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, parseNoteSections } from "./parseWorkflowNotes.js";
+
+const baseName = (v) => (v || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
+function fileSim(a, b) {
+  const tok = (s) => s.toLowerCase().replace(/\.[^.]+$/, "").split(/[_\-.\s]+/).filter(Boolean);
+  const A = new Set(tok(a)), B = new Set(tok(b));
+  if (!A.size || !B.size) return 0;
+  let inter = 0; for (const t of A) if (B.has(t)) inter++;
+  return inter / (A.size + B.size - inter);
+}
+const HEADER_SLOT = [[/main\s*model|checkpoint|unet|diffusion/i, "main_model"], [/text\s*encoder|\bclip\b|qwen/i, "text_encoder"], [/\bvae\b/i, "vae"], [/lora/i, "lora"]];
+function mkLink(l, sec) { return { url: l.url, label: l.label, file: l.file, folder: sec.folder, strength: sec.strength, sectionHeader: sec.header }; }
+
+// Note 섹션 링크 → 워크플로우 모델 슬롯 매칭. 반환: {linkByBase, authorLinks}. 카탈로그 무관(모든 워크플로우).
+export function promoteNoteLinks(report) {
+  const sections = parseNoteSections(report?.authorNotes || []);
+  const models = report?.models || [];
+  const linkByBase = new Map();
+  const usedLink = new Set();
+  // 1. 정확 파일명 매칭(최강) — 링크 URL의 파일명이 워크플로우 모델 basename과 일치
+  models.forEach((m) => {
+    const mb = baseName(m.file);
+    sections.forEach((sec, si) => sec.links.forEach((l, li) => {
+      if (l.file && l.file.toLowerCase() === mb && !linkByBase.has(mb)) { linkByBase.set(mb, mkLink(l, sec)); usedLink.add(`${si}:${li}`); }
+    }));
+  });
+  // 2. 섹션 헤더 키워드 → 슬롯 타입 매칭(파일명 미매칭 슬롯만)
+  models.forEach((m) => {
+    const mb = baseName(m.file);
+    if (linkByBase.has(mb)) return;
+    const st = slotTypeFor(m.node);
+    if (!st) return;
+    for (let si = 0; si < sections.length; si++) {
+      const secSlot = (HEADER_SLOT.find(([re]) => re.test(sections[si].header)) || [])[1];
+      if (secSlot !== st || !sections[si].links.length) continue;
+      let bestLi = -1, bestScore = -1;
+      // dir 링크(파일명 없음)는 헤더 신뢰(0.4). 단 lora는 여러 개라 헤더만으로 오매칭 위험 → 파일명 유사도만(dir 0).
+      sections[si].links.forEach((l, li) => { const s = l.file ? fileSim(l.file, mb) : (st === "lora" ? 0 : 0.4); if (s > bestScore) { bestScore = s; bestLi = li; } });
+      if (bestLi < 0 || bestScore < 0.3) continue; // 최소 유사도 미달 → 오매칭 방지(컨트롤 lora↔turbo/anti-censorship 등)
+      linkByBase.set(mb, mkLink(sections[si].links[bestLi], sections[si])); usedLink.add(`${si}:${bestLi}`); break;
+    }
+  });
+  // 3. 미매칭 섹션 링크 → 제작자 안내 링크(모델 다운로드성: 파일 직링크 or huggingface/civitai/github)
+  const authorLinks = [];
+  sections.forEach((sec, si) => sec.links.forEach((l, li) => {
+    if (usedLink.has(`${si}:${li}`)) return;
+    if (!(l.file || /huggingface\.co|civitai|github\.com/i.test(l.url))) return;
+    authorLinks.push({ label: sec.header || l.label, linkLabel: l.label, url: l.url, strength: sec.strength, folder: sec.folder });
+  }));
+  return { linkByBase, authorLinks };
+}
 
 const VARIANT_KEYS = ["raw", "turbo", "distill", "lightning", "schnell", "base"];
 // 품질 순위(높을수록 고품질)·속도 순위(높을수록 빠름) — quant 기준.
@@ -71,11 +121,12 @@ function joinPath(base, ...parts) {
 export function recommend(report, env) {
   const models = report?.models || [];
   const flags = parseWorkflowNotes(report?.authorNotes || []);
+  const { linkByBase, authorLinks } = promoteNoteLinks(report); // Note 링크 승격(카탈로그 무관)
   const profile = gpuProfile(env?.gpu);
   const family = detectFamily(models);
   const needs = [];
   if (!profile) needs.push("gpu"); // 불변①: GPU 미입력 → 확정 판정 금지, 안내만
-  if (!family) return { family: null, label: null, confidence: "none", slots: [], needs, flags, profile };
+  if (!family) return { family: null, label: null, confidence: "none", slots: [], needs, flags, profile, noteLinkByBase: linkByBase, authorLinks };
   const def = catalog.families[family];
   const basePath = env?.modelRoot || env?.basePath || null; // 불변②: 수동 우선, 없으면 상대경로만
 
@@ -128,8 +179,15 @@ export function recommend(report, env) {
     else reasons.push(`이 파일의 배포 출처는 카탈로그에 없어 배치 폴더만 확정. 다운로드는 검색으로 안내.`);
     if (exclude.length) reasons.push(`Note 지시: ${exclude.join("·")} 변형은 이 슬롯에서 제외.`);
     if (!profile) reasons.push(`GPU 미입력 → 양자화 적합성은 판정하지 않음.`);
-    slots.push({ slotType, node: m.node, workflowValue: value, variant: variant?.match || null, quant: variant?.quant || null, kind: variant?.kind || null, stance, quality, speed, exclude, folder, absoluteFolder, source: def.source, badge, reasons });
+    // Note 링크 승격: 이 슬롯 파일에 제작자 직링크가 있으면 첨부(다운로드 버튼·강도·폴더 근거).
+    const noteLink = linkByBase.get(baseName(value)) || null;
+    if (noteLink) {
+      reasons.push(`워크플로우 제작자 안내 링크: ${noteLink.label}${noteLink.sectionHeader ? ` (${noteLink.sectionHeader})` : ""}.`);
+      if (noteLink.folder && folder !== `models/${folderKey}`) { /* 카탈로그 폴더 우선 */ }
+      if (noteLink.folder) reasons.push(`Note 폴더 지시: ${noteLink.folder}${`models/${folderKey}` !== noteLink.folder.replace(/^\/?/, "") ? ` (카탈로그 우선: models/${folderKey})` : ""}.`);
+    }
+    slots.push({ slotType, node: m.node, workflowValue: value, variant: variant?.match || null, quant: variant?.quant || null, kind: variant?.kind || null, stance, quality, speed, exclude, folder, absoluteFolder, source: def.source, badge, noteLink, reasons });
   }
   const confidence = def.source ? "confirmed" : "detected";
-  return { family, label: def.label, confidence, slots, needs, flags, profile };
+  return { family, label: def.label, confidence, slots, needs, flags, profile, noteLinkByBase: linkByBase, authorLinks };
 }

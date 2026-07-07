@@ -27,6 +27,7 @@ function actionBadges(f, env) {
   const rec = recommend(rep, env);
   const recByBase = new Map();
   if (rec.family && !rec.needs.includes("gpu")) for (const s of rec.slots) recByBase.set(base(s.workflowValue), s);
+  const noteLinkByBase = rec.noteLinkByBase instanceof Map ? rec.noteLinkByBase : new Map();
   const recipes = buildRecipes(JSON.parse(fs.readFileSync(path.join(FIX, f), "utf8")), { gpu: null });
   const slots = recipes.flatMap((r) => r.slots);
   const out = [];
@@ -35,7 +36,9 @@ function actionBadges(f, env) {
     const b = base(s.value);
     if (seen.has(b)) continue; seen.add(b);
     const recSlot = recByBase.get(b);
-    if (recSlot) out.push({ value: s.value, badge: recSlot.badge, folder: recSlot.absoluteFolder || recSlot.folder, rec: recSlot });
+    const noteLink = noteLinkByBase.get(b);
+    if (recSlot) { const badge = recSlot.badge === "확정" ? "확정" : (noteLink ? "워크플로우 안내" : "추정"); out.push({ value: s.value, badge, folder: recSlot.absoluteFolder || recSlot.folder, rec: recSlot, noteLink }); }
+    else if (noteLink) out.push({ value: s.value, badge: "워크플로우 안내", folder: noteLink.folder || s.folder, noteLink });
     else { const conf = s.src === "curated" || s.src === "manager" || s.src === "manager_live"; out.push({ value: s.value, badge: conf ? "확정" : "확인 필요", folder: s.folder }); }
   }
   return { rec, rows: out };
@@ -122,6 +125,46 @@ console.log("\n" + "=".repeat(70) + "\n[5] LTX (quantBad·ggufAlt 무회귀)");
   if (ok) console.log(`  ✅ LTX quantBad 2 무회귀 + recommend 무크래시`);
 }
 
+// ── 케이스 6: Note 링크 승격 (Main Model 링크·Turbo Lora 강도·VAE Wan2.1) ──
+console.log("\n" + "=".repeat(70) + "\n[6] Note 링크 승격 (krea2 실제 Note)");
+{
+  const { rec, rows } = actionBadges(KREA2, { gpu: "RTX 3090", basePath: "N:\\ComfyUI_models" });
+  let ok = true;
+  // Main Model 받기 행에 Note 링크 버튼(noteLink) 존재
+  const mainRow = rows.find((r) => base(r.value) === "krea2_raw_bf16.safetensors");
+  if (!mainRow?.noteLink?.url) { console.log("  ❌ Main Model 받기 행에 Note 링크 없음"); fail++; ok = false; }
+  else if (!/Comfy-Org\/Krea-2/.test(mainRow.noteLink.url)) { console.log(`  ❌ Main Model Note 링크 예상과 다름: ${mainRow.noteLink.url}`); fail++; ok = false; }
+  // VAE 행에 Wan2.1 링크 매칭(정확 파일명)
+  const vaeRow = rows.find((r) => base(r.value) === "wan2.1_vae_upscale2x_imageonly_real_v1.safetensors");
+  if (!vaeRow?.noteLink?.url || !/wan2\.1[_-]?vae[_-]?upscale2x/i.test(vaeRow.noteLink.url)) { console.log(`  ❌ VAE 행 Wan2.1 링크 매칭 실패: ${vaeRow?.noteLink?.url}`); fail++; ok = false; }
+  // Turbo Lora 강도 안내: authorLinks에 turbo lora + 강도 0.6
+  const turbo = rec.authorLinks.find((a) => /turbo\s*lora/i.test(a.label) && a.strength);
+  if (!turbo || turbo.strength !== "0.6") { console.log(`  ❌ Turbo Lora 강도 안내(0.6) 없음: ${JSON.stringify(turbo)}`); fail++; ok = false; }
+  // 미매칭 링크 버려지지 않음(authorLinks 다수)
+  if (rec.authorLinks.length < 3) { console.log(`  ❌ 제작자 안내 링크 일괄 표기 누락(authorLinks ${rec.authorLinks.length})`); fail++; ok = false; }
+  if (ok) {
+    console.log(`  ✅ Main Model 받기 행 Note 링크: ${mainRow.noteLink.url}`);
+    console.log(`  ✅ VAE 행 Wan2.1 링크 매칭: ${vaeRow.noteLink.url.split("/").pop()}`);
+    console.log(`  ✅ Turbo Lora 강도 안내: ${turbo.strength} · 제작자 안내 링크 ${rec.authorLinks.length}건 일괄`);
+  }
+}
+
+// ── 케이스 7: Note 없는 fixture(LTX) 무회귀 + 전 버튼 href 앵커 스냅샷 ──
+console.log("\n" + "=".repeat(70) + "\n[7] Note 없음 무회귀 + 버튼 앵커 스냅샷");
+{
+  let ok = true;
+  const recLtx = recommend(loadReport(LTX), { gpu: "RTX 3090" });
+  // 무회귀 핵심: LTX 모델 슬롯에 잘못된 Note 링크가 붙지 않아야(슬롯 오매칭 0). authorLinks(미매칭 링크 표기)는 정상 동작.
+  if (recLtx.noteLinkByBase.size !== 0) { console.log(`  ❌ LTX 모델 슬롯에 Note 링크 오매칭(${recLtx.noteLinkByBase.size}) — 무회귀 위반`); fail++; ok = false; }
+  // 버튼 앵커 스냅샷: Teardown.jsx에서 openSearch 잔존·window.open 검색 버튼 없어야, HF 검색은 <a href
+  const src = fs.readFileSync(path.join(DIR, "..", "src", "Teardown.jsx"), "utf8");
+  if (/openSearch/.test(src)) { console.log("  ❌ openSearch(window.open) 잔존 — 팝업 블로커 취약"); fail++; ok = false; }
+  const hfButtons = src.match(/HuggingFace 검색 ↗<\/a>/g) || [];
+  const hfAnchors = src.match(/<a[^>]*href=\{searchUrl\([^)]*\)\}[^>]*>HuggingFace 검색 ↗<\/a>/g) || [];
+  if (hfButtons.length !== hfAnchors.length) { console.log(`  ❌ HF 검색 버튼 ${hfButtons.length}개 중 <a href> 앵커 ${hfAnchors.length}개(불일치)`); fail++; ok = false; }
+  if (ok) console.log(`  ✅ LTX 슬롯 오매칭 0 무회귀(미매칭 링크 ${recLtx.authorLinks.length}건은 정상 표기) · openSearch 제거 · HF 검색 ${hfAnchors.length}개 전부 <a href> 앵커`);
+}
+
 console.log("\n" + "=".repeat(70));
-console.log(fail === 0 ? "✅ e2e 5케이스 전부 통과" : `❌ e2e ${fail}건 실패`);
+console.log(fail === 0 ? "✅ e2e 7케이스 전부 통과" : `❌ e2e ${fail}건 실패`);
 process.exit(fail === 0 ? 0 : 1);

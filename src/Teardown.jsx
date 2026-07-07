@@ -998,7 +998,6 @@ export default function Teardown() {
     /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.memo, overflowWrap: "anywhere", textDecoration: "underline" }}>{p}</a> : p);
   // 미확인 모델 파일명 웹 검색 URL (구글, 파일명+download)
   const searchUrl = (name) => "https://huggingface.co/models?search=" + encodeURIComponent(name.replace(/\.[^.]+$/, ""));
-  const openSearch = (e, name) => { e.preventDefault(); window.open(searchUrl(name), "_blank", "noopener"); };
   // 액션 버튼(스크립트 보기 등) → 닫힌 "판단 근거" details를 펼치고 해당 위치로 스크롤. 앵커만으론 details가 안 열려 무반응이던 결함 수정.
   const openRxDetail = (e) => { if (e) e.preventDefault(); setRxDetailOpen(true); requestAnimationFrame(() => document.getElementById("rx-detail")?.scrollIntoView({ behavior: "smooth", block: "start" })); };
   const researchUnknownModel = async (filename) => {
@@ -1170,6 +1169,8 @@ export default function Teardown() {
     if (rec && rec.family && !rec.needs.includes("gpu")) for (const s of rec.slots) map.set(s.workflowValue.replace(/\\/g, "/").split("/").pop().toLowerCase(), s);
     return map;
   }, [rec]);
+  // Note 링크 승격 맵(카탈로그·GPU 무관 — 제작자 직링크는 GPU 판정 아님).
+  const noteLinkByBase = React.useMemo(() => (rec?.noteLinkByBase instanceof Map ? rec.noteLinkByBase : new Map()), [rec]);
 
   // 액션 테이블(당장 할 일) — rxTodos를 동사 선행 행으로. 표시층 전용(판정·데이터 불변).
   const actionRows = React.useMemo(() => {
@@ -1204,19 +1205,28 @@ export default function Teardown() {
       const s0 = grp[0].s;
       const base = s0.value.replace(/\\/g, "/").split("/").pop().toLowerCase();
       const recSlot = recByBase.get(base);
+      const noteLink = noteLinkByBase.get(base);
+      const selects = grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value }));
       if (recSlot) {
-        // 카탈로그 확정/추정 슬롯: folders 기반 넣기(models/unet 대체) + [확정]/[추정] + 품질·속도·받지않기 소구분
-        rows.push({ n: ++n, verb: "받기", text: s0.value, folders: [recSlot.absoluteFolder || recSlot.folder], badge: recSlot.badge, selects: grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value })), s: s0, kind: "model", rec: recSlot });
+        // 카탈로그 슬롯: 넣기(folders)+품질/속도/받지않기. 뱃지 — 카탈로그 확정 유지, 폴더만(추정)인데 Note 링크 있으면 [워크플로우 안내]로 승격.
+        const badge = recSlot.badge === "확정" ? "확정" : (noteLink ? "워크플로우 안내" : "추정");
+        rows.push({ n: ++n, verb: "받기", text: s0.value, folders: [recSlot.absoluteFolder || recSlot.folder], badge, selects, s: s0, kind: "model", rec: recSlot, noteLink });
+      } else if (noteLink) {
+        // 카탈로그 밖이지만 제작자 직링크 있음 → [워크플로우 안내] + 링크 버튼(HF 검색 폴백 대신). 넣기는 Note 폴더 지시 or 기존 추정.
+        const folders = noteLink.folder ? [noteLink.folder] : [...new Set(grp.map((t) => t.s.folder).filter((f) => f && f !== "확인 필요"))];
+        rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: "워크플로우 안내", selects, s: s0, kind: "model", noteLink });
       } else {
         const conf = s0.src === "curated" || s0.src === "manager" || s0.src === "manager_live";
         const folders = [...new Set(grp.map((t) => t.s.folder).filter((f) => f && f !== "확인 필요"))];
-        rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: conf ? "확정" : "확인 필요", selects: grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value })), s: s0, kind: "model" });
+        rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: conf ? "확정" : "확인 필요", selects, s: s0, kind: "model" });
       }
     }
     for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
+    // 슬롯 매칭 실패한 제작자 안내 링크 → 일괄 1행(버리지 않음). 강도 지시 병기.
+    if (rec?.authorLinks?.length) rows.push({ n: ++n, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: rec.authorLinks });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
     return rows;
-  }, [rxTodos, logEnv.installedPacks, errlog, recByBase, rec]);
+  }, [rxTodos, logEnv.installedPacks, errlog, recByBase, noteLinkByBase, rec]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1448,21 +1458,34 @@ export default function Teardown() {
                     <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.point }}>{r.n}</span>
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
+                      <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
                       {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
                       {r.kind === "model" && r.folders && r.folders.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {r.folders.map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
                       {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
+                      {r.kind === "model" && r.noteLink && r.noteLink.strength && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>강도: {r.noteLink.strength}으로 설정해 주세요.</div>}
+                      {r.kind === "model" && r.noteLink && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 4, lineHeight: 1.45 }}>제작자 안내 링크: {r.noteLink.label}{r.noteLink.sectionHeader ? ` (${r.noteLink.sectionHeader})` : ""}</div>}
                       {r.kind === "model" && r.rec && (r.rec.quality || r.rec.speed || r.rec.exclude.length > 0) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 5, lineHeight: 1.5 }}>
                         {r.rec.quality && <span style={{ marginRight: 14 }}>품질 우선: <span style={{ fontFamily: MONO, color: C.text }}>{r.rec.quality.kind}·{r.rec.quality.quant}</span></span>}
                         {r.rec.speed && <span style={{ marginRight: 14 }}>속도 우선: <span style={{ fontFamily: MONO, color: C.text }}>{r.rec.speed.kind}·{r.rec.speed.quant}</span></span>}
                         {r.rec.exclude.length > 0 && <span>받지 않기: <span style={{ fontFamily: MONO }}>{r.rec.exclude.join("·")}</span></span>}
                       </div>}
+                      {r.kind === "authorlinks" && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 7 }}>{r.links.map((al, ai) => (
+                        <div key={ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.45, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
+                          <span style={{ color: C.text }}>{al.label}</span>
+                          <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12 }}>링크 ↗</a>
+                          {al.strength && <span style={{ color: C.memoBright }}>강도 {al.strength}</span>}
+                          {al.folder && <span style={{ fontFamily: MONO, color: C.faint, fontSize: 12 }}>{al.folder}</span>}
+                        </div>))}</div>}
                       {r.kind === "node" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.nodes.map((nd, ni) => <span key={ni} style={{ fontFamily: MONO }}>{ni > 0 ? " · " : ""}{nd}</span>)}</div>}
                       {r.kind === "node" && r.guides && r.guides.map((gd, gi) => <div key={gi} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5, display: "flex", gap: 7 }}><span style={{ color: C.point, flexShrink: 0 }}>{gi + 1}.</span><span>{gd}</span></div>)}
                     </div>
                     <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
                       {r.kind === "install" && <a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>스크립트 보기</a>}
-                      {r.kind === "model" && (r.s.url && r.s.url !== "확인 필요" ? <a className="td-hf" href={r.s.url} target="_blank" rel="noopener noreferrer">링크 ↗</a> : <a className="td-hf td-outline-w" href={searchUrl(r.s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, r.s.value)}>HuggingFace 검색 ↗</a>)}
+                      {r.kind === "model" && (
+                        r.noteLink ? <a className="td-hf" href={r.noteLink.url} target="_blank" rel="noopener noreferrer">링크 ↗</a>
+                        : (r.s.url && r.s.url !== "확인 필요") ? <a className="td-hf" href={r.s.url} target="_blank" rel="noopener noreferrer">링크 ↗</a>
+                        : <a className="td-hf td-outline-w" href={searchUrl(r.s.value)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
+                      )}
                     </div>
                   </div>
                 ))}
@@ -1560,7 +1583,7 @@ export default function Teardown() {
                     </>);
                     right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
                       : mr?.loading ? <button className="td-hf" disabled style={{ opacity: 0.55 }}>찾는 중…</button>
-                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={searchUrl(s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, s.value)}>HuggingFace 검색 ↗</a>
+                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={searchUrl(s.value)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
                       : <button className="td-hf" onClick={() => researchUnknownModel(s.value)}>찾기</button>;
                   }
                 }
@@ -2036,7 +2059,7 @@ export default function Teardown() {
                                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>찾는 중…</span>
                                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
                                         <>
-                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)}>HuggingFace 검색 ↗</a>
+                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
                                           {(mr?.error || (mr?.result && !mr.result.found)) && <div style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>직접 링크를 찾지 못했습니다</div>}
                                         </>
                                       ) : (
@@ -2261,7 +2284,7 @@ export default function Teardown() {
                       ) : !isWeight ? null : mr?.loading ? (
                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 14 }}>찾는 중…</span>
                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
-                        <a className="td-hf-sm td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, m.file)} style={{ marginTop: 14 }}>HuggingFace 검색 ↗</a>
+                        <a className="td-hf-sm td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>HuggingFace 검색 ↗</a>
                       ) : (
                         <button className="td-hf-sm" onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14 }}>다운로드 링크 찾기</button>
                       )}

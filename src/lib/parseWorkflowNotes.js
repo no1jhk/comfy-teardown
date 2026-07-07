@@ -76,3 +76,38 @@ export function notedFolder(flags) {
   const f = flags.find((x) => x.directive === "folder");
   return f ? f.value : null;
 }
+
+// URL 끝에서 모델 파일명 추출(safetensors 등). tree/blob 경로면 null(파일 직링크 아님).
+function fileFromUrl(url) {
+  const last = url.split(/[?#]/)[0].replace(/\/+$/, "").split("/").pop();
+  return /\.(safetensors|gguf|ckpt|pt|pth|bin)$/i.test(last) ? last : null;
+}
+// Note를 섹션(## 헤더 또는 **볼드** 헤더)으로 분할 → {header, links[{label,url,file}], folder, strength, body}.
+// 제작자가 모델별 직링크·폴더·강도를 섹션으로 적는 관례를 구조화(액션 테이블 승격용).
+export function parseNoteSections(notes) {
+  const text = Array.isArray(notes) ? notes.join("\n\n") : String(notes || "");
+  if (!text.trim()) return [];
+  const lines = text.split(/\r?\n/);
+  const sections = [];
+  let cur = { header: "", body: [] };
+  const flush = () => { if (cur.header || cur.body.some((l) => l.trim())) sections.push(finalizeSection(cur)); };
+  for (const ln of lines) {
+    const h = ln.match(/^\s*#{1,4}\s+(.+?)\s*$/) || ln.match(/^\s*\*\*(.+?)\*\*\s*$/);
+    if (h) { flush(); cur = { header: h[1].trim(), body: [] }; }
+    else cur.body.push(ln);
+  }
+  flush();
+  return sections;
+}
+function finalizeSection(sec) {
+  const body = sec.body.join("\n");
+  const links = [];
+  for (const m of body.matchAll(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g)) links.push({ label: m[1].trim(), url: m[2].trim(), file: fileFromUrl(m[2]) });
+  // 마크다운 아닌 평문 URL도(중복 제외)
+  for (const m of body.matchAll(/(?<!\()\bhttps?:\/\/[^\s)\]"'`]+/g)) { const url = m[0]; if (!links.some((l) => l.url === url)) links.push({ label: sec.header || url, url, file: fileFromUrl(url) }); }
+  const fm = body.match(/goes?\s+in(?:to)?\s+(?:the\s+)?([A-Za-z0-9_/\\.-]+)/i);
+  const folder = fm ? fm[1].replace(/[.\s]+$/, "").trim() : null;
+  const sm = body.match(/([0-9]+(?:\.[0-9]+)?)\s*strength/i) || body.match(/strength\s*[:=]?\s*([0-9]+(?:\.[0-9]+)?)/i);
+  const strength = sm ? sm[1] : null;
+  return { header: sec.header, links, folder, strength, body };
+}
