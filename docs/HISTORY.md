@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-07 (P2 최종 보강: Note 링크 승격 + 버튼 재배선 + 로그 입력층)
+**한 일**
+- **Note 링크 승격**(7bfce9a): parseNoteSections(## / ** 헤더 → links/folder/strength) + promoteNoteLinks(링크→슬롯 매칭: 정확 파일명>헤더 키워드, lora는 파일명 유사도만). 액션 테이블: 매칭 슬롯 '링크 ↗'(제작자 직링크)+[워크플로우 안내] 뱃지, 강도 한 줄, 미매칭 링크 '참고' 행 일괄. krea2 실측: Main Model·Text Encoder·VAE(Wan2.1 정확 매칭) 링크 승격, Turbo Lora 강도 0.6 authorLink.
+- **버튼 재배선**(7bfce9a): 실PC 팝업 블로커 무반응 원인 = HF 검색 onClick={openSearch}(preventDefault+window.open). 전 4곳 제거 → 순수 `<a href target=_blank rel>` 앵커. openSearch 삭제.
+- **로그 입력층**(62f5625): 입력칸 안내 확정형(env: '완전히 켜진 뒤 전체 복사', Diagnose: '실행 버튼 누른 뒤 로그'). 불완전 감지: parseComfyLog.truncated(Prestartup有·Import times無) + logInfo(GPU·경로·설치 팩 N개 확인 표시) + 잘림 안내.
+- e2e 7케이스(Note 링크 3종·미매칭 일괄·LTX 슬롯 오매칭0·전 HF버튼 앵커 스냅샷) + regression(truncated) 통과.
+
+**자가 검수**: 양방향(작업 전부 이행 + 비지시 자진: lora 유사도 임계 0.3[다중 lora 오매칭 방지]·catalog 확정 우선[note 있어도 krea2_raw는 확정 유지, 추정만 워크플로우 안내로 승격]). 정보설계(받기 행 병합·행동 생성·동선). 카피(존댓말·em dash 없음·화살표 없음·워크플로우). 대원칙(날조 없음, 미매칭 링크 버리지 않고 표기).
+
+**다음 할 일**
+- dev 확인 후 push. ltx23/flux2/seedvr2 변형·source 실측 편입.
+
 ## 2026-07-07 (P2 환경 기반 모델 추천 엔진 0·A~E)
 **한 일 (단계별 커밋)**
 - **0**(ea3d1f8): 실로그 fixture 실측 반영(alembic·extra search path·Prestartup·IMPORT FAILED·missing_node_type). parseComfyLog: Prestartup 블록 인식(라인 단위)·basePath 자동 추출(extra search path 부모 공통 접두)·dedup. env.basePath 배선. parseMissingNodeType nodeId 병합.
