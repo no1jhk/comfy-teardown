@@ -1160,14 +1160,14 @@ export default function Teardown() {
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const [envOpen, setEnvOpen] = useState(false);
   const [envLog, setEnvLog] = useState("");
-  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", modelRoot: "", installedPacks: [], importFailed: [] });
+  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", modelRoot: "", basePath: "", installedPacks: [], importFailed: [] });
   const [cmdOpen, setCmdOpen] = useState(false);
   const [mgrMap, setMgrMap] = useState(null); // manager_node_map.json (비동기 로드)
   useEffect(() => { fetch("/manager_node_map.json").then((r) => r.ok ? r.json() : null).then(setMgrMap).catch(() => {}); }, []);
   const onEnvLog = (text) => {
     setEnvLog(text);
     const parsed = parseComfyLog(text);
-    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed }));
+    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, basePath: parsed.basePath || prev.basePath, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed }));
   };
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);

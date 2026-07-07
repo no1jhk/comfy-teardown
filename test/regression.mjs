@@ -278,7 +278,24 @@ console.log("\n" + "=".repeat(70) + "\n실로그 설치 해소(krea2_console_log
   }
   if (!parsed.gpu.includes("3090")) { console.log(`  ❌ GPU 파싱 기대 3090, 실제 '${parsed.gpu}'`); fail++; ok = false; }
   if (remain !== 2) { console.log(`  ❌ 설치행 잔존 기대 2(Thumbnails·Model_preset_Pilot), 실제 ${remain}`); fail++; ok = false; }
-  if (ok) console.log(`  ✅ 로그 3팩 설치확인 제외 · 잔존 2 · GPU ${parsed.gpu} 파싱`);
+  // 단계 0: Prestartup 블록 팩도 인식(rgthree는 두 블록 중복 → dedup) + IMPORT FAILED efficiency-nodes-ed
+  if (!parsed.installedPacks.includes("comfyui-easy-use")) { console.log("  ❌ Prestartup 블록 팩(comfyui-easy-use) 미인식"); fail++; ok = false; }
+  if (!parsed.importFailed.includes("efficiency-nodes-ed")) { console.log("  ❌ IMPORT FAILED(efficiency-nodes-ed) 미인식"); fail++; ok = false; }
+  if (parsed.installedPacks.filter((p) => p === "rgthree-comfy").length !== 1) { console.log("  ❌ 중복 블록 팩 dedup 실패(rgthree-comfy)"); fail++; ok = false; }
+  // 단계 0: extra search path → basePath 자동 추출
+  if (parsed.basePath !== "N:\\ComfyUI_models") { console.log(`  ❌ basePath 추출 기대 'N:\\ComfyUI_models', 실제 '${parsed.basePath}'`); fail++; ok = false; }
+  if (ok) console.log(`  ✅ 로그 3팩 제외·잔존 2·GPU ${parsed.gpu}·Prestartup 인식·basePath ${parsed.basePath}`);
+}
+
+// === 단계 0: Prestartup만 있고 Import times 잘린 로그에서도 설치 인식 ===
+console.log("\n" + "=".repeat(70) + "\nPrestartup-only 잘린 로그 설치 인식");
+{
+  const truncated = "Adding extra search path checkpoints D:\\models\\checkpoints\nAdding extra search path vae D:\\models\\vae\n\nPrestartup times for custom nodes:\n   0.0 seconds: C:\\Users\\x\\ComfyUI\\custom_nodes\\rgthree-comfy\n   0.2 seconds: C:\\Users\\x\\ComfyUI\\custom_nodes\\deno-custom-nodes\n";
+  const p = parseComfyLog(truncated);
+  let ok = true;
+  if (!p.installedPacks.includes("rgthree-comfy") || !p.installedPacks.includes("deno-custom-nodes")) { console.log(`  ❌ Prestartup-only 설치 인식 실패: ${p.installedPacks.join(",")}`); fail++; ok = false; }
+  if (p.basePath !== "D:\\models") { console.log(`  ❌ basePath 기대 'D:\\models', 실제 '${p.basePath}'`); fail++; ok = false; }
+  if (ok) console.log(`  ✅ Prestartup-only에서 설치 2팩 + basePath ${p.basePath} 인식`);
 }
 
 // === 작업 D: missing_node_type → red 승격 + 노드 ID 추출 ===

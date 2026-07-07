@@ -13,20 +13,32 @@ export function tokenSim(a, b) {
 
 // ComfyUI 콘솔 로그 → GPU/torch/CUDA + Import times 블록에서 설치 팩·로드 실패 팩(경로 마지막 폴더명, 소문자).
 export function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "", installedPacks: [], importFailed: [] };
+  const out = { gpu: "", torch: "", cuda: "", basePath: "", installedPacks: [], importFailed: [] };
   const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
   if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
   const g = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?RTX\s*(\d{4})\s*(Ti|Super)?/i);
   if (g) out.gpu = "RTX " + g[1] + (g[2] ? " " + g[2] : "");
   else { const g2 = text.match(/([AB]\d{3,4}|RTX\s*A?\d{4,5})/i); if (g2) out.gpu = g2[0].trim(); }
-  // Import/Prestartup times 블록: "0.1 seconds: /path/PackName" 경로 마지막 폴더명 → 설치 확인(로컬 파싱). "(IMPORT FAILED)"는 로드 실패.
+  // "Adding extra search path <종류> <경로>" → 모델 루트(basePath) 자동 추출. 각 경로의 부모(마지막=종류 폴더 제외)의 공통 접두.
+  const extraPaths = [...text.matchAll(/^\s*Adding extra search path\s+\S+\s+(.+?)\s*$/gim)].map((mm) => mm[1]);
+  if (extraPaths.length) {
+    const sep = extraPaths[0].includes("\\") ? "\\" : "/";
+    const parents = extraPaths.map((p) => { const seg = p.replace(/[\\/]+$/, "").split(/[\\/]/); seg.pop(); return seg; });
+    let common = parents[0] || [];
+    for (const s of parents.slice(1)) { let i = 0; while (i < common.length && i < s.length && common[i] === s[i]) i++; common = common.slice(0, i); }
+    if (common.length) out.basePath = common.join(sep);
+  }
+  // Import/Prestartup times 블록(헤더 무관·라인 단위): "0.1 seconds: /path/PackName" 경로 마지막 폴더명 → 설치 확인. "(IMPORT FAILED)"는 로드 실패.
   const re = /^\s*[\d.]+\s*seconds?\s*(\(IMPORT FAILED\))?\s*:\s*(.+?)\s*$/gim;
+  const inst = new Set(), failed = new Set();
   let m;
   while ((m = re.exec(text))) {
     const base = m[2].replace(/[\\/]+$/, "").split(/[\\/]/).pop().replace(/\.py$/i, "").toLowerCase();
     if (!base) continue;
-    if (m[1]) out.importFailed.push(base); else out.installedPacks.push(base);
+    if (m[1]) failed.add(base); else inst.add(base);
   }
+  for (const b of failed) inst.delete(b); // 로드 실패 팩은 설치 성공에서 제외(로드 실패가 우선)
+  out.installedPacks = [...inst]; out.importFailed = [...failed];
   return out;
 }
 
@@ -60,21 +72,26 @@ export function parseValueNotInList(log) {
 // ComfyUI 실제 메시지 + 사용자 지정 토큰. 노드 ID를 뽑을 수 있으면 함께 반환(카피에서 "노드 ID #N" 안내).
 export function parseMissingNodeType(log) {
   if (!log) return [];
-  const out = [];
-  const push = (nodeType, nodeId) => {
-    if (!nodeType && !nodeId) { if (!out.some((o) => !o.nodeType && !o.nodeId)) out.push({ nodeType: null, nodeId: null }); return; }
-    const key = (nodeId || "") + "|" + (nodeType || "");
-    if (!out.some((o) => (o.nodeId || "") + "|" + (o.nodeType || "") === key)) out.push({ nodeType: nodeType || null, nodeId: nodeId || null });
-  };
+  const raw = [];
   let m;
   // (a) 실행 검증 실패(가장 확실): "Cannot execute because node XXX does not exist." (같은 줄 Node ID '#14' 있으면 첨부)
   const reExec = /Cannot execute because node\s+(\S+?)\s+does not exist\.?(?:[^\n]*?Node ID\s*['"]?#?(\d+))?/gi;
-  while ((m = reExec.exec(log))) push(m[1], m[2]);
+  while ((m = reExec.exec(log))) raw.push({ nodeType: m[1] || null, nodeId: m[2] || null });
   // (b) 프론트 로드 경고: "following node types were not found:" 뒤 타입 목록
   const reNotFound = /following node types were not found:?\s*([^\n]+)/gi;
-  while ((m = reNotFound.exec(log))) for (const t of m[1].split(/[,\s]+/).map((s) => s.replace(/[.\[\]'"]/g, "").trim()).filter(Boolean)) push(t, null);
+  while ((m = reNotFound.exec(log))) for (const t of m[1].split(/[,\s]+/).map((s) => s.replace(/[.\[\]'"]/g, "").trim()).filter(Boolean)) raw.push({ nodeType: t, nodeId: null });
   // (c) 사용자 지정 토큰 missing_node_type (같은 줄 #id 있으면 첨부)
   const reTok = /missing_node_type(?:[^\n]*?#(\d+))?/gi;
-  while ((m = reTok.exec(log))) push(null, m[1]);
+  while ((m = reTok.exec(log))) raw.push({ nodeType: null, nodeId: m[1] || null });
+  // 병합: 같은 nodeId는 하나로(타입 있는 쪽 우선). "Cannot execute + Node ID"와 "missing_node_type + #id"가 같은 줄에 겹쳐도 이중 계상 방지.
+  const byId = new Map(), byType = new Map(); let bare = false;
+  for (const r of raw) {
+    if (r.nodeId) { const e = byId.get(r.nodeId) || { nodeType: null, nodeId: r.nodeId }; if (!e.nodeType && r.nodeType) e.nodeType = r.nodeType; byId.set(r.nodeId, e); }
+    else if (r.nodeType) { if (!byType.has(r.nodeType)) byType.set(r.nodeType, { nodeType: r.nodeType, nodeId: null }); }
+    else bare = true;
+  }
+  const idTypes = new Set([...byId.values()].map((e) => e.nodeType).filter(Boolean));
+  const out = [...byId.values(), ...[...byType.values()].filter((e) => !idTypes.has(e.nodeType))];
+  if (!out.length && bare) out.push({ nodeType: null, nodeId: null });
   return out;
 }
