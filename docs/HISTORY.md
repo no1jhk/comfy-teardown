@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-07 (봉인1: 실측 갭 4종 이식)
+**한 일**(a1f7467) — 실PC 재대결에서 도구 밖 수동 개입 4건을 기능화. 실측값만 사용.
+- **A 코어 버전 판정**: core_feature_rules.json(cliploader_type_krea2 min 0.27, krea2_control extension_required). parseComfyLog.comfyVersion + compareVersion. analyze.coreFeatures. 버전 부족→최상단 확인 행, 로그 없음→dim.
+- **B Note 매칭+clone**: matchLabelToNode(정규화+편집거리≤2). 'Smart resulution'↔'SmartResolution' 매칭, calc 트랩 미매칭. nodegroup 카드 제작자 안내 링크 + install 스크립트 clone.
+- **C 지식 박제**: node_repo_map에 실측 5노드(VAEUtils→spacepxl, SmartResolution→openerai, Krea2Control*3→facok, registry:false). krea2 미상 5→0, 그룹 5→8.
+- **D VNIL 원인 병기**: Value not in list 시 원인 2택(파일 없음/버전 부족). A outdated 시 버전 행 우선.
+
+**실측 판단**: min_version은 실측 확정 0.27 사용(0.26 미실측). Krea2Control* repo는 Note 링크 출처(facok). 유사 이름 함정(calc 팩) 매칭 방지=정확 클래스명 + 편집거리 길이차 배제.
+
+**막힌 점**: buildInstallScript/VNIL 렌더는 JSX라 node 검증 불가 → 구성 함수(compareVersion·matchLabelToNode·node_repo_map) 단위 검증.
+
+**다음 할 일**: 봉인 라운드 2 후 미푸시 일괄 push.
+
 ## 2026-07-07 (P2 마감: modelPlan 단일화 + 실측 file DB + 뱃지 4단계)
 **한 일**(40bd30a) — ChatGPT 제안서(검증 엔진 중심) 반영
 - **file DB**: model_catalog krea2에 files[] 10건(Fable 웹 실측 2026-07-07). int8_convrot 제거(실파일 부재), turbo_mxfp8 편입. confirmed 자격 = files DB 실존만(size·repo_path 실측값).
