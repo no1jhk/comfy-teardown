@@ -10,6 +10,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRecipes } from "../src/data/redNodeRecipe.js";
+import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType } from "../src/logParse.js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(DIR, "fixtures");
@@ -254,6 +255,49 @@ for (const f of files) {
   if (exp !== undefined && modelRows !== exp) { console.log(`  ❌ 받기 행 기대 ${exp}, 실제 ${modelRows}`); fail++; }
 }
 console.log("  ✅ 받기 행 = model 슬롯 수 · 실행 1행 고정 (설치 행은 analyze 범위 — SKIP)");
+
+// === 작업 C: 실로그 설치 해소 — krea2_console_log.txt + krea2 팩 basename 매칭 실측 ===
+console.log("\n" + "=".repeat(70) + "\n실로그 설치 해소(krea2_console_log.txt → installedPacks 매칭)");
+{
+  const log = fs.readFileSync(path.join(FIX, "krea2_console_log.txt"), "utf8");
+  const parsed = parseComfyLog(log);
+  console.log(`  installedPacks: ${parsed.installedPacks.join(", ")}`);
+  // krea2 그룹 repos(packcount 실측): 3개는 로그에 있어 제외, 2개는 잔존해야
+  const krea2Repos = [
+    ["rgthree/rgthree-comfy", true],
+    ["https://github.com/chrisgoringe/cg-use-everywhere", true],
+    ["https://github.com/Fannovel16/comfyui_controlnet_aux", true],
+    ["https://github.com/audioscavenger/ComfyUI-Thumbnails", false],
+    ["https://github.com/NewLouwa/ComfyUI-Model_preset_Pilot", false],
+  ];
+  let remain = 0, ok = true;
+  for (const [repo, expectInstalled] of krea2Repos) {
+    const hit = packInstalled(repo, parsed.installedPacks);
+    if (!hit) remain++;
+    if (hit !== expectInstalled) { console.log(`  ❌ ${repo} 설치판정 기대 ${expectInstalled}, 실제 ${hit}`); fail++; ok = false; }
+  }
+  if (!parsed.gpu.includes("3090")) { console.log(`  ❌ GPU 파싱 기대 3090, 실제 '${parsed.gpu}'`); fail++; ok = false; }
+  if (remain !== 2) { console.log(`  ❌ 설치행 잔존 기대 2(Thumbnails·Model_preset_Pilot), 실제 ${remain}`); fail++; ok = false; }
+  if (ok) console.log(`  ✅ 로그 3팩 설치확인 제외 · 잔존 2 · GPU ${parsed.gpu} 파싱`);
+}
+
+// === 작업 D: missing_node_type → red 승격 + 노드 ID 추출 ===
+console.log("\n" + "=".repeat(70) + "\nmissing_node_type(로그 기반 red 승격 + 확인 행)");
+{
+  const S1 = "Cannot execute because node KJNodesX does not exist.: Node ID '#14'";
+  const S2 = "When loading the graph, the following node types were not found: SmartResolution, Krea2ControlApply.";
+  const S3 = "invalid prompt: missing_node_type at node #27";
+  const h1 = parseMissingNodeType(S1), h2 = parseMissingNodeType(S2), h3 = parseMissingNodeType(S3);
+  console.log(`  (a)실행불가: ${JSON.stringify(h1)} · (b)not found: ${h2.length}개 · (c)토큰: ${JSON.stringify(h3)}`);
+  let ok = true;
+  if (!(h1.length === 1 && h1[0].nodeId === "14" && h1[0].nodeType === "KJNodesX")) { console.log("  ❌ (a) Cannot execute 파싱/노드ID 추출 실패"); fail++; ok = false; }
+  if (!(h2.length === 2 && h2.some((x) => x.nodeType === "SmartResolution"))) { console.log("  ❌ (b) not found 목록 파싱 실패"); fail++; ok = false; }
+  if (!(h3.length === 1 && h3[0].nodeId === "27")) { console.log("  ❌ (c) missing_node_type 토큰/ID 파싱 실패"); fail++; ok = false; }
+  // red 승격: hit>0 이면 red (VNIL과 동일 계열)
+  const gradeOverride = (parseValueNotInList(S1).length + h1.length) > 0 ? "red" : "none";
+  if (gradeOverride !== "red") { console.log("  ❌ missing_node_type 감지 시 red 승격 실패"); fail++; ok = false; }
+  if (ok) console.log("  ✅ missing_node_type: 실행불가(ID #14)·not found 2건·토큰(ID #27) 파싱 + red 승격");
+}
 
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");

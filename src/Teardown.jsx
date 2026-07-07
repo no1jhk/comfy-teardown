@@ -7,6 +7,7 @@ import {
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
 import { buildRecipes, groupNodesByRepo } from "./data/redNodeRecipe.js";
+import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType } from "./logParse.js";
 import mgrList from "./data/manager-model-list.json";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
@@ -183,30 +184,6 @@ function buildLearnedSnippet(learned) {
   return JSON.stringify(out, null, 2);
 }
 
-// ComfyUI 시작 로그에서 GPU/torch/CUDA 추출
-function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "", installedPacks: [], importFailed: [] };
-  const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
-  if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
-  const g = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?RTX\s*(\d{4})\s*(Ti|Super)?/i);
-  if (g) out.gpu = "RTX " + g[1] + (g[2] ? " " + g[2] : "");
-  else { const g2 = text.match(/([AB]\d{3,4}|RTX\s*A?\d{4,5})/i); if (g2) out.gpu = g2[0].trim(); }
-  // Import/Prestartup times 블록: "0.1 seconds: /path/PackName" 경로 마지막 폴더명 → 설치 확인(로컬 파싱). "(IMPORT FAILED)"는 로드 실패.
-  const re = /^\s*[\d.]+\s*seconds?\s*(\(IMPORT FAILED\))?\s*:\s*(.+?)\s*$/gim;
-  let m;
-  while ((m = re.exec(text))) {
-    const base = m[2].replace(/[\\/]+$/, "").split(/[\\/]/).pop().replace(/\.py$/i, "").toLowerCase();
-    if (!base) continue;
-    if (m[1]) out.importFailed.push(base); else out.installedPacks.push(base);
-  }
-  return out;
-}
-// 처방 repo 폴더명이 로그의 설치 팩에 있는지 (소문자 basename 비교)
-function packInstalled(repoOrClone, installedPacks) {
-  if (!repoOrClone || !installedPacks?.length) return false;
-  const base = repoOrClone.replace(/\.git$/, "").replace(/[\\/]+$/, "").split(/[\\/]/).pop().toLowerCase();
-  return installedPacks.includes(base);
-}
 
 const GPU_OPTIONS = ["RTX 3060","RTX 3070","RTX 3080","RTX 3090","RTX 4060","RTX 4070","RTX 4080","RTX 4090","RTX 5070","RTX 5080","RTX 5090"];
 
@@ -288,33 +265,6 @@ function nodeRepoDetail(type) {
 }
 
 // troubleshooting_patterns.json → error log keyword matching (OR per pattern)
-// 파일명 토큰 유사도(Jaccard) — 'gemma_3_12B_it_fp4_mixed' vs 'gemma_3_12B_it_fp8_scaled' 처럼 공통 토큰 비율.
-function tokenSim(a, b) {
-  const tok = (s) => s.toLowerCase().replace(/\.[^.]+$/, "").split(/[_\-.\s]+/).filter(Boolean);
-  const A = new Set(tok(a)), B = new Set(tok(b));
-  if (!A.size || !B.size) return 0;
-  let inter = 0;
-  for (const t of A) if (B.has(t)) inter++;
-  return inter / (A.size + B.size - inter);
-}
-// errlog의 "Value not in list" 직접 파싱(troubleshooting_patterns와 별개). 요구파일 없음 + PC에 있는 후보 목록.
-// 여러 노드가 동시에 안 맞을 수 있어 배열 반환. 유사도 1순위는 확신할 때만 best로(아니면 후보만).
-function parseValueNotInList(log) {
-  if (!log) return [];
-  const out = [];
-  const re = /(\w+):\s*'([^']+?)'\s+not in\s+\[([^\]]+)\]/g;
-  let m;
-  while ((m = re.exec(log))) {
-    const widget = m[1], required = m[2], listStr = m[3];
-    const candidates = (listStr.match(/'([^']+)'/g) || []).map((s) => s.slice(1, -1)).filter(Boolean);
-    if (!candidates.length) continue;
-    const ranked = candidates.map((c) => ({ name: c, sim: tokenSim(required, c) })).sort((a, b) => b.sim - a.sim);
-    const best = ranked[0], second = ranked[1];
-    const confident = best.sim >= 0.4 && (!second || best.sim - second.sim >= 0.2);
-    out.push({ widget, required, candidates, best: confident ? best.name : null });
-  }
-  return out;
-}
 function matchTroubleshootingPatterns(log) {
   if (!log || !log.trim()) return [];
   const text = log.toLowerCase();
@@ -1197,6 +1147,7 @@ export default function Teardown() {
   const isAdmin = new URLSearchParams(location.search).get("admin") === "1"; // 관리자 모드(적립 데이터 노출)
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
   const [errShots, setErrShots] = useState([]);   // 선택 추가: 에러 캡처 이미지 [{name,url}]
+  const [rxDetailOpen, setRxDetailOpen] = useState(false); // 처방전 "판단 근거" details 제어(액션 버튼이 펼쳐 스크롤)
   const [missingText, setMissingText] = useState(""); // 빨간 노드 교정: 사용자가 붙여넣은 누락 모델 파일명
   const [dirText, setDirText] = useState("");         // 빨간 노드 교정: PC 폴더 파일 목록(dir /b 결과)
   const [scanRoot, setScanRoot] = useState("");      // dir 명령 생성기: 모델 루트 경로
@@ -1343,6 +1294,8 @@ export default function Teardown() {
   // 미확인 모델 파일명 웹 검색 URL (구글, 파일명+download)
   const searchUrl = (name) => "https://huggingface.co/models?search=" + encodeURIComponent(name.replace(/\.[^.]+$/, ""));
   const openSearch = (e, name) => { e.preventDefault(); window.open(searchUrl(name), "_blank", "noopener"); };
+  // 액션 버튼(스크립트 보기 등) → 닫힌 "판단 근거" details를 펼치고 해당 위치로 스크롤. 앵커만으론 details가 안 열려 무반응이던 결함 수정.
+  const openRxDetail = (e) => { if (e) e.preventDefault(); setRxDetailOpen(true); requestAnimationFrame(() => document.getElementById("rx-detail")?.scrollIntoView({ behavior: "smooth", block: "start" })); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1416,6 +1369,16 @@ export default function Teardown() {
     return [...set].sort();
   }, [recipes]);
 
+  // 로그 기반 설치 확인 — env 로그 박스 + 에러 로그 박스 양쪽에서 추출·병합.
+  // 실PC 패배 원인: 콘솔 로그를 파싱하는 env 박스는 접힌 아코디언에 숨어, 사용자는 눈에 띄는 에러 로그 박스에 붙여넣지만 그건 설치 인식을 안 했음. 어디에 붙여도 인식되게 병합.
+  const logEnv = React.useMemo(() => {
+    const fromErr = errlog && errlog.trim() ? parseComfyLog(errlog) : { installedPacks: [], importFailed: [] };
+    return {
+      installedPacks: [...new Set([...(env.installedPacks || []), ...fromErr.installedPacks])],
+      importFailed: [...new Set([...(env.importFailed || []), ...fromErr.importFailed])],
+    };
+  }, [env.installedPacks, env.importFailed, errlog]);
+
   // 진단 요약 계산
   let summary = null;
   if (report) {
@@ -1429,7 +1392,7 @@ export default function Teardown() {
     // 실증(RTX3090+ComfyUI 0.25.1): fp8_scaled가 변환(dequantize) 경로로 실행됨 → quantBad는 '실행 불가 확정'이 아니라 'GPU 점검 권장'(노랑).
     const gpuCheck = allSlots.filter((s) => s.quantBad).length;   // fp8 등 GPU 점검 권장(빨강 아님, 노랑 카운트)
     // 콘솔 로그 설치 확인: installed는 제외, importFailed(로드 실패)는 빨강 유지(실제 차단)
-    const instPacks = env?.installedPacks || [], failPacks = env?.importFailed || [];
+    const instPacks = logEnv.installedPacks, failPacks = logEnv.importFailed;
     const hasLog = instPacks.length > 0 || failPacks.length > 0;
     const missingNodes = (report.unmapped || []).filter((u) => !packInstalled(u.repo || u.clone_url, instPacks) && !packInstalled(u.repo || u.clone_url, failPacks));
     const failedNodes = (report.unmapped || []).filter((u) => packInstalled(u.repo || u.clone_url, failPacks));
@@ -1438,19 +1401,23 @@ export default function Teardown() {
     const checkInputs = (report.portability || []).filter((h) => /\.(png|jpe?g|webp|bmp|gif|tiff?|mp4|mov|webm|mkv|avi|wav|mp3|flac|ogg)$/i.test(h.value) && !/[\\/]/.test(h.value)).length; // 입력 파일 준비
     const yellowN = checkModels + checkInputs + gpuCheck;
     let grade, diagLine;
-    // 로그 기반 실제 실행 실패(Value not in list) — quantBad·설치확인과 무관하게 최상위 빨강 오버라이드(확정 증거)
+    // 로그 기반 실제 실행 실패 — quantBad·설치확인과 무관하게 최상위 빨강 오버라이드(확정 증거).
+    // (1) Value not in list (요구 값 거부) (2) missing_node_type (노드 타입 없음 = 실행 불가). 둘 다 동일 계열.
     const valueErrors = parseValueNotInList(errlog || "");
-    if (valueErrors.length > 0) {
+    const brokenLog = parseMissingNodeType(errlog || "");
+    if (valueErrors.length > 0 || brokenLog.length > 0) {
       grade = "red";
-      const fe = valueErrors[0];
-      diagLine = `실행 시 값 오류가 확인되었습니다. ComfyUI가 거부한 값 ${valueErrors.length}건 (예: ${fe.widget} = '${fe.required}')`;
+      const segs = [];
+      if (valueErrors.length) { const fe = valueErrors[0]; segs.push(`ComfyUI가 거부한 값 ${valueErrors.length}건 (예: ${fe.widget} = '${fe.required}')`); }
+      if (brokenLog.length) segs.push(`실행 불가 노드 ${brokenLog.length}개`);
+      diagLine = `실행 시 오류가 확인되었습니다. ${segs.join(" · ")}`;
     } else if (redNodes > 0) {
       grade = "red";
       const parts = [];
       if (missingNodes.length) {
         const { groups, solo } = groupNodesByRepo(missingNodes); // 팩 수 = 출처 확정 repo 그룹만(설치 가능 단위). solo(출처 미상)는 확인 행에서 별도 처리 → 이중 계상 방지
         if (groups.length) parts.push(hasLog ? `커스텀 노드 팩 ${groups.length}개 미설치` : `커스텀 노드 팩 ${groups.length}개 설치 확인 필요`);
-        if (solo.length) parts.push(`출처 미상 노드 ${solo.length}개`);
+        if (solo.length) parts.push(`소속 팩 미확인 노드 ${solo.length}개`);
       }
       if (failedNodes.length) parts.push(`로드 실패 노드 ${failedNodes.length}개`);
       if (report.anomalous?.length) parts.push(`정체 미상 노드 ${report.anomalous.length}개`);
@@ -1495,14 +1462,23 @@ export default function Teardown() {
   const actionRows = React.useMemo(() => {
     const rows = [];
     let n = 0;
-    const inst = rxTodos.filter((t) => t.kind === "nodegroup" && !packInstalled(t.g.repo || t.g.clone_url, env.installedPacks));
+    const inst = rxTodos.filter((t) => t.kind === "nodegroup" && !packInstalled(t.g.repo || t.g.clone_url, logEnv.installedPacks));
     if (inst.length) {
       const nm = inst.map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop());
       rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), kind: "install" });
     }
-    // 확인 — 출처 미상 노드를 1행으로 병합(노드명 목록 + 폴백)
+    // 확인 — 로그에서 확정된 실행 불가 노드(missing_node_type). 삭제/재추가 안내(설치로 안 풀림).
+    for (const b of parseMissingNodeType(errlog || "")) {
+      const label = b.nodeId ? `노드 ID #${b.nodeId}이(가) 깨져 있습니다` : b.nodeType ? `노드 '${b.nodeType}'을(를) 찾을 수 없습니다` : "깨진 노드가 있습니다";
+      rows.push({ n: ++n, verb: "확인", text: label, sub: "워크플로우에서 해당 노드를 삭제하거나 다시 추가해 주세요.", kind: "broken" });
+    }
+    // 확인 — 소속 팩 미확인 노드를 1행으로 병합. Manager는 팩 단위 검색이므로 정직하게: 노드명 검색 + 본체 업데이트 2택.
     const nodeTodos = rxTodos.filter((x) => x.kind === "node");
-    if (nodeTodos.length) rows.push({ n: ++n, verb: "확인", text: `출처 미상 노드 ${nodeTodos.length}개`, nodes: nodeTodos.map((t) => t.u.type), kind: "node" });
+    if (nodeTodos.length) rows.push({ n: ++n, verb: "확인", text: `소속 팩을 확인하지 못한 노드 ${nodeTodos.length}개`, nodes: nodeTodos.map((t) => t.u.type), kind: "node",
+      guides: [
+        "ComfyUI Manager 검색창에 노드 이름이나 비슷한 팩 이름을 넣어 보세요. 맞는 팩이 나오면 설치하면 됩니다.",
+        "ComfyUI 본체가 구버전이면 코어 신규 노드일 수 있습니다. ComfyUI를 업데이트한 뒤 다시 확인해 주세요.",
+      ] });
     // 받기 — 동일 파일명(경로 제거·소문자 basename)을 1행으로 병합(넣기 폴더·선택 N줄)
     const byFile = {};
     for (const t of rxTodos.filter((x) => x.kind === "model")) {
@@ -1518,7 +1494,7 @@ export default function Teardown() {
     for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
     return rows;
-  }, [rxTodos, env.installedPacks]);
+  }, [rxTodos, logEnv.installedPacks, errlog]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1751,21 +1727,22 @@ export default function Teardown() {
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: SANS, fontSize: 15, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
+                      {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
                       {r.kind === "model" && r.folders && r.folders.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {r.folders.map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
                       {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
                       {r.kind === "node" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.nodes.map((nd, ni) => <span key={ni} style={{ fontFamily: MONO }}>{ni > 0 ? " · " : ""}{nd}</span>)}</div>}
+                      {r.kind === "node" && r.guides && r.guides.map((gd, gi) => <div key={gi} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5, display: "flex", gap: 7 }}><span style={{ color: C.point, flexShrink: 0 }}>{gi + 1}.</span><span>{gd}</span></div>)}
                     </div>
                     <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      {r.kind === "install" && <a className="td-hf td-outline-w" href="#rx-detail">스크립트 보기</a>}
+                      {r.kind === "install" && <a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>스크립트 보기</a>}
                       {r.kind === "model" && (r.s.url && r.s.url !== "확인 필요" ? <a className="td-hf" href={r.s.url} target="_blank" rel="noopener noreferrer">링크 ↗</a> : <a className="td-hf td-outline-w" href={searchUrl(r.s.value)} target="_blank" rel="noopener noreferrer" onClick={(e) => openSearch(e, r.s.value)}>HuggingFace 검색 ↗</a>)}
-                      {r.kind === "node" && <a className="td-hf td-outline-w" href="#rx-detail">Manager 검색 안내</a>}
                     </div>
                   </div>
                 ))}
               </div>
             )}
 
-            <details id="rx-detail" className="td-fade" style={{ marginTop: 4 }}>
+            <details id="rx-detail" className="td-fade" style={{ marginTop: 4 }} open={rxDetailOpen} onToggle={(e) => setRxDetailOpen(e.currentTarget.open)}>
               <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 600, color: C.dim, padding: "10px 0", listStyle: "none" }}>▸ 판단 근거 보기 (GPU·로그·한계 고지·출처 신뢰도는 이 안에)</summary>
             {rxTodos.length > 0 && (<div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginTop: 12 }}>
               {rxTodos.map((t, i) => {
@@ -1778,8 +1755,8 @@ export default function Teardown() {
                   const cloneUrl = g.clone_url || (g.repo ? (g.repo.startsWith("https://") ? g.repo.replace(/\/?$/, ".git") : `https://github.com/${g.repo}.git`) : null);
                   const ghUrl = g.clone_url ? g.clone_url.replace(/\.git$/, "") : (g.repo ? (g.repo.startsWith("https://") ? g.repo : `https://github.com/${g.repo}`) : null);
                   const repoEl = <span style={{ fontFamily: MONO, color: C.point }}>{repoFull}</span>;
-                  const installed = packInstalled(g.repo || g.clone_url, env.installedPacks);
-                  const loadFailed = packInstalled(g.repo || g.clone_url, env.importFailed);
+                  const installed = packInstalled(g.repo || g.clone_url, logEnv.installedPacks);
+                  const loadFailed = packInstalled(g.repo || g.clone_url, logEnv.importFailed);
                   const typeCounts = {}; for (const ty of g.types) typeCounts[ty] = (typeCounts[ty] || 0) + 1;
                   const typesLabel = Object.entries(typeCounts).map(([n, c]) => c > 1 ? `${n} ${c}개` : n).join(" · ");
                   left = installed ? (<>
@@ -2661,7 +2638,7 @@ export default function Teardown() {
                 <button className="td-btn" onClick={() => shotRef.current?.click()}
                   style={{ display: "inline-flex", alignItems: "center", gap: 7, background: "transparent", color: C.dim, border: `1px solid ${C.line}`, borderRadius: 999, padding: "8px 15px", fontFamily: SANS, fontSize: 13, cursor: "pointer" }}>
                   <ImagePlus size={15} /> 캡처 이미지 첨부</button>
-                <span style={{ fontSize: 13, color: C.faint }}>긴 로그는 텍스트 붙여넣기가 더 정확합니다. 캡처는 보조용. 캡처 후 Ctrl+V(맥 Cmd+V)로 바로 붙여넣을 수 있습니다.</span>
+                <span style={{ fontSize: 13, color: C.faint }}>캡처는 이렇게 찍어 주세요. 1. 빨간 노드가 보이게 해당 부분을 확대해 1장. 2. 워크플로우 안에 Note(설명 메모)가 있으면 그 부분 1장. 전체 화면을 축소해 찍으면 글자가 뭉개져 도움이 되지 않습니다. 캡처 후 Ctrl+V(맥 Cmd+V)로 바로 붙여넣을 수 있습니다.</span>
               </div>
               {errShots.length > 0 && (
                 <div style={{ marginTop: 12, display: "flex", gap: 10, flexWrap: "wrap" }}>

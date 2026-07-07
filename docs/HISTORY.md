@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-07 (실PC 1차 패배 소탕 A~E)
+**한 일 / 결함별 원인 실측**
+- **A 버튼 전수 감사**: 액션 테이블 버튼 6종 감사. "스크립트 보기"·"Manager 검색 안내"가 `href="#rx-detail"`로 **닫힌 details**를 가리켜 무반응(앵커론 details 안 열림). openRxDetail(details 제어 open + 스크롤)로 수정. "링크 ↗"·"HF 검색 ↗"는 정상 확인. L1298·1737·1745.
+- **B 미상 노드 정직화**: Manager는 팩 단위 검색 전제로 카피 재작성 → "소속 팩을 확인하지 못한 노드 N개" + 2택(Manager 노드명·유사팩명 검색 / ComfyUI 업데이트 후 재확인). 죽은 버튼 제거, 안내 인라인화. L1477·1731·1734. **미상 분류 버그 실측**: VAEUtils_VAEDecodeTiled·SmartResolution 둘 다 manager_node_map(36K)에 정확 키 없음(유사 변종만) → 미상 분류 정상, **버그 아님**.
+- **C 로그 설치 해소**: **매칭 로직은 정상**(parseComfyLog+packInstalled basename 소문자, 실로그 3팩 정확 제외 실측). 진짜 원인은 입력 경로 — 콘솔 로그 파싱 박스가 접힌 아코디언에 숨어 사용자는 에러 로그 박스에 붙여넣음. 계열 소탕: errlog에서도 installedPacks 추출·병합(logEnv). L1374·1467·1537. fixture: krea2_console_log.txt.
+- **D missing_node_type red 승격**: parseMissingNodeType 신설(실행불가 "Cannot execute...does not exist"+Node ID / "not found" 목록 / 토큰). VNIL과 동일 red 오버라이드 + 확인 행("노드 ID #N 삭제/재추가"). L1407·1471.
+- **E 캡쳐 가이드**: Diagnose 첨부 카피를 확정형으로 ("1. 빨간 노드 확대 1장 2. Note 부분 1장. 전체 축소 금지"). L2641.
+- **리팩터(전제)**: 로그·팩 파서 5종을 src/logParse.js로 추출(로직 불변) → regression이 node에서 import 가능. 작업 C/D regression 케이스 추가·통과.
+
+**어떻게**
+- 빌드 통과 + regression 통과(신규 C: 3팩 제외·잔존 2·GPU파싱 / D: ID추출·red승격).
+
+**자가 검수**: 양방향(지시 A~E 이행 + 비지시 3건 자진신고: logParse 추출·logEnv 병합·미상 headline 문구) / 정보설계 4항(행별 행동·동선 OK) / 카피(존댓말·em dash 없음·워크플로우) / 대원칙(krea2_console_log.txt는 사용자 기술 기반 합성 fixture 명기).
+
+**판단 필요 / 미결**
+- krea2_console_log.txt: 실제 첨부 로그가 세션에 없어 사용자 기술(3팩)대로 합성. 실제 캡쳐로 교체 권장.
+- parseMissingNodeType의 정확한 ComfyUI 문구는 실기기 로그로 확정 필요(현재 3개 시그니처 커버).
+- (이월) 바이트 동일 중복 Silent Snow LTX2.3 Kjai FP8 2.json 삭제는 사용자 직접(rm deny).
+
 ## 2026-07-07 (CLAUDE.md 자율 운영 개정)
 **한 일**
 - CLAUDE.md에 "## 자율 라운드 운영 (Fable 중계 없이 진행)" 섹션 추가(작업 규칙 불변 직후). 라운드 완료 기준·자가 검수 4항(양방향 대조/정보 설계 4항/카피 규칙/대원칙)·fix-forward·HISTORY 갱신·"판단 필요" 분리 보고.
