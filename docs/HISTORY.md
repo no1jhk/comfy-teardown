@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-07 (봉인2 P2.5: 브리핑 강화 + 다운로드 스크립트 + 3060 검증)
+**한 일**(8225c6d) — PRD_v1.1 정합 확인 후 진행(충돌 없음).
+- **Fable 주입**: krea2DepthControlnet_v10→Patil/Krea-2-depth-controlnet(catalog files, confirmed). gpu_rules RTX 3060 8GB(vram 8).
+- **작업A 브리핑 강화**: buildBriefing 지시문 4항(repo 실재 확인·clone+custom_nodes 경로·모델 명시·확인 필요+근거, 지어내지 말 것). registry:false 팩 clone 데이터 포함(재발명 방지). 캡쳐 기준(unknowns 남을 때만). parseComfyLog.customNodesPath.
+- **작업B 다운로드 스크립트**: buildDownloadScript(confirmed·workflow_author+URL만, unknown 제외). mkdir+curl -L -o, HF blob→resolve, basePath 절대/상대. '모델 받기.bat' 버튼.
+- **작업C 3060 8GB**: vramWarning(size>vram×1.5). 3090 26.3GB<36 무경고(실측 실행됨), 8GB 경고+raw_fp8_scaled 대체(turbo 제외 유지=Note RAW 강제 정합).
+- **후속 소급 검증(e2e 12·13)**: Silent Snow Full+3090 ltx23 폴백(confirmed 0, models/unet 없음). Video To Audio+3060 8GB quantBad(recipe층)3 + vramWarning(plan층)0 공존 무충돌.
+
+**실측 판단**: krea2DepthControlnet repo_path=파일명(root 가정 — Note 링크가 tree라 정확 경로 미실측, repo는 facok README 확정). vramWarning 임계 ×1.5=실측(3090 실행/3060 부적합) 정합.
+
+**막힌 점**: buildBriefing/buildDownloadScript는 JSX라 node 검증 불가 → 공유 소스(buildModelPlan) + 블록 시뮬로 검증.
+
+**다음 할 일**: 단독 push 가능(이번 라운드).
+
 ## 2026-07-07 실측 기록(실PC 재대결)
 krea2 워크플로우를 실PC(RTX 3090)에서 실행 도달까지 검증. 도구 처방분(모델 3종·팩 5종)은 전부 정확했으나, 실행까지 **도구 밖 수동 개입 4건**이 필요했다. 4건 모두 봉인1로 도구 기능에 이식 완료.
 
