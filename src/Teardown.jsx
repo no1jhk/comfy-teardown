@@ -9,6 +9,7 @@ import compat from "./data/compatibility.json";
 import { buildRecipes, groupNodesByRepo } from "./data/redNodeRecipe.js";
 import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType } from "./logParse.js";
 import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkflow.js";
+import { recommend } from "./lib/modelRecommender.js";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
 import modelAliases from "./data/model_aliases.json";
@@ -1162,6 +1163,14 @@ export default function Teardown() {
     return todos;
   }, [report, recipesEnriched]);
 
+  // 환경 기반 모델 추천(카탈로그 패밀리). GPU 있을 때만 확정 판정, 없으면 needs=gpu(안내).
+  const rec = React.useMemo(() => (report ? recommend(report, env) : null), [report, env.gpu, env.basePath, env.modelRoot]);
+  const recByBase = React.useMemo(() => {
+    const map = new Map();
+    if (rec && rec.family && !rec.needs.includes("gpu")) for (const s of rec.slots) map.set(s.workflowValue.replace(/\\/g, "/").split("/").pop().toLowerCase(), s);
+    return map;
+  }, [rec]);
+
   // 액션 테이블(당장 할 일) — rxTodos를 동사 선행 행으로. 표시층 전용(판정·데이터 불변).
   const actionRows = React.useMemo(() => {
     const rows = [];
@@ -1183,7 +1192,9 @@ export default function Teardown() {
         "ComfyUI Manager 검색창에 노드 이름이나 비슷한 팩 이름을 넣어 보세요. 맞는 팩이 나오면 설치하면 됩니다.",
         "ComfyUI 본체가 구버전이면 코어 신규 노드일 수 있습니다. ComfyUI를 업데이트한 뒤 다시 확인해 주세요.",
       ] });
-    // 받기 — 동일 파일명(경로 제거·소문자 basename)을 1행으로 병합(넣기 폴더·선택 N줄)
+    // 패밀리 감지됐는데 GPU 미입력 → 추천 대신 안내(불변①). 확정 판정 안 함.
+    if (rec && rec.family && rec.needs.includes("gpu")) rows.push({ n: ++n, verb: "안내", text: `이 워크플로우는 ${rec.label}로 보입니다. GPU를 입력하면 넣을 위치와 환경에 맞는 변형을 추천해 드립니다.`, kind: "gpuhint" });
+    // 받기 — 동일 파일명(경로 제거·소문자 basename)을 1행으로 병합(넣기 폴더·선택 N줄). 카탈로그 패밀리 슬롯은 추천 폴더·뱃지·품질/속도로 대체.
     const byFile = {};
     for (const t of rxTodos.filter((x) => x.kind === "model")) {
       const base = t.s.value.replace(/\\/g, "/").split("/").pop().toLowerCase();
@@ -1191,14 +1202,21 @@ export default function Teardown() {
     }
     for (const grp of Object.values(byFile)) {
       const s0 = grp[0].s;
-      const conf = s0.src === "curated" || s0.src === "manager" || s0.src === "manager_live";
-      const folders = [...new Set(grp.map((t) => t.s.folder).filter((f) => f && f !== "확인 필요"))];
-      rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: conf ? "확정" : "확인 필요", selects: grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value })), s: s0, kind: "model" });
+      const base = s0.value.replace(/\\/g, "/").split("/").pop().toLowerCase();
+      const recSlot = recByBase.get(base);
+      if (recSlot) {
+        // 카탈로그 확정/추정 슬롯: folders 기반 넣기(models/unet 대체) + [확정]/[추정] + 품질·속도·받지않기 소구분
+        rows.push({ n: ++n, verb: "받기", text: s0.value, folders: [recSlot.absoluteFolder || recSlot.folder], badge: recSlot.badge, selects: grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value })), s: s0, kind: "model", rec: recSlot });
+      } else {
+        const conf = s0.src === "curated" || s0.src === "manager" || s0.src === "manager_live";
+        const folders = [...new Set(grp.map((t) => t.s.folder).filter((f) => f && f !== "확인 필요"))];
+        rows.push({ n: ++n, verb: "받기", text: s0.value, folders, badge: conf ? "확정" : "확인 필요", selects: grp.map((t) => ({ nodeType: t.nodeType, value: t.s.value })), s: s0, kind: "model" });
+      }
     }
     for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
     return rows;
-  }, [rxTodos, logEnv.installedPacks, errlog]);
+  }, [rxTodos, logEnv.installedPacks, errlog, recByBase, rec]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1430,10 +1448,15 @@ export default function Teardown() {
                     <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.point }}>{r.n}</span>
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
                     <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: SANS, fontSize: 15, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
+                      <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</div>
                       {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
                       {r.kind === "model" && r.folders && r.folders.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {r.folders.map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
                       {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
+                      {r.kind === "model" && r.rec && (r.rec.quality || r.rec.speed || r.rec.exclude.length > 0) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 5, lineHeight: 1.5 }}>
+                        {r.rec.quality && <span style={{ marginRight: 14 }}>품질 우선: <span style={{ fontFamily: MONO, color: C.text }}>{r.rec.quality.kind}·{r.rec.quality.quant}</span></span>}
+                        {r.rec.speed && <span style={{ marginRight: 14 }}>속도 우선: <span style={{ fontFamily: MONO, color: C.text }}>{r.rec.speed.kind}·{r.rec.speed.quant}</span></span>}
+                        {r.rec.exclude.length > 0 && <span>받지 않기: <span style={{ fontFamily: MONO }}>{r.rec.exclude.join("·")}</span></span>}
+                      </div>}
                       {r.kind === "node" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.nodes.map((nd, ni) => <span key={ni} style={{ fontFamily: MONO }}>{ni > 0 ? " · " : ""}{nd}</span>)}</div>}
                       {r.kind === "node" && r.guides && r.guides.map((gd, gi) => <div key={gi} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5, display: "flex", gap: 7 }}><span style={{ color: C.point, flexShrink: 0 }}>{gi + 1}.</span><span>{gd}</span></div>)}
                     </div>
@@ -1530,6 +1553,7 @@ export default function Teardown() {
                         <span style={{ fontFamily: MONO }}>{s.value}</span> {foundUrl ? "다운로드" : "준비"}
                         {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
                       <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{s.folder}</span> 폴더에 넣으세요. 이미 있으면 건너뛰기</div>
+                      {(() => { const rs = recByBase.get(s.value.replace(/\\/g, "/").split("/").pop().toLowerCase()); return rs && rs.reasons?.length ? <div style={{ fontSize: 13, color: C.faint, marginTop: 8, lineHeight: 1.65 }}>{rs.reasons.map((rr, ri) => <div key={ri}>· {rr}</div>)}</div> : null; })()}
                       {!foundUrl && <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>}
                       {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장합니다.</div>}
                       {s.quantUnknown && <div style={{ fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
