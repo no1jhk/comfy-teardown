@@ -56,10 +56,15 @@ console.log("=".repeat(70) + "\n[1] krea2 + RTX 3090 (완료 기준 · confirmed
     else if (it.confidence !== "confirmed") { console.log(`  ❌ ${t} confidence ${it.confidence}(confirmed 기대)`); fail++; ok = false; }
     else if (/unet|확인 필요/.test(it.folder || "")) { console.log(`  ❌ ${t} 폴더에 models/unet·확인 필요 잔존: ${it.folder}`); fail++; ok = false; }
   }
+  // 워크플로우 실제 요구 VAE는 Wan2.1_VAE_upscale2x. Note의 대체(qwen_image_vae)로 치환되면 실패(실측: 워크플로우 참조값 우선)
+  const vae = plan.items.find((i) => i.role === "vae");
+  if (vae?.selectedFile !== "wan2.1_vae_upscale2x_imageonly_real_v1.safetensors" || /qwen_image_vae/i.test(vae?.selectedFile || "")) { console.log(`  ❌ VAE selectedFile 기대 Wan2.1_VAE_upscale2x, 실제 ${vae?.selectedFile}`); fail++; ok = false; }
+  if (vae && vae.size !== "484MB") { console.log(`  ❌ VAE 용량 기대 484MB(실측), 실제 ${vae.size}`); fail++; ok = false; }
   if (ok) {
     console.log("  ✅ Main Model: krea2_raw_bf16.safetensors [confirmed] 26.3GB Comfy-Org/Krea-2");
     console.log(`  ✅ 넣기: ${main.fullPath}`);
     console.log("  ✅ 3모델(main·text·vae) 전부 confirmed · models/unet·확인 필요 없음");
+    console.log(`  ✅ VAE: ${vae.selectedFile} · ${vae.size}(qwen_image_vae 치환 아님)`);
   }
 }
 

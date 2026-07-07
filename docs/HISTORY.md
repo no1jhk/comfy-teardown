@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-07 실측 기록(실PC 재대결)
+krea2 워크플로우를 실PC(RTX 3090)에서 실행 도달까지 검증. 도구 처방분(모델 3종·팩 5종)은 전부 정확했으나, 실행까지 **도구 밖 수동 개입 4건**이 필요했다. 4건 모두 봉인1로 도구 기능에 이식 완료.
+
+| # | 수동 개입 | 실측 경위 | 해소(봉인1) |
+|---|-----------|-----------|-------------|
+| 1 | VAEUtils clone | VAEUtils_VAEDecodeTiled가 Manager 레지스트리 미등록 → `git clone spacepxl/ComfyUI-VAE-Utils`로만 설치 가능(추가 requirements 없음) | 작업C: node_repo_map 등재(registry:false) → 설치 행 clone 자동 생성 |
+| 2 | SmartResolution 링크 발견 | Manager 미등록. 워크플로우 Note의 "Smart resulution"(오탈자) 링크에서 openerai/comfyui-smart-resolution을 수동 발견 | 작업B: Note 라벨↔노드명 오탈자 매칭 / 작업C: node_repo_map 등재 |
+| 3 | 유사팩 함정 | comfyui-smart-resolution-calc(djdarcy)는 이름만 비슷하고 SmartResolution 클래스를 제공하지 않음 → 오설치 위험 | 작업B/C: 정확 클래스명 매칭 + 편집거리 길이차 배제로 calc 팩 미매칭 |
+| 4 | 코어 버전 부족 | CLIPLoader type=krea2가 ComfyUI v0.25.1 목록(23종)에 없음 → VNIL. v0.27.0 업데이트로 해소. 신버전 코어 기능 | 작업A: core_feature_rules(min 0.27) + 로그 버전 대조 → 최상단 확인 행. 작업D: VNIL 원인에 버전 부족 병기 |
+
+Wan2.1_VAE 다운로드 실측: 484MB(catalog 반영). krea2 VAE는 워크플로우 참조값(Wan2.1_VAE_upscale2x) 고정 — Note의 대체 후보(qwen_image_vae)로 치환 금지(e2e 검증).
+
 ## 2026-07-07 (봉인1: 실측 갭 4종 이식)
 **한 일**(a1f7467) — 실PC 재대결에서 도구 밖 수동 개입 4건을 기능화. 실측값만 사용.
 - **A 코어 버전 판정**: core_feature_rules.json(cliploader_type_krea2 min 0.27, krea2_control extension_required). parseComfyLog.comfyVersion + compareVersion. analyze.coreFeatures. 버전 부족→최상단 확인 행, 로그 없음→dim.
