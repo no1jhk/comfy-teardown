@@ -11,6 +11,7 @@ import { fileURLToPath } from "node:url";
 import { buildRecipes, groupNodesByRepo } from "../src/data/redNodeRecipe.js";
 import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType } from "../src/logParse.js";
 import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
+import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder } from "../src/lib/parseWorkflowNotes.js";
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(DIR, "fixtures");
@@ -342,6 +343,22 @@ console.log("\n" + "=".repeat(70) + "\nanalyze 직접 검증 (analyzeWorkflow.js
     }
   }
   console.log("  ✅ analyze 17종 무크래시 + krea2(그룹5·solo5)·Full(그룹1·solo0) 실측 일치");
+}
+
+// === 단계 C: Note 의미 해석 — krea2 함정(turbo lora 유지) ===
+console.log("\n" + "=".repeat(70) + "\nNote 의미 해석(krea2 함정: turbo lora 유지)");
+{
+  const note = "Use the RAW model, not the Turbo. Keep the turbo lora at strength 0.8 for speed. Model goes in models/Krea 2.";
+  const flags = parseWorkflowNotes([note]);
+  let ok = true;
+  if (preferredVariant(flags, "model") !== "raw") { console.log(`  ❌ prefer model 기대 raw, 실제 ${preferredVariant(flags, "model")}`); fail++; ok = false; }
+  if (isVariantExcluded(flags, "turbo", "model") !== true) { console.log("  ❌ turbo가 model에서 제외되지 않음"); fail++; ok = false; }
+  if (isVariantExcluded(flags, "turbo", "lora") !== false) { console.log("  ❌ 함정: turbo lora가 잘못 제외됨(전체 제외 버그)"); fail++; ok = false; }
+  if (!/krea 2/i.test(notedFolder(flags) || "")) { console.log(`  ❌ folder 파싱 실패: ${notedFolder(flags)}`); fail++; ok = false; }
+  // 반대 케이스: lora 없이 "no turbo"만이면 model 제외 O
+  const f2 = parseWorkflowNotes(["Do not use turbo."]);
+  if (isVariantExcluded(f2, "turbo", "model") !== true) { console.log("  ❌ 'no turbo' 단독 시 model 제외 실패"); fail++; ok = false; }
+  if (ok) console.log("  ✅ prefer raw(model) · exclude turbo(model만) · turbo lora 유지 · folder 'Krea 2' 파싱");
 }
 
 console.log("\n" + "=".repeat(70));
