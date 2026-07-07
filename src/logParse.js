@@ -39,6 +39,10 @@ export function parseComfyLog(text) {
   }
   for (const b of failed) inst.delete(b); // 로드 실패 팩은 설치 성공에서 제외(로드 실패가 우선)
   out.installedPacks = [...inst]; out.importFailed = [...failed];
+  // 블록 존재 플래그 — 불완전(잘린) 로그 감지용. Prestartup만 있고 Import times 없으면 시작 단계에서 잘린 것.
+  out.hasImportBlock = /Import times for custom nodes/i.test(text);
+  out.hasPrestartupBlock = /Prestartup times for custom nodes/i.test(text);
+  out.truncated = out.hasPrestartupBlock && !out.hasImportBlock;
   return out;
 }
 

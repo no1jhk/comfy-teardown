@@ -1083,6 +1083,16 @@ export default function Teardown() {
     };
   }, [env.installedPacks, env.importFailed, errlog]);
 
+  // 붙여넣은 로그 감지 요약 + 불완전(잘림) 감지. 사용자가 뭘 읽어냈는지·재복사 필요한지 즉시 판단하게.
+  const logInfo = React.useMemo(() => {
+    const texts = [envLog, errlog].filter((t) => t && t.trim());
+    if (!texts.length) return null;
+    const joined = texts.join("\n");
+    const hasImport = /Import times for custom nodes/i.test(joined);
+    const hasPrestartup = /Prestartup times for custom nodes/i.test(joined);
+    return { truncated: hasPrestartup && !hasImport, packN: logEnv.installedPacks.length, failN: logEnv.importFailed.length, gpu: env.gpu, basePath: env.basePath };
+  }, [envLog, errlog, logEnv.installedPacks, logEnv.importFailed, env.gpu, env.basePath]);
+
   // 진단 요약 계산
   let summary = null;
   if (report) {
@@ -1317,17 +1327,20 @@ export default function Teardown() {
           {envOpen && (
             <div className="td-fade" style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: "20px 22px", marginTop: 6 }}>
               {/* ① ComfyUI 로그 붙여넣기 */}
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>ComfyUI 로그 붙여넣기</div>
+              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 }}>ComfyUI 로그 붙여넣기</div>
+              <div style={{ fontSize: 13, color: C.dim, marginBottom: 8, lineHeight: 1.55 }}>ComfyUI가 완전히 켜져 화면이 보인 뒤, 콘솔 내용을 처음부터 끝까지 전체 복사해 붙여넣어 주세요. 켜자마자 복사하면 설치 정보가 잘립니다.</div>
               <textarea value={envLog} onChange={(e) => onEnvLog(e.target.value)} spellCheck={false}
-                placeholder="ComfyUI 시작 시 콘솔에 뜨는 로그를 붙여넣으세요. GPU·torch·CUDA를 자동으로 읽습니다."
+                placeholder="ComfyUI 시작 콘솔 로그 전체를 붙여넣으세요. GPU·경로·설치된 노드를 자동으로 읽습니다."
                 style={{ width: "100%", minHeight: 110, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", color: C.text, fontFamily: MONO, fontSize: 13, lineHeight: 1.6, resize: "vertical", boxSizing: "border-box" }} />
-              {envLog && (env.gpu || env.torch || env.cuda) && (
+              {logInfo && (
                 <div style={{ marginTop: 8, fontSize: 13, color: "#8BC34A", lineHeight: 1.5 }}>
-                  감지됨: {[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`].filter(Boolean).join(" · ")}
+                  로그에서 확인됨: GPU {logInfo.gpu || "확인 안 됨"} · 경로 {logInfo.basePath || "확인 안 됨"} · 설치 팩 {logInfo.packN}개{logInfo.failN > 0 ? ` · 로드 실패 ${logInfo.failN}개` : ""}
                 </div>
               )}
-              {envLog && !env.gpu && !env.torch && !env.cuda && (
-                <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5 }}>로그에서 환경 정보를 찾지 못했습니다. 아래에서 직접 선택하세요.</div>
+              {logInfo?.truncated && (
+                <div style={{ marginTop: 8, fontSize: 13, color: C.point, lineHeight: 1.55, background: "rgba(244,255,117,0.08)", border: `1px solid ${C.point}55`, borderRadius: 8, padding: "9px 12px" }}>
+                  로그가 시작 단계에서 잘린 것 같습니다. ComfyUI가 완전히 켜진 뒤 전체를 다시 복사하면 설치된 노드까지 판정해 드립니다.
+                </div>
               )}
               <div style={{ fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>콘솔에서 복사가 안 되면 아래에서 직접 선택하세요</div>
 
@@ -2378,7 +2391,7 @@ export default function Teardown() {
                 </button>
               </div>
               {open.errAcc && (<>
-              <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, marginBottom: 12 }}>pytorch·cuda·python 버전 호환성은 각 pack의 requirements.txt 영역이라 JSON만으로는 확인할 수 없습니다. 에러 로그를 넣으면 AI 진단으로 보완합니다.</div>
+              <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.6, marginBottom: 12 }}>실행 버튼을 누른 뒤에 나온 로그를 붙여넣어 주세요. 실행 전 로그에는 오류 정보가 없습니다. pytorch·cuda·python 버전 호환성은 각 pack의 requirements.txt 영역이라 JSON만으로는 확인할 수 없어, 에러 로그로 보완합니다.</div>
               <textarea value={errlog} onChange={(e) => setErrlog(e.target.value)} onPaste={onPasteShot} spellCheck={false}
                 placeholder={"마지막 Traceback 블록 전체를 붙여넣으세요.\n예) Traceback (most recent call last):\n  File \".../nodes.py\", line 123, in ...\nModuleNotFoundError: No module named 'flash_attn'"}
                 style={{ width: "100%", minHeight: 120, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
