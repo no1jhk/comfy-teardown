@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-07-07 (P2 환경 기반 모델 추천 엔진 0·A~E)
+**한 일 (단계별 커밋)**
+- **0**(ea3d1f8): 실로그 fixture 실측 반영(alembic·extra search path·Prestartup·IMPORT FAILED·missing_node_type). parseComfyLog: Prestartup 블록 인식(라인 단위)·basePath 자동 추출(extra search path 부모 공통 접두)·dedup. env.basePath 배선. parseMissingNodeType nodeId 병합.
+- **A**(42d64a8): normalize·analyze·note 로직을 src/lib/analyzeWorkflow.js로 추출(동작 불변). regression이 analyze 직접 import(SKIP 해제) → krea2 그룹5·solo5, Full 그룹1·solo0 실측. JSON import는 `with { type: json }`.
+- **B**(14b6c45): src/data/model_catalog.json(krea2 확정 6변형+source Comfy-Org/Krea-2+folders / ltx23·flux2·seedvr2 감지+폴더만, 미확정 null·[]) + gpu_rules.json(byArch ampere/ada/blackwell prefer·caution·avoid, gpus 30/40/50xx). avoid=받지않기 권고.
+- **C**(a9758b7): src/lib/parseWorkflowNotes.js — 대상 명사 파싱. 함정 해결(변형 지시어 target 미명시 시 model 기본 → 'not turbo'는 model만, turbo lora 유지).
+- **D**(e00811e): src/lib/modelRecommender.js + 액션 테이블 통합. 우선순위 Note>참조값>gpu_rules. GPU 미입력 needs=gpu(안내). basePath 절대경로. [확정]/[추정] 뱃지. 근거는 판단 근거(details).
+- **E**(8b1314a): test/e2e.mjs 5케이스 전부 통과.
+
+**완료 기준 충족(실측)**: krea2+RTX3090 → 받기 krea2_raw_bf16.safetensors [확정] · 넣기 models/diffusion_models/Krea 2 (절대 N:\ComfyUI_models\diffusion_models\Krea 2) · 선택 UNETLoader · qwen3vl_4b_bf16·Wan2.1_VAE 포함 3모델 확인필요 뱃지 0. (e2e [1])
+
+**막힌 점 / 판단 필요**
+- ltx23/flux2/seedvr2는 감지+폴더만(변형·source 미확정) — 실측 스펙 확보 시 채움. LTX recommend는 slots 0(감지되나 확정 슬롯 없음, 무회귀).
+- krea2_console_log.txt는 사용자 기술 기반 합성 fixture(test/fixtures gitignore·로컬 전용). 실제 캡쳐로 교체 권장.
+
+**다음 할 일**
+- dev에서 krea2 액션 테이블 화면 확정([확정] 뱃지·절대경로·품질/속도 표시). ltx23/flux2/seedvr2 변형·source 실측 편입.
+
 ## 2026-07-07 (실PC 1차 패배 소탕 A~E)
 **한 일 / 결함별 원인 실측**
 - **A 버튼 전수 감사**: 액션 테이블 버튼 6종 감사. "스크립트 보기"·"Manager 검색 안내"가 `href="#rx-detail"`로 **닫힌 details**를 가리켜 무반응(앵커론 details 안 열림). openRxDetail(details 제어 open + 스크롤)로 수정. "링크 ↗"·"HF 검색 ↗"는 정상 확인. L1298·1737·1745.
