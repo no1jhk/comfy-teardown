@@ -206,7 +206,7 @@ export function groupNodesByRepo(unmapped) {
     if (u.isCore) continue;
     const key = u.repo || u.clone_url;
     if (!key) { solo.push(u); continue; }
-    if (!groups.has(key)) groups.set(key, { repo: u.repo, clone_url: u.clone_url, repoSrc: u.repoSrc, manager_searchable: u.manager_searchable, install_note: u.install_note, ids: [], types: [] });
+    if (!groups.has(key)) groups.set(key, { repo: u.repo, clone_url: u.clone_url, repoSrc: u.repoSrc, manager_searchable: u.manager_searchable, registry: u.registry, install_note: u.install_note, ids: [], types: [] });
     const g = groups.get(key);
     g.ids.push(u.id); g.types.push(u.type);
   }

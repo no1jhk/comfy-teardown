@@ -9,9 +9,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRecipes, groupNodesByRepo } from "../src/data/redNodeRecipe.js";
-import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType } from "../src/logParse.js";
+import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion } from "../src/logParse.js";
 import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
-import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder } from "../src/lib/parseWorkflowNotes.js";
+import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, matchLabelToNode } from "../src/lib/parseWorkflowNotes.js";
+import nodeRepoMap from "../src/data/node_repo_map.json" with { type: "json" };
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
 const FIX = path.join(DIR, "fixtures");
@@ -338,7 +339,8 @@ console.log("\n" + "=".repeat(70) + "\nanalyze 직접 검증 (analyzeWorkflow.js
   try { mgrMap = JSON.parse(fs.readFileSync(path.join(DIR, "..", "public", "manager_node_map.json"), "utf8")); } catch { console.log("  ⚠ manager_node_map.json 없음 → mgrMap null로 진행(prefix/rgthree만)"); }
   // 팩 수 = groupNodesByRepo(unmapped) 그룹만. 실측 기대값(P2 packcount 실측).
   const PACK_EXPECT = {
-    "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json": { groups: 5, solo: 5, anomalous: 0 },
+    "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json": { groups: 8, solo: 0, anomalous: 0 }, // 봉인1 작업C: VAEUtils·SmartResolution·Krea2Control*3 실측 repo 편입 → solo 5→0, 그룹 5→8
+
     "Silent Snow LTX2.3 Full.json": { groups: 1, solo: 0, anomalous: 0 }, // #5288 서브그래프 참조 → anomalous 제외
   };
   for (const f of files) {
@@ -355,7 +357,7 @@ console.log("\n" + "=".repeat(70) + "\nanalyze 직접 검증 (analyzeWorkflow.js
       if (rep.anomalous.length !== exp.anomalous) { console.log(`  ❌ ${f.slice(0,20)} anomalous 기대 ${exp.anomalous}, 실제 ${rep.anomalous.length}`); fail++; }
     }
   }
-  console.log("  ✅ analyze 17종 무크래시 + krea2(그룹5·solo5)·Full(그룹1·solo0) 실측 일치");
+  console.log("  ✅ analyze 17종 무크래시 + krea2(그룹8·solo0, 봉인1 실측 repo 편입)·Full(그룹1·solo0) 실측 일치");
 }
 
 // === 단계 C: Note 의미 해석 — krea2 함정(turbo lora 유지) ===
@@ -372,6 +374,52 @@ console.log("\n" + "=".repeat(70) + "\nNote 의미 해석(krea2 함정: turbo lo
   const f2 = parseWorkflowNotes(["Do not use turbo."]);
   if (isVariantExcluded(f2, "turbo", "model") !== true) { console.log("  ❌ 'no turbo' 단독 시 model 제외 실패"); fail++; ok = false; }
   if (ok) console.log("  ✅ prefer raw(model) · exclude turbo(model만) · turbo lora 유지 · folder 'Krea 2' 파싱");
+}
+
+// === 봉인1 작업 A: 코어 버전 요구 판정 (krea2 CLIPLoader type=krea2 → 0.27 요구) ===
+console.log("\n" + "=".repeat(70) + "\n코어 버전 요구 판정(krea2 CLIPLoader type=krea2)");
+{
+  const rep = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json"), "utf8"))), null);
+  const minRules = (rep.coreFeatures || []).filter((r) => r.min_version);
+  let ok = true;
+  if (!minRules.some((r) => r.feature === "cliploader_type_krea2")) { console.log("  ❌ cliploader_type_krea2 기능 미감지"); fail++; ok = false; }
+  const required = minRules.reduce((a, r) => (compareVersion(r.min_version, a) > 0 ? r.min_version : a), "0");
+  // 로그 0.25.1 → 발화(outdated), 0.27.0 → 미발화
+  const v0251 = parseComfyLog("** ComfyUI version: 0.25.1\nTotal VRAM").comfyVersion;
+  const v0270 = parseComfyLog("** ComfyUI version: 0.27.0\nTotal VRAM").comfyVersion;
+  if (compareVersion(v0251, required) >= 0) { console.log(`  ❌ 0.25.1이 ${required} 이상으로 판정(발화 실패)`); fail++; ok = false; }
+  if (compareVersion(v0270, required) < 0) { console.log(`  ❌ 0.27.0이 ${required} 미만으로 판정(미발화 실패)`); fail++; ok = false; }
+  if (ok) console.log(`  ✅ required ${required} · 0.25.1→발화(확인 행) · 0.27.0→미발화 · 로그 없음→dim 안내(state unknown)`);
+}
+
+// === 봉인1 작업 B: Note 라벨 ↔ 노드명 매칭(오탈자 허용 + 유사 이름 트랩 방지) ===
+console.log("\n" + "=".repeat(70) + "\nNote 라벨↔노드명 매칭(오탈자 + 트랩)");
+{
+  let ok = true;
+  if (matchLabelToNode("Smart resulution", "SmartResolution") !== true) { console.log("  ❌ 'Smart resulution'↔'SmartResolution' 매칭 실패(오탈자)"); fail++; ok = false; }
+  if (matchLabelToNode("comfyui-smart-resolution-calc", "SmartResolution") !== false) { console.log("  ❌ 트랩: calc 팩이 SmartResolution에 오매칭"); fail++; ok = false; }
+  if (matchLabelToNode("VAE Decode (VAE Utils)", "VAEUtils_VAEDecodeTiled") === true) { console.log("  ⚠ 라벨 형식이 달라 매칭 안 됨(정상, clone은 node_repo_map로 처리)"); }
+  if (ok) console.log("  ✅ 'Smart resulution'↔'SmartResolution' 매칭 · calc 트랩 미매칭");
+}
+
+// === 봉인1 작업 C: 실측 지식 박제(node_repo_map + registry) ===
+console.log("\n" + "=".repeat(70) + "\n실측 지식 박제(node_repo_map registry:false)");
+{
+  const idx = {}; for (const m of nodeRepoMap.mappings) idx[m.class_type] = m;
+  let ok = true;
+  const checks = [
+    ["SmartResolution", "openerai/comfyui-smart-resolution"],
+    ["VAEUtils_VAEDecodeTiled", "spacepxl/ComfyUI-VAE-Utils"],
+    ["Krea2ControlApply", "facok/comfyui-krea2-controlnet"],
+    ["Krea2ControlLoRALoader", "facok/comfyui-krea2-controlnet"],
+  ];
+  for (const [cls, repo] of checks) {
+    if (idx[cls]?.repo !== repo) { console.log(`  ❌ ${cls} repo 기대 ${repo}, 실제 ${idx[cls]?.repo}`); fail++; ok = false; }
+    if (idx[cls]?.registry !== false) { console.log(`  ❌ ${cls} registry:false 아님`); fail++; ok = false; }
+  }
+  // 유사 이름 트랩: calc 팩(djdarcy)은 등재 안 됨 → SmartResolution이 calc로 매칭될 수 없음
+  if (Object.values(idx).some((m) => /smart-resolution-calc/.test(m.repo || ""))) { console.log("  ❌ 트랩: comfyui-smart-resolution-calc가 등재됨(등재 금지)"); fail++; ok = false; }
+  if (ok) console.log("  ✅ SmartResolution→openerai · VAEUtils→spacepxl · Krea2Control*→facok · registry:false · calc 트랩 미등재");
 }
 
 console.log("\n" + "=".repeat(70));

@@ -13,9 +13,12 @@ export function tokenSim(a, b) {
 
 // ComfyUI 콘솔 로그 → GPU/torch/CUDA + Import times 블록에서 설치 팩·로드 실패 팩(경로 마지막 폴더명, 소문자).
 export function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "", basePath: "", installedPacks: [], importFailed: [] };
+  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", basePath: "", installedPacks: [], importFailed: [] };
   const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
   if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
+  // ComfyUI 본체 버전 (로그 서두: "ComfyUI version: 0.25.1" / "ComfyUI v0.27.0"). 코어 기능 요구 판정용.
+  const cv = text.match(/ComfyUI\s*(?:version)?\s*[:\s]\s*v?(\d+\.\d+(?:\.\d+)?)/i);
+  if (cv) out.comfyVersion = cv[1];
   const g = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?RTX\s*(\d{4})\s*(Ti|Super)?/i);
   if (g) out.gpu = "RTX " + g[1] + (g[2] ? " " + g[2] : "");
   else { const g2 = text.match(/([AB]\d{3,4}|RTX\s*A?\d{4,5})/i); if (g2) out.gpu = g2[0].trim(); }
@@ -44,6 +47,17 @@ export function parseComfyLog(text) {
   out.hasPrestartupBlock = /Prestartup times for custom nodes/i.test(text);
   out.truncated = out.hasPrestartupBlock && !out.hasImportBlock;
   return out;
+}
+
+// semver 비교(a<b → -1, a==b → 0, a>b → 1). "0.25.1" vs "0.27" 등. 코어 버전 요구 판정용.
+export function compareVersion(a, b) {
+  const pa = String(a || "").split(".").map((x) => parseInt(x, 10) || 0);
+  const pb = String(b || "").split(".").map((x) => parseInt(x, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] || 0, y = pb[i] || 0;
+    if (x !== y) return x < y ? -1 : 1;
+  }
+  return 0;
 }
 
 // 처방 repo 폴더명이 로그의 설치 팩에 있는지 (소문자 basename 비교)

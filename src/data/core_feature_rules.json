@@ -1,0 +1,24 @@
+{
+  "_meta": {
+    "purpose": "워크플로우가 쓰는 기능이 ComfyUI 본체(코어) 특정 버전 이상을 요구하는지 판정. 로그의 ComfyUI 버전과 대조해 '본체 업데이트 필요' 확인 행 발화.",
+    "source": "Fable 실측(2026-07-07). krea2 CLIPLoader type가 v0.25.1 목록(23종)에 없고 v0.27.0에서 해소됨을 실제 콘솔로 확인. min_version은 실측 확정 버전(0.27) 사용 — 0.26 지원 여부는 미실측이라 보수적으로 0.27.",
+    "confidence": "실측 확정분만 등재. 임의 확장 금지.",
+    "kinds": "min_version=코어 본체 버전 요구(업데이트로 해소) / extension_required=코어 미포함, 커스텀 노드 설치 필요(설치 행에서 처리)."
+  },
+  "rules": [
+    {
+      "feature": "cliploader_type_krea2",
+      "label": "Krea2 CLIP 지원",
+      "detect": { "nodeType": "CLIPLoader", "widgetValue": "krea2" },
+      "min_version": "0.27",
+      "reason": "CLIPLoader의 krea2 유형은 신버전 코어 기능입니다. v0.25.1에는 없고 v0.27.0에서 지원됩니다."
+    },
+    {
+      "feature": "krea2_control_nodes",
+      "label": "Krea2 컨트롤넷 노드",
+      "detect": { "nodeType": "Krea2Control" },
+      "extension_required": "comfyui-krea2-controlnet",
+      "reason": "Krea2Control 노드는 코어에 없는 커스텀 노드입니다. 워크플로우 제작자 지정 확장(comfyui-krea2-controlnet) 설치가 필요합니다."
+    }
+  ]
+}

@@ -5,6 +5,21 @@ import compat from "../data/compatibility.json" with { type: "json" };
 import nodeRepoMap from "../data/node_repo_map.json" with { type: "json" };
 import mgrList from "../data/manager-model-list.json" with { type: "json" };
 import tsPatterns from "../data/troubleshooting_patterns.json" with { type: "json" };
+import coreFeatureRules from "../data/core_feature_rules.json" with { type: "json" };
+
+// 코어 기능 요구 스캔 — 워크플로우가 특정 ComfyUI 버전/확장을 요구하는 기능을 쓰는지. 로그 버전 대조는 호출부(요약)에서.
+export function scanCoreFeatures(nodes) {
+  const out = [];
+  for (const rule of (coreFeatureRules.rules || [])) {
+    const hit = (nodes || []).some((n) => {
+      if (rule.detect.nodeType && !new RegExp(rule.detect.nodeType, "i").test(n.type || "")) return false;
+      if (rule.detect.widgetValue && !(n.widgets || []).some((w) => typeof w === "string" && w.toLowerCase() === rule.detect.widgetValue.toLowerCase())) return false;
+      return true;
+    });
+    if (hit) out.push(rule);
+  }
+  return out;
+}
 
 export const MODEL_EXTS = [".safetensors",".ckpt",".pt",".pth",".bin",".gguf",".onnx",".glb",".fbx",".obj",".vrm",".gltf"];
 export const FRONTEND_ONLY = new Set(["Note","MarkdownNote","Reroute","PrimitiveNode","SetNode","GetNode"]);
@@ -258,7 +273,7 @@ export function analyze(norm, mgrMap) {
       unmappedRaw.push({ id: n.id, type: n.type, repo: repo === "CORE" ? null : repo, repoSrc,
         isCore: repo === "CORE",
         clone_url: nrd?.clone_url || null, manager_searchable: nrd?.manager_searchable ?? null,
-        install_note: nrd?.notes || null });
+        registry: nrd?.registry ?? null, install_note: nrd?.notes || null });
     }
     if (n.mode === 2 || n.mode === 4) muted.push({ id: n.id, type: n.type, mode: n.mode });
     for (const w of n.widgets) if (typeof w === "string" && MODEL_EXTS.some((e) => w.toLowerCase().endsWith(e))) {
@@ -301,6 +316,7 @@ export function analyze(norm, mgrMap) {
     muted, models: dedupModels, sameRepo, broken, anomalous, portability: portabilityScan(norm.nodes),
     bypassBreaks: detectBypassBreaks(norm),
     ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
+    coreFeatures: scanCoreFeatures(norm.nodes),
     authorNotes,
   };
 }

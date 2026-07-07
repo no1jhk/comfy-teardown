@@ -77,6 +77,28 @@ export function notedFolder(flags) {
   return f ? f.value : null;
 }
 
+// 노드명·라벨 정규화: 소문자·공백/하이픈/언더스코어/괄호 제거.
+function normNodeName(s) { return String(s || "").toLowerCase().replace(/[\s_\-()]/g, ""); }
+function editDistance(a, b) {
+  const m = a.length, n = b.length;
+  if (!m) return n; if (!n) return m;
+  const dp = Array.from({ length: m + 1 }, (_, i) => i);
+  for (let j = 1; j <= n; j++) {
+    let prev = dp[0]; dp[0] = j;
+    for (let i = 1; i <= m; i++) { const tmp = dp[i]; dp[i] = Math.min(dp[i] + 1, dp[i - 1] + 1, prev + (a[i - 1] === b[j - 1] ? 0 : 1)); prev = tmp; }
+  }
+  return dp[m];
+}
+// Note 링크 라벨 ↔ 미확인 노드명 매칭(오탈자 허용). 완전 정규화 일치 또는 편집거리 ≤ 2.
+// 길이차 3 초과는 배제 → "comfyui-smart-resolution-calc" 같은 부분 포함 트랩 방지(실측: SmartResolution에 오매칭 금지).
+export function matchLabelToNode(label, nodeName) {
+  const a = normNodeName(label), b = normNodeName(nodeName);
+  if (!a || !b) return false;
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 3) return false;
+  return editDistance(a, b) <= 2;
+}
+
 // URL 끝에서 모델 파일명 추출(safetensors 등). tree/blob 경로면 null(파일 직링크 아님).
 function fileFromUrl(url) {
   const last = url.split(/[?#]/)[0].replace(/\/+$/, "").split("/").pop();

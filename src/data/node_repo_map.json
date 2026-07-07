@@ -29,6 +29,66 @@
       "source": "empirical"
     },
     {
+      "class_type": "VAEUtils_VAEDecodeTiled",
+      "display_name": "VAE Decode (VAE Utils)",
+      "repo": "spacepxl/ComfyUI-VAE-Utils",
+      "clone_url": "https://github.com/spacepxl/ComfyUI-VAE-Utils.git",
+      "manager_searchable": false,
+      "registry": false,
+      "install": "manual_clone",
+      "notes": "Manager 레지스트리 미등록. git clone으로만 설치. 추가 requirements 없음. (Fable 실측 2026-07-07)",
+      "verified_on": "2026-07-07",
+      "source": "empirical"
+    },
+    {
+      "class_type": "SmartResolution",
+      "display_name": "Smart Resolution",
+      "repo": "openerai/comfyui-smart-resolution",
+      "clone_url": "https://github.com/openerai/comfyui-smart-resolution.git",
+      "manager_searchable": false,
+      "registry": false,
+      "install": "manual_clone",
+      "notes": "Manager 레지스트리 미등록. 워크플로우 Note에 'Smart resulution' 오탈자 링크로 존재. 유사 이름 comfyui-smart-resolution-calc(djdarcy)는 SmartResolution 클래스를 제공하지 않으므로 매칭 금지. (Fable 실측 2026-07-07)",
+      "verified_on": "2026-07-07",
+      "source": "empirical"
+    },
+    {
+      "class_type": "Krea2ControlApply",
+      "display_name": "Krea2 Control Apply",
+      "repo": "facok/comfyui-krea2-controlnet",
+      "clone_url": "https://github.com/facok/comfyui-krea2-controlnet.git",
+      "manager_searchable": false,
+      "registry": false,
+      "install": "manual_clone",
+      "notes": "Manager 레지스트리 미등록. 워크플로우 Note의 'comfyui-krea2-controlnet Extension' 링크가 제작자 지정 출처. (Fable 실측 2026-07-07)",
+      "verified_on": "2026-07-07",
+      "source": "empirical"
+    },
+    {
+      "class_type": "Krea2ControlImageEncode",
+      "display_name": "Krea2 Control Image Encode",
+      "repo": "facok/comfyui-krea2-controlnet",
+      "clone_url": "https://github.com/facok/comfyui-krea2-controlnet.git",
+      "manager_searchable": false,
+      "registry": false,
+      "install": "manual_clone",
+      "notes": "Manager 레지스트리 미등록. 워크플로우 Note의 'comfyui-krea2-controlnet Extension' 링크가 제작자 지정 출처. (Fable 실측 2026-07-07)",
+      "verified_on": "2026-07-07",
+      "source": "empirical"
+    },
+    {
+      "class_type": "Krea2ControlLoRALoader",
+      "display_name": "Krea2 Control LoRA Loader",
+      "repo": "facok/comfyui-krea2-controlnet",
+      "clone_url": "https://github.com/facok/comfyui-krea2-controlnet.git",
+      "manager_searchable": false,
+      "registry": false,
+      "install": "manual_clone",
+      "notes": "Manager 레지스트리 미등록. 워크플로우 Note의 'comfyui-krea2-controlnet Extension' 링크가 제작자 지정 출처. (Fable 실측 2026-07-07)",
+      "verified_on": "2026-07-07",
+      "source": "empirical"
+    },
+    {
       "class_type": "DenoLTX23PresetLoader",
       "display_name": "(Deno) LTX Model Loader",
       "repo": "Deno2026/comfyui-deno-custom-nodes",

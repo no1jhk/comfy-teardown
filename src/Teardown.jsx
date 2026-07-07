@@ -7,9 +7,10 @@ import {
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
 import { buildRecipes, groupNodesByRepo } from "./data/redNodeRecipe.js";
-import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType } from "./logParse.js";
+import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion } from "./logParse.js";
 import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkflow.js";
 import { recommend } from "./lib/modelRecommender.js";
+import { matchLabelToNode } from "./lib/parseWorkflowNotes.js";
 import { buildModelPlan } from "./lib/modelPlan.js";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
@@ -494,7 +495,7 @@ function buildInstallScript(report, os) {
     else if (p.repo) cloneUrls.set(`https://github.com/${p.repo}.git`, null);
   }
   for (const u of report.unmapped) {
-    if (u.clone_url) cloneUrls.set(u.clone_url, u.manager_searchable === false ? `Manager 검색 안 됨 (${u.type})` : null);
+    if (u.clone_url) cloneUrls.set(u.clone_url, u.registry === false ? `Manager에 없는 팩 — 직접 설치 (${u.type})` : u.manager_searchable === false ? `Manager 검색 안 됨 (${u.type})` : null);
     else if (u.repo) cloneUrls.set(u.repo.startsWith("https://") ? u.repo.replace(/\/?$/, ".git") : `https://github.com/${u.repo}.git`, null);
   }
   if (cloneUrls.size) {
@@ -1093,6 +1094,18 @@ export default function Teardown() {
     return { truncated: hasPrestartup && !hasImport, packN: logEnv.installedPacks.length, failN: logEnv.importFailed.length, gpu: env.gpu, basePath: env.basePath };
   }, [envLog, errlog, logEnv.installedPacks, logEnv.importFailed, env.gpu, env.basePath]);
 
+  // 코어 버전 요구 판정(작업 A). 워크플로우가 쓰는 코어 기능이 로그 ComfyUI 버전보다 신버전을 요구하면 최상단 확인 행.
+  const coreCheck = React.useMemo(() => {
+    const minRules = (report?.coreFeatures || []).filter((r) => r.min_version);
+    if (!minRules.length) return null; // extension_required만이면 버전 판정 안 함(설치 행에서 처리)
+    let ver = "";
+    for (const t of [envLog, errlog].filter((x) => x && x.trim())) { const p = parseComfyLog(t); if (p.comfyVersion) { ver = p.comfyVersion; break; } }
+    const required = minRules.reduce((a, r) => (compareVersion(r.min_version, a) > 0 ? r.min_version : a), "0");
+    if (!ver) return { state: "unknown", required, rules: minRules };
+    if (compareVersion(ver, required) < 0) return { state: "outdated", required, current: ver, rules: minRules };
+    return { state: "ok", required, current: ver };
+  }, [report, envLog, errlog]);
+
   // 진단 요약 계산
   let summary = null;
   if (report) {
@@ -1114,7 +1127,7 @@ export default function Teardown() {
     const checkModels = allSlots.filter((s) => !s.quantBad).length; // 점검 대상 모델 슬롯
     const checkInputs = (report.portability || []).filter((h) => /\.(png|jpe?g|webp|bmp|gif|tiff?|mp4|mov|webm|mkv|avi|wav|mp3|flac|ogg)$/i.test(h.value) && !/[\\/]/.test(h.value)).length; // 입력 파일 준비
     const yellowN = checkModels + checkInputs + gpuCheck;
-    let grade, diagLine;
+    let grade, diagLine, valueCauses = null;
     // 로그 기반 실제 실행 실패 — quantBad·설치확인과 무관하게 최상위 빨강 오버라이드(확정 증거).
     // (1) Value not in list (요구 값 거부) (2) missing_node_type (노드 타입 없음 = 실행 불가). 둘 다 동일 계열.
     const valueErrors = parseValueNotInList(errlog || "");
@@ -1125,6 +1138,10 @@ export default function Teardown() {
       if (valueErrors.length) { const fe = valueErrors[0]; segs.push(`ComfyUI가 거부한 값 ${valueErrors.length}건 (예: ${fe.widget} = '${fe.required}')`); }
       if (brokenLog.length) segs.push(`실행 불가 노드 ${brokenLog.length}개`);
       diagLine = `실행 시 오류가 확인되었습니다. ${segs.join(" · ")}`;
+      // 작업 D: VNIL 원인 후보 2가지 병기. 작업 A(버전 부족)가 발화했으면 그 행을 우선 안내.
+      if (valueErrors.length) valueCauses = coreCheck?.state === "outdated"
+        ? ["ComfyUI 본체가 구버전이라 이 항목을 지원하지 않습니다. 위 버전 확인 행을 먼저 처리해 주세요.", "그래도 남으면 해당 파일이 폴더에 없거나 이름이 다른지 확인해 주세요."]
+        : ["해당 파일이 폴더에 없거나 이름이 다릅니다.", "또는 ComfyUI 본체가 구버전이라 이 항목을 지원하지 않을 수 있습니다."];
     } else if (redNodes > 0) {
       grade = "red";
       const parts = [];
@@ -1146,7 +1163,7 @@ export default function Teardown() {
       grade = "green";
       diagLine = "이 워크플로우에서 구조상 문제를 찾지 못했습니다. 도구는 PC 안의 설치 상태는 확인하지 않습니다.";
     }
-    summary = { diagLine, grade, diagBlocked: grade === "red", issues, weightCount };
+    summary = { diagLine, grade, diagBlocked: grade === "red", issues, weightCount, valueCauses };
   }
 
   // 처방전 할 일. 기존 데이터(unmapped·recipesEnriched)에서 항목만 추출. 새 분석 로직 없음(표시층).
@@ -1180,10 +1197,14 @@ export default function Teardown() {
   const actionRows = React.useMemo(() => {
     const rows = [];
     let n = 0;
+    // 작업 A: 코어 버전 요구 — 최상단 1행. outdated=확인 행(확정), unknown(로그 없음)=dim 안내(확정 금지).
+    if (coreCheck?.state === "outdated") rows.push({ n: ++n, verb: "확인", text: `이 워크플로우는 ComfyUI ${coreCheck.required} 이상이 필요합니다. 본체를 업데이트한 뒤 다시 열어 주세요.`, sub: `현재 로그의 버전: ${coreCheck.current}`, kind: "coreversion" });
+    else if (coreCheck?.state === "unknown") rows.push({ n: ++n, verb: "안내", text: "이 워크플로우는 최신 ComfyUI 기능을 사용합니다. 로그를 붙여넣으면 버전 적합 여부를 판정해 드립니다.", kind: "gpuhint" });
     const inst = rxTodos.filter((t) => t.kind === "nodegroup" && !packInstalled(t.g.repo || t.g.clone_url, logEnv.installedPacks));
     if (inst.length) {
       const nm = inst.map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop());
-      rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), kind: "install" });
+      const noReg = inst.filter((t) => t.g.registry === false).length;
+      rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: noReg ? `${noReg}개는 Manager에 없는 팩입니다. 스크립트 보기에서 git clone 명령을 확인해 주세요.` : undefined, kind: "install" });
     }
     // 확인 — 로그에서 확정된 실행 불가 노드(missing_node_type). 삭제/재추가 안내(설치로 안 풀림).
     for (const b of parseMissingNodeType(errlog || "")) {
@@ -1210,7 +1231,7 @@ export default function Teardown() {
     if (plan?.authorLinks?.length) rows.push({ n: ++n, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: plan.authorLinks });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
     return rows;
-  }, [rxTodos, logEnv.installedPacks, errlog, plan]);
+  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1423,6 +1444,12 @@ export default function Teardown() {
                 <span style={{ fontSize: 15, fontWeight: 700, color: gc, lineHeight: 1.5 }}>{summary.diagLine}</span>
               </div>);
             })()}
+            {summary?.valueCauses && (
+              <div style={{ marginTop: 10, marginBottom: 18, display: "flex", flexDirection: "column", gap: 6 }}>
+                <div style={{ fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>원인 후보:</div>
+                {summary.valueCauses.map((c, ci) => <div key={ci} style={{ fontSize: 13.5, color: C.dim, lineHeight: 1.5, display: "flex", gap: 7 }}><span style={{ color: C.point, flexShrink: 0 }}>{ci === 0 ? "①" : "②"}</span><span>{c}</span></div>)}
+              </div>
+            )}
             {summary && (summary.grade === "yellow" || summary.grade === "green") && !errlog?.trim() && (
               <div style={{ fontSize: 13, color: C.dim, marginTop: 8, marginBottom: 20, lineHeight: 1.5 }}>에러 로그를 붙여넣으면 실행 시 값 오류까지 판정해 드립니다.</div>
             )}
@@ -1517,8 +1544,9 @@ export default function Teardown() {
                       {g.repoSrc === "prefix" ? <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장 {repoEl} 가 설치돼 있는지 확인해 주세요.</>}
                     </div>
                     <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>
-                      {g.repoSrc === "manager" ? "ComfyUI Manager에서 설치할 수 있습니다." : g.repoSrc === "prefix" ? "설치 전 저장소를 확인해 주세요." : "출처 확인된 저장소입니다."}
+                      {g.registry === false ? "Manager에 없는 팩입니다. 위 명령으로 직접 설치해 주세요." : g.repoSrc === "manager" ? "ComfyUI Manager에서 설치할 수 있습니다." : g.repoSrc === "prefix" ? "설치 전 저장소를 확인해 주세요." : "출처 확인된 저장소입니다."}
                     </div>
+                    {(() => { const al = (plan?.authorLinks || []).find((a) => g.types.some((ty) => matchLabelToNode(a.label, ty))); return al ? <div style={{ fontSize: 14, color: C.memoBright, lineHeight: 1.6, marginTop: 4 }}>워크플로우 제작자 안내 링크: <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12, marginLeft: 4 }}>링크 ↗</a></div> : null; })()}
                   </>);
                   right = null;
                 } else if (t.kind === "node") {
