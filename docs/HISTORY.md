@@ -6,6 +6,20 @@
 
 ---
 
+## 2026-07-08 (실전 파인딩: 회사 3060 Ti 결함 5종 + UX 2건)
+**한 일**(9f0c002) — 두 번째 실환경(회사 D:\ 커스텀, 3060 Ti 8GB) 실측 결함 이식.
+- **결함1 GPU VRAM 오인**: parseComfyLog.vramGB(Total VRAM MB). gpuProfile 로그 vram > 테이블 + 최장 매칭(Ti/Super 구분). gpu_rules RTX 3060 Ti(8).
+- **결함2 저VRAM 대체 승격**: vramWarning 슬롯 받기 본체를 raw_fp8_scaled로 교체 + 권장, 원 bf16 하위 dim + 노드 선택 변경 안내. 같은 kind만(Note RAW 준수).
+- **결함3 타 워크플로우 혼입**: latestLogSession(got prompt) + 거부 값/노드 현재 워크플로우 대조. 무관 red 제외 + dim 'N건'.
+- **결함4 bat 인코딩**: chcp 65001 >nul.
+- **결함5 bat 경로 날조 금지**: cd=customNodesPath만, 없으면 자리표시자+경고. 화면 dim.
+- **UX1**: install.bat·모델 받기.bat 버튼을 액션 행 안에. **UX2**: 판정 박스 하단 Diagnose 바로가기 앵커.
+- e2e 10 갱신(경고→승격 and)·11 무회귀. regression 결함1/3/5.
+
+**실측 판단**: vram 로그>테이블 원칙(같은 GPU라도 8/12 변종 실측 반영). foreign 판정은 최신 세션+참조 대조(과잉 제외 방지 위해 stem 부분일치 허용).
+
+**다음 할 일**: 내일 아침 검수 후 push.
+
 ## 2026-07-07 (봉인2 P2.5: 브리핑 강화 + 다운로드 스크립트 + 3060 검증)
 **한 일**(8225c6d) — PRD_v1.1 정합 확인 후 진행(충돌 없음).
 - **Fable 주입**: krea2DepthControlnet_v10→Patil/Krea-2-depth-controlnet(catalog files, confirmed). gpu_rules RTX 3060 8GB(vram 8).
