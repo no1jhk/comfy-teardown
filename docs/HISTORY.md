@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-08 (파인딩2: 결함 6·7·8 + UX3 재방문)
+**한 일**(3eb4c5b)
+- **결함6 크로스링크**: analyze.nodeIdType(id→class_type). missing_node_type broken 행이 node_id 역조회 → 팩 소속이면 '노드 #N(클래스)은 {팩} 소속' + 설치 행 앵커. 특정 불가만 삭제/재추가. (실측 #333→Krea2ControlApply→facok)
+- **결함7 직링크 실존**: catalog repo_filename 신설. 링크는 repo_filename 기준(미확인은 트리 링크, 파일 직링크 금지). 참조명≠실파일명 시 리네임 안내. Fable 주입: depth-control-lora.safetensors 862MB.
+- **결함8 브리핑 비대화**: 에러 로그를 latestLogSession+extractErrorLines(오류·경고 줄+전후 2줄). 총량 1만 자 초과 시 대표 3건+건수 압축. 복사 문구에 글자수+'1회 분량'.
+- **UX3 재방문**: 재업로드(2회+)·로그 오류 시 처방 테이블 접힘 + 진단 결과(VNIL 후보) 판정 박스 아래로. 모델 루트 카피 교체.
+- regression 결함6/7/8(307줄 혼합 로그 → 최신 세션 오류만 102자).
+
+**실측 판단**: depth lora repo_filename=depth-control-lora(Fable 실측), 참조명 krea2DepthControlnet_v10과 달라 리네임 안내. 브리핑 추출은 오류 키워드 라인+전후 2줄(정상 진행 줄 제거).
+
+**다음 할 일**: 내일 아침 검수 후 push(파인딩1·2 묶음).
+
 ## 2026-07-08 (실전 파인딩: 회사 3060 Ti 결함 5종 + UX 2건)
 **한 일**(9f0c002) — 두 번째 실환경(회사 D:\ 커스텀, 3060 Ti 8GB) 실측 결함 이식.
 - **결함1 GPU VRAM 오인**: parseComfyLog.vramGB(Total VRAM MB). gpuProfile 로그 vram > 테이블 + 최장 매칭(Ti/Super 구분). gpu_rules RTX 3060 Ti(8).
