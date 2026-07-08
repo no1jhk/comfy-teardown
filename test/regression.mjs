@@ -9,8 +9,9 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRecipes, groupNodesByRepo } from "../src/data/redNodeRecipe.js";
-import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion } from "../src/logParse.js";
+import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion, latestLogSession } from "../src/logParse.js";
 import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
+import { gpuProfile } from "../src/lib/modelRecommender.js";
 import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, matchLabelToNode } from "../src/lib/parseWorkflowNotes.js";
 import nodeRepoMap from "../src/data/node_repo_map.json" with { type: "json" };
 
@@ -420,6 +421,56 @@ console.log("\n" + "=".repeat(70) + "\n실측 지식 박제(node_repo_map regist
   // 유사 이름 트랩: calc 팩(djdarcy)은 등재 안 됨 → SmartResolution이 calc로 매칭될 수 없음
   if (Object.values(idx).some((m) => /smart-resolution-calc/.test(m.repo || ""))) { console.log("  ❌ 트랩: comfyui-smart-resolution-calc가 등재됨(등재 금지)"); fail++; ok = false; }
   if (ok) console.log("  ✅ SmartResolution→openerai · VAEUtils→spacepxl · Krea2Control*→facok · registry:false · calc 트랩 미등재");
+}
+
+// === 파인딩 결함1: GPU VRAM 오인 — 로그 실측 VRAM > 테이블, Ti/Super 변형 구분 ===
+console.log("\n" + "=".repeat(70) + "\nGPU VRAM 오인(로그 실측 우선 + 변형 접미)");
+{
+  const p = parseComfyLog("Device: cuda:0 NVIDIA GeForce RTX 3060 Ti\nTotal VRAM 8192 MB");
+  let ok = true;
+  if (p.gpu !== "RTX 3060 Ti") { console.log(`  ❌ GPU 파싱 기대 'RTX 3060 Ti', 실제 '${p.gpu}'`); fail++; ok = false; }
+  if (p.vramGB !== 8) { console.log(`  ❌ 실측 VRAM 기대 8, 실제 ${p.vramGB}`); fail++; ok = false; }
+  const prof = gpuProfile(p.gpu, p.vramGB);
+  if (prof.vram !== 8 || prof.vramSource !== "log") { console.log(`  ❌ 프로파일 vram 기대 8(log), 실제 ${prof.vram}(${prof.vramSource})`); fail++; ok = false; }
+  // 무접미 3060(로그 없음) → 테이블 12
+  const prof12 = gpuProfile("RTX 3060");
+  if (prof12.vram !== 12) { console.log(`  ❌ 무접미 3060 기대 12(테이블), 실제 ${prof12.vram}`); fail++; ok = false; }
+  // 로그 실측이 테이블보다 우선(가상: 3060에 로그 8 주입 → 8)
+  if (gpuProfile("RTX 3060", 8).vram !== 8) { console.log("  ❌ 로그 VRAM이 테이블보다 우선하지 않음"); fail++; ok = false; }
+  if (ok) console.log("  ✅ RTX 3060 Ti+8192MB→vram 8(log 우선) · 무접미 3060→12(테이블) · 로그>테이블");
+}
+
+// === 파인딩 결함3: 타 워크플로우 로그 혼입 — 최신 세션 + 워크플로우 대조 ===
+console.log("\n" + "=".repeat(70) + "\n타 워크플로우 로그 혼입 분리");
+{
+  const rep = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json"), "utf8"))), null);
+  // LTX vae_name 거부(krea2 워크플로우와 무관) → foreign. 최신 세션에 존재.
+  const log = "got prompt\nsome old run\ngot prompt\nvae_name: 'ltx_vae_bf16.safetensors' not in ['Wan2.1_VAE_upscale2x_imageonly_real_v1.safetensors', 'qwen_image_vae.safetensors']";
+  const session = latestLogSession(log);
+  const vnil = parseValueNotInList(session);
+  const modelBases = new Set((rep.models || []).map((m) => m.file.replace(/\\/g, "/").split("/").pop().toLowerCase()));
+  const inWf = (v) => { const b = String(v || "").replace(/\\/g, "/").split("/").pop().toLowerCase(); if (modelBases.has(b)) return true; const stem = b.replace(/\.[^.]+$/, ""); return [...modelBases].some((mb) => mb === b || (stem.length > 3 && mb.includes(stem))); };
+  const relevant = vnil.filter((e) => inWf(e.required));
+  const foreign = vnil.length - relevant.length;
+  let ok = true;
+  if (!/got prompt/.test(session) || /some old run/.test(session)) { console.log("  ❌ 최신 세션 분할 실패"); fail++; ok = false; }
+  if (relevant.length !== 0) { console.log(`  ❌ LTX vae_name이 krea2 참조로 오판(relevant ${relevant.length}) → red 오승격`); fail++; ok = false; }
+  if (foreign !== 1) { console.log(`  ❌ foreign 기대 1, 실제 ${foreign}`); fail++; ok = false; }
+  // 대조: krea2 자기 파일 거부는 relevant
+  const own = parseValueNotInList("unet_name: 'krea2_raw_bf16.safetensors' not in ['a.safetensors']").filter((e) => inWf(e.required));
+  if (own.length !== 1) { console.log("  ❌ krea2 자기 파일 거부가 relevant로 안 잡힘"); fail++; ok = false; }
+  if (ok) console.log("  ✅ 최신 세션만 · LTX vae_name→foreign 1(red 미승격) · krea2 자기 파일 거부→relevant");
+}
+
+// === 파인딩 결함5: bat 경로 — 로그 있으면 실경로, 잘리면 자리표시자(customNodesPath) ===
+console.log("\n" + "=".repeat(70) + "\nbat 경로 날조 금지(customNodesPath)");
+{
+  const withPath = parseComfyLog("   0.1 seconds: C:\\Users\\jhkim\\ComfyUI\\custom_nodes\\rgthree-comfy");
+  const noPath = parseComfyLog("Total VRAM 8192 MB\nStarting server");
+  let ok = true;
+  if (withPath.customNodesPath !== "C:\\Users\\jhkim\\ComfyUI\\custom_nodes") { console.log(`  ❌ 실경로 추출 실패: '${withPath.customNodesPath}'`); fail++; ok = false; }
+  if (noPath.customNodesPath) { console.log(`  ❌ 경로 없는 로그인데 경로 생성(날조): '${noPath.customNodesPath}'`); fail++; ok = false; }
+  if (ok) console.log("  ✅ 경로 로그→실경로 추출 · 잘린 로그→빈 값(자리표시자 처리는 스크립트에서)");
 }
 
 console.log("\n" + "=".repeat(70));

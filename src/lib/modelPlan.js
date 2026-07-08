@@ -44,7 +44,7 @@ export function buildModelPlan(report, env) {
   const rec = recommend(report, env); // 패밀리/슬롯/폴더 override/note/exclude 재사용
   const models = report?.models || [];
   const basePath = env?.modelRoot || env?.basePath || null;
-  const profile = gpuProfile(env?.gpu);
+  const profile = gpuProfile(env?.gpu, env?.vram);
   const recByBase = new Map(rec.slots.map((s) => [baseName(s.workflowValue), s]));
   const noteByBase = rec.noteLinkByBase instanceof Map ? rec.noteLinkByBase : new Map();
   const items = [], unknowns = [];
@@ -96,6 +96,11 @@ export function buildModelPlan(report, env) {
     if (excludeTurbo && isTurbo) { exclusions.push({ filename: f.filename, quant: f.quant, size: f.size, reason: "Note가 turbo 메인 모델을 쓰지 말라고 지시했습니다." }); continue; } // Note 기반 제외는 GPU 무관
     // 대체 후보(OOM 시)는 GPU 의존 판정 → profile 없으면 미출력(불변①: 입력 없인 확정 판정 금지)
     if (profile && !isTurbo && quantStance(f.quant, profile) !== "avoid") alternatives.push({ filename: f.filename, quant: f.quant, size: f.size, folder: `models/${f.folder}`, downloadUrl: hfUrl(f.repo, f.repo_path), reason: `OOM(메모리 부족) 발생 시 대체 후보입니다 (${f.quant}${f.size ? `, ${f.size}` : ""}).` });
+  }
+  // 결함2: 저VRAM 경고가 뜬 주 모델은 대체 후보로 승격(같은 kind 안에서만 — Note RAW 강제 준수). 받기 행 본체를 대체로 교체, 원 참조값은 하위 표기.
+  if (selectedMain?.vramWarning && alternatives.length && profile?.vram) {
+    const alt = alternatives[0]; // raw 계열 중 가장 작은 호환 후보(turbo 제외 유지)
+    selectedMain.promoted = { filename: alt.filename, size: alt.size, quant: alt.quant, downloadUrl: alt.downloadUrl, folder: selectedMain.folder, fullPath: selectedMain.fullPath, node: selectedMain.node, reason: `이 PC(${profile.vram}GB VRAM) 기준 권장`, originalFile: selectedMain.selectedFile, originalSize: selectedMain.size };
   }
   return { family: rec.family, label: rec.label, needs: rec.needs, items, alternatives, exclusions, unknowns, authorLinks: rec.authorLinks || [] };
 }

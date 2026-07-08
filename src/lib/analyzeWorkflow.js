@@ -317,6 +317,8 @@ export function analyze(norm, mgrMap) {
     bypassBreaks: detectBypassBreaks(norm),
     ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
     coreFeatures: scanCoreFeatures(norm.nodes),
+    nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)
+    nodeIds: norm.nodes.map((n) => String(n.id)),
     authorNotes,
   };
 }

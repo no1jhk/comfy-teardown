@@ -13,7 +13,10 @@ export function tokenSim(a, b) {
 
 // ComfyUI 콘솔 로그 → GPU/torch/CUDA + Import times 블록에서 설치 팩·로드 실패 팩(경로 마지막 폴더명, 소문자).
 export function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [] };
+  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", vramGB: null, basePath: "", customNodesPath: "", installedPacks: [], importFailed: [] };
+  // 실측 VRAM (콘솔 "Total VRAM 8192 MB"). gpu_rules 테이블보다 항상 우선(테이블은 폴백).
+  const vm = text.match(/Total VRAM\s+(\d+)\s*MB/i);
+  if (vm) out.vramGB = Math.round(parseInt(vm[1], 10) / 1024);
   const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
   if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
   // ComfyUI 본체 버전 (로그 서두: "ComfyUI version: 0.25.1" / "ComfyUI v0.27.0"). 코어 기능 요구 판정용.
@@ -50,6 +53,13 @@ export function parseComfyLog(text) {
   out.hasPrestartupBlock = /Prestartup times for custom nodes/i.test(text);
   out.truncated = out.hasPrestartupBlock && !out.hasImportBlock;
   return out;
+}
+
+// 로그를 "got prompt" 경계로 세션 분할 → 최신(마지막) 세션만. 타 워크플로우 실행 이력 혼입 방지.
+export function latestLogSession(log) {
+  if (!log) return "";
+  const parts = log.split(/got prompt/i);
+  return parts.length > 1 ? "got prompt" + parts[parts.length - 1] : log;
 }
 
 // semver 비교(a<b → -1, a==b → 0, a>b → 1). "0.25.1" vs "0.27" 등. 코어 버전 요구 판정용.

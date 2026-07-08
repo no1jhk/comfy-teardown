@@ -89,18 +89,22 @@ function matchVariant(def, file) {
   for (const v of (def.variants || [])) if (low.includes(v.match)) return { ...v };
   return null;
 }
-// env.gpu → {arch, vram, rules}. 부분 매칭 허용(RTX 3090 Ti → 3090). 미입력·미상 → null.
-export function gpuProfile(gpu) {
-  if (!gpu) return null;
+// env.gpu(+로그 실측 vram) → {arch, vram, rules, vramSource}. 로그 vram이 테이블보다 우선.
+// 부분 매칭은 최장 일치(RTX 3060 Ti는 RTX 3060보다 우선). 미입력·미상 → null.
+export function gpuProfile(gpu, vramOverride) {
+  const logVram = (typeof vramOverride === "number" && vramOverride > 0) ? vramOverride : null;
+  if (!gpu) return logVram ? { arch: null, vram: logVram, rules: { prefer: [], caution: [], avoid: [] }, vramSource: "log" } : null;
   let entry = gpuRules.gpus[gpu];
   if (!entry) {
     const g = gpu.toLowerCase().replace(/[^0-9a-z]/g, "");
+    let bestLen = -1;
     for (const [name, e] of Object.entries(gpuRules.gpus)) {
-      if (g.includes(name.toLowerCase().replace(/[^0-9a-z]/g, ""))) { entry = e; break; }
+      const n = name.toLowerCase().replace(/[^0-9a-z]/g, "");
+      if (g.includes(n) && n.length > bestLen) { bestLen = n.length; entry = e; } // 최장 일치(변형 접미 구분)
     }
   }
-  if (!entry) return null;
-  return { arch: entry.arch, vram: entry.vram, rules: gpuRules.byArch[entry.arch] };
+  if (!entry) return logVram ? { arch: null, vram: logVram, rules: { prefer: [], caution: [], avoid: [] }, vramSource: "log" } : null;
+  return { arch: entry.arch, vram: logVram || entry.vram, rules: gpuRules.byArch[entry.arch], vramSource: logVram ? "log" : "table" };
 }
 function quantStance(quant, profile) {
   if (!profile || !quant) return null;
@@ -122,7 +126,7 @@ export function recommend(report, env) {
   const models = report?.models || [];
   const flags = parseWorkflowNotes(report?.authorNotes || []);
   const { linkByBase, authorLinks } = promoteNoteLinks(report); // Note 링크 승격(카탈로그 무관)
-  const profile = gpuProfile(env?.gpu);
+  const profile = gpuProfile(env?.gpu, env?.vram);
   const family = detectFamily(models);
   const needs = [];
   if (!profile) needs.push("gpu"); // 불변①: GPU 미입력 → 확정 판정 금지, 안내만
