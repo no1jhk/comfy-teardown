@@ -9,9 +9,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildRecipes, groupNodesByRepo } from "../src/data/redNodeRecipe.js";
-import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion, latestLogSession } from "../src/logParse.js";
+import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion, latestLogSession, extractErrorLines } from "../src/logParse.js";
 import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
 import { gpuProfile } from "../src/lib/modelRecommender.js";
+import { buildModelPlan } from "../src/lib/modelPlan.js";
 import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, matchLabelToNode } from "../src/lib/parseWorkflowNotes.js";
 import nodeRepoMap from "../src/data/node_repo_map.json" with { type: "json" };
 
@@ -471,6 +472,55 @@ console.log("\n" + "=".repeat(70) + "\nbat 경로 날조 금지(customNodesPath)
   if (withPath.customNodesPath !== "C:\\Users\\jhkim\\ComfyUI\\custom_nodes") { console.log(`  ❌ 실경로 추출 실패: '${withPath.customNodesPath}'`); fail++; ok = false; }
   if (noPath.customNodesPath) { console.log(`  ❌ 경로 없는 로그인데 경로 생성(날조): '${noPath.customNodesPath}'`); fail++; ok = false; }
   if (ok) console.log("  ✅ 경로 로그→실경로 추출 · 잘린 로그→빈 값(자리표시자 처리는 스크립트에서)");
+}
+
+// === 파인딩2 결함6: missing_node_type 크로스링크(node_id→class_type→팩) ===
+console.log("\n" + "=".repeat(70) + "\nmissing_node_type 크로스링크(#333→Krea2ControlApply→facok)");
+{
+  const rep = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json"), "utf8"))), JSON.parse(fs.readFileSync(path.join(DIR, "..", "public", "manager_node_map.json"), "utf8")));
+  const repoByType = {}; for (const u of (rep.unmapped || [])) if (u.repo || u.clone_url) repoByType[u.type] = (u.repo || u.clone_url).replace("https://github.com/", "").replace(/\.git$/, "");
+  let ok = true;
+  // #333 → Krea2ControlApply → facok/comfyui-krea2-controlnet
+  const cls = rep.nodeIdType["333"];
+  if (cls !== "Krea2ControlApply") { console.log(`  ❌ #333 class_type 기대 Krea2ControlApply, 실제 ${cls}`); fail++; ok = false; }
+  if (!/facok\/comfyui-krea2-controlnet/.test(repoByType[cls] || "")) { console.log(`  ❌ 크로스링크 팩 특정 실패: ${repoByType[cls]}`); fail++; ok = false; }
+  // 미지 id → class_type 없음 → 기존 삭제/재추가 문구
+  if (rep.nodeIdType["999999"]) { console.log("  ❌ 미지 id에 class_type 존재(오류)"); fail++; ok = false; }
+  if (ok) console.log(`  ✅ #333→Krea2ControlApply→${repoByType[cls].split("/").pop()} 크로스링크 · 미지 id→기존 문구`);
+}
+
+// === 파인딩2 결함7: 직링크 실존(repo_filename) + 리네임 안내 ===
+console.log("\n" + "=".repeat(70) + "\n직링크 실존 + 리네임 안내(depth lora)");
+{
+  const mgr = JSON.parse(fs.readFileSync(path.join(DIR, "..", "public", "manager_node_map.json"), "utf8"));
+  const rep = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "krea2_simple_full_turbo (리얼감을 살리는 워크플로우) 배포.json"), "utf8"))), mgr);
+  const plan = buildModelPlan(rep, { gpu: "RTX 3090" });
+  const dl = plan.items.find((i) => /depthcontrolnet/i.test(i.selectedFile));
+  let ok = true;
+  if (dl?.size !== "862MB") { console.log(`  ❌ depth lora 용량 기대 862MB, 실제 ${dl?.size}`); fail++; ok = false; }
+  if (!/depth-control-lora\.safetensors/.test(dl?.downloadUrl || "")) { console.log(`  ❌ 직링크가 repo 실파일(depth-control-lora)이 아님: ${dl?.downloadUrl}`); fail++; ok = false; }
+  if (!/krea2DepthControlnet_v10\.safetensors/.test(dl?.renameHint || "")) { console.log(`  ❌ 리네임 안내(참조명) 미발화: ${dl?.renameHint}`); fail++; ok = false; }
+  if (ok) console.log(`  ✅ 직링크 repo 실파일(depth-control-lora 862MB) · 리네임 안내→krea2DepthControlnet_v10`);
+}
+
+// === 파인딩2 결함8: 브리핑 비대화(최신 세션 오류 추출 + 상한) ===
+console.log("\n" + "=".repeat(70) + "\n브리핑 비대화(315줄급 혼합 로그)");
+{
+  const lines = [];
+  for (let i = 0; i < 200; i++) lines.push(`   ${(i * 0.01).toFixed(2)} seconds: normal startup line ${i}`);
+  lines.push("got prompt", "Traceback (most recent call last):", "  File old.py", "OldError: previous workflow error");
+  for (let i = 0; i < 100; i++) lines.push(`processing step ${i} ok`);
+  lines.push("got prompt", "Error: vae_name: 'ltx_vae.safetensors' not in ['a.safetensors']", "Prompt execution failed");
+  const log = lines.join("\n");
+  const session = latestLogSession(log);
+  const ex = extractErrorLines(session);
+  let ok = true;
+  if (lines.length < 300) { console.log(`  ❌ fixture 줄수 ${lines.length}(300+ 기대)`); fail++; ok = false; }
+  if (!/ltx_vae/.test(ex.text)) { console.log("  ❌ 최신 세션 오류(ltx_vae) 미포함"); fail++; ok = false; }
+  if (/OldError/.test(ex.text)) { console.log("  ❌ 이전 세션 오류(OldError) 혼입"); fail++; ok = false; }
+  if (ex.text.length > 10000) { console.log(`  ❌ 추출 길이 ${ex.text.length}(1만 자 초과)`); fail++; ok = false; }
+  if (/normal startup line/.test(ex.text)) { console.log("  ❌ 정상 진행 줄 제거 실패"); fail++; ok = false; }
+  if (ok) console.log(`  ✅ ${lines.length}줄→최신 세션 오류만 추출(${ex.text.length}자, 오류 ${ex.errorCount}건) · 정상 줄·이전 세션 제외 · 1만 자 이하`);
 }
 
 console.log("\n" + "=".repeat(70));

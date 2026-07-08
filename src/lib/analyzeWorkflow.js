@@ -319,6 +319,7 @@ export function analyze(norm, mgrMap) {
     coreFeatures: scanCoreFeatures(norm.nodes),
     nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)
     nodeIds: norm.nodes.map((n) => String(n.id)),
+    nodeIdType: Object.fromEntries(norm.nodes.filter((n) => n.type).map((n) => [String(n.id), n.type])), // missing_node_type 크로스링크용(id→class_type)
     authorNotes,
   };
 }

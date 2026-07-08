@@ -62,6 +62,23 @@ export function latestLogSession(log) {
   return parts.length > 1 ? "got prompt" + parts[parts.length - 1] : log;
 }
 
+// 오류·경고 줄 + 전후 context줄만 추출(정상 진행 줄 제거). 브리핑 비대화용(원문 전체 운반 금지).
+const ERR_LINE_RE = /error|traceback|warning|fail|exception|not in \[|does not exist|invalid prompt|missing|cannot execute|no module|모듈|오류|실패/i;
+export function extractErrorLines(log, context = 2) {
+  if (!log) return { text: "", errorCount: 0 };
+  const lines = log.split(/\r?\n/);
+  const keep = new Set();
+  let errorCount = 0;
+  for (let i = 0; i < lines.length; i++) {
+    if (ERR_LINE_RE.test(lines[i])) { errorCount++; for (let j = Math.max(0, i - context); j <= Math.min(lines.length - 1, i + context); j++) keep.add(j); }
+  }
+  if (!keep.size) return { text: "", errorCount: 0 };
+  const idx = [...keep].sort((a, b) => a - b);
+  const out = []; let prev = -2;
+  for (const i of idx) { if (i > prev + 1) out.push("..."); out.push(lines[i]); prev = i; }
+  return { text: out.join("\n"), errorCount };
+}
+
 // semver 비교(a<b → -1, a==b → 0, a>b → 1). "0.25.1" vs "0.27" 등. 코어 버전 요구 판정용.
 export function compareVersion(a, b) {
   const pa = String(a || "").split(".").map((x) => parseInt(x, 10) || 0);

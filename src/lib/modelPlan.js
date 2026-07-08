@@ -61,10 +61,16 @@ export function buildModelPlan(report, env) {
     const folderBase = db?.folder || (recSlot ? recSlot.folder.replace(/^models\//, "").split("/")[0] : null); // 카탈로그 폴더(diffusion_models 등)
     const folder = folderBase ? `models/${folderBase}` + (sub ? `/${sub}` : "") : (m.folder || null);
     const fullPath = basePath && folderBase ? joinPath(basePath, folderBase, sub) : null;
-    let confidence, sourceRepo = null, sourcePath = null, size = null, downloadUrl = null, reason = "";
+    let confidence, sourceRepo = null, sourcePath = null, size = null, downloadUrl = null, reason = "", renameHint = null;
     if (db) {
-      confidence = "confirmed"; sourceRepo = db.repo; sourcePath = db.repo_path; size = db.size; downloadUrl = hfUrl(db.repo, db.repo_path);
-      reason = `검증된 카탈로그(${db.repo})에 이 파일이 실존${size ? ` (${size})` : ""}.`;
+      confidence = "confirmed"; sourceRepo = db.repo; sourcePath = db.repo_path; size = db.size;
+      // 결함7: repo_filename(repo 실파일명) 확인 시에만 파일 직링크. 미확인은 repo 트리 링크(파일 직링크 날조 금지).
+      const repoFn = db.repo_filename || (db.repo_path && !db.repo_path.endsWith("/") ? db.repo_path.split("/").pop() : null);
+      downloadUrl = repoFn ? hfUrl(db.repo, db.repo_path) : (db.repo ? `https://huggingface.co/${db.repo}/tree/main` : null);
+      // repo 실파일명과 워크플로우 참조명이 다르면 리네임 안내(받은 파일을 참조명으로).
+      const wfBase = m.file.replace(/\\/g, "/").split("/").pop();
+      if (repoFn && repoFn.toLowerCase() !== b) renameHint = `받은 파일 이름을 ${wfBase}으로 바꾸거나, 노드에서 받은 파일을 선택해 주세요.`;
+      reason = `검증된 카탈로그(${db.repo})에 이 파일이 실존${size ? ` (${size})` : ""}${repoFn && repoFn.toLowerCase() !== b ? ` · repo 실파일명 ${repoFn}` : ""}.`;
     } else if (noteLink) {
       confidence = "workflow_author"; downloadUrl = noteLink.url;
       reason = `워크플로우 제작자가 이 파일의 출처를 안내했습니다${noteLink.sectionHeader ? ` (${noteLink.sectionHeader})` : ""}. 공식 카탈로그 확인은 아닙니다.`;
@@ -80,7 +86,7 @@ export function buildModelPlan(report, env) {
     const vramWarning = (gb && profile?.vram && gb > profile.vram * 1.5)
       ? `이 모델은 ${size}로 ${profile.vram}GB VRAM에서 매우 느리거나 실행되지 않을 수 있습니다. 대체 후보를 권합니다.`
       : null;
-    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, nodeSelection: m.file, reason };
+    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, renameHint, nodeSelection: m.file, reason };
     (confidence === "unknown" ? unknowns : items).push(item);
   }
   // 대체 후보 / 제외(주 모델). files DB + note 제외 지시 기준. "추천" 아니라 "OOM 시 대체 후보".
