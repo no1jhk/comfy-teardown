@@ -12,6 +12,7 @@ import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkfl
 import { recommend, gpuProfile } from "./lib/modelRecommender.js";
 import { matchLabelToNode } from "./lib/parseWorkflowNotes.js";
 import { buildModelPlan } from "./lib/modelPlan.js";
+import { parseFolderScan, reconcileInventory, buildScanSnippet } from "./lib/inventoryMatch.js";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
 import modelAliases from "./data/model_aliases.json";
@@ -962,6 +963,8 @@ export default function Teardown() {
   const [envOpen, setEnvOpen] = useState(false);
   const [envLog, setEnvLog] = useState("");
   const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [] });
+  const [folderScan, setFolderScan] = useState(""); // P2.7: 붙여넣은 폴더 스캔 출력(내 모델 폴더 대조)
+  const [scanOs, setScanOs] = useState("win");      // P2.7: 스니펫 OS 토글(win|unix)
   const [cmdOpen, setCmdOpen] = useState(false);
   const [mgrMap, setMgrMap] = useState(null); // manager_node_map.json (비동기 로드)
   useEffect(() => { fetch("/manager_node_map.json").then((r) => r.ok ? r.json() : null).then(setMgrMap).catch(() => {}); }, []);
@@ -1204,6 +1207,13 @@ export default function Teardown() {
     return { state: "ok", required, current: ver };
   }, [report, envLog, errlog]);
 
+  // modelPlan — 단일 진실 공급원. Solution·인벤토리·MD·브리핑·대조 전부 이것만 참조(드리프트 제거). summary(결함 d)보다 먼저 계산.
+  const plan = React.useMemo(() => (report ? buildModelPlan(report, env) : null), [report, env.gpu, env.vram, env.basePath, env.modelRoot]);
+  const planByFile = React.useMemo(() => { const m = new Map(); if (plan) for (const it of [...plan.items, ...plan.unknowns]) m.set(it.selectedFile, it); return m; }, [plan]);
+  // P2.7 내 모델 폴더 대조 — 붙여넣은 목록 파싱 → 요구 모델과 대조(완비/미보유/깨짐). 붙여넣지 않으면 scanned=false(판정 안 함).
+  const heldInv = React.useMemo(() => parseFolderScan(folderScan), [folderScan]);
+  const reconcile = React.useMemo(() => (plan ? reconcileInventory(plan, heldInv) : null), [plan, heldInv]);
+
   // 진단 요약 계산
   let summary = null;
   if (report) {
@@ -1263,12 +1273,22 @@ export default function Teardown() {
       grade = "yellow";
       const yparts = [`실행 전 점검 항목 ${yellowN}개`];
       if (gpuCheck > 0) yparts.push(`GPU 점검 권장 모델 ${gpuCheck}개`);
-      diagLine = `실행을 막는 문제는 찾지 못했습니다. ${yparts.join(" · ")}`;
+      // 소형(배너): 로그 없는 노랑은 "찾지 못했습니다"(오독=문제 없음) 대신 "구조만 판정" 명시.
+      diagLine = hasLog
+        ? `실행을 막는 문제는 찾지 못했습니다. ${yparts.join(" · ")}`
+        : `로그 없이 구조만 판정했습니다. 실행 전 준비 항목 ${yellowN}개가 있습니다.`;
     } else {
       grade = "green";
       diagLine = "이 워크플로우에서 구조상 문제를 찾지 못했습니다. 도구는 PC 안의 설치 상태는 확인하지 않습니다.";
     }
-    summary = { diagLine, grade, diagBlocked: grade === "red", issues, weightCount, valueCauses, foreignErrors, hasLogError: valueErrors.length > 0 || brokenLog.length > 0, valueFindings: valueErrors.slice(0, 5).map((e) => ({ widget: e.widget, required: e.required, best: e.best })) };
+    // 결함 d: 로그 없이(=노드 설치 미확정) 모델 대조가 완비면 "구조상 준비 완료"로 라우팅(빨강 억제).
+    // 로그 있으면 실측 우선(억제 안 함). 구조적 결함(깨진·정체미상 노드)·로그 확인 오류는 유지. 대조 미수행이면 현행 유지.
+    let envComplete = false;
+    if (reconcile?.complete && !hasLog && !valueErrors.length && !brokenLog.length && !(report.broken?.length) && !(report.anomalous?.length)) {
+      envComplete = true; grade = "green"; valueCauses = null;
+      diagLine = "붙여넣은 목록 기준으로 필요한 모델이 모두 있습니다. 구조상 실행 준비 완료로 판정됩니다.";
+    }
+    summary = { diagLine, grade, diagBlocked: grade === "red", envComplete, issues, weightCount, valueCauses, foreignErrors, hasLogError: valueErrors.length > 0 || brokenLog.length > 0, valueFindings: valueErrors.slice(0, 5).map((e) => ({ widget: e.widget, required: e.required, best: e.best })) };
   }
 
   // 처방전 할 일. 기존 데이터(unmapped·recipesEnriched)에서 항목만 추출. 새 분석 로직 없음(표시층).
@@ -1294,9 +1314,6 @@ export default function Teardown() {
     return todos;
   }, [report, recipesEnriched]);
 
-  // modelPlan — 단일 진실 공급원. Solution·인벤토리·MD·브리핑 전부 이것만 참조(드리프트 제거).
-  const plan = React.useMemo(() => (report ? buildModelPlan(report, env) : null), [report, env.gpu, env.vram, env.basePath, env.modelRoot]);
-  const planByFile = React.useMemo(() => { const m = new Map(); if (plan) for (const it of [...plan.items, ...plan.unknowns]) m.set(it.selectedFile, it); return m; }, [plan]);
   // UX3 재방문: 재업로드(2회+) 또는 로그에 실행 오류 → 처방 테이블 접힘 기본(사용자가 이미 본 처방). 첫 방문·무오류는 펼침.
   const revisit = !!report && (uploadCount > 1 || !!summary?.hasLogError);
   const rxShow = rxUserToggled === null ? !revisit : rxUserToggled;
@@ -1304,12 +1321,12 @@ export default function Teardown() {
   // 액션 테이블(당장 할 일) — rxTodos를 동사 선행 행으로. 표시층 전용(판정·데이터 불변).
   const actionRows = React.useMemo(() => {
     const rows = [];
-    let n = 0, installN = null; // UX1: 식별자 = 화면 노출 순서 단일 연번(1,2,3…). installN=설치 행 연번(크로스링크 지칭용).
+    let rid = 0; // 안정 React key. 표시 연번(n)은 UX2 정렬 후 rxGroups에서 최종 부여(화면 노출 순서 = 연번).
     // 결함k: 디스크 공간 부족 — 최상단(실행 중단 확정). auto_download(결함h)와 크로스링크.
-    if (hasDiskError(latestLogSession(errlog || ""))) rows.push({ n: ++n, verb: "확인", text: "디스크 공간 부족으로 실행이 중단됐습니다.", sub: "모델 자동 다운로드가 C드라이브 캐시로 향하는 경우가 많으니 C드라이브 여유 공간을 확인해 주세요." + ((report?.autoDownloadNodes?.length) ? " (아래 자동 다운로드 노드 참고)" : ""), kind: "disk" });
+    if (hasDiskError(latestLogSession(errlog || ""))) rows.push({ rid: ++rid, verb: "확인", text: "디스크 공간 부족으로 실행이 중단됐습니다.", sub: "모델 자동 다운로드가 C드라이브 캐시로 향하는 경우가 많으니 C드라이브 여유 공간을 확인해 주세요." + ((report?.autoDownloadNodes?.length) ? " (아래 자동 다운로드 노드 참고)" : ""), kind: "disk" });
     // 작업 A: 코어 버전 요구 — 최상단 1행. outdated=확인 행(확정), unknown(로그 없음)=dim 안내(확정 금지).
-    if (coreCheck?.state === "outdated") rows.push({ n: ++n, verb: "확인", text: `이 워크플로우는 ComfyUI ${coreCheck.required} 이상이 필요합니다. 본체를 업데이트한 뒤 다시 열어 주세요.`, sub: `현재 로그의 버전: ${coreCheck.current}`, kind: "coreversion" });
-    else if (coreCheck?.state === "unknown") rows.push({ n: ++n, verb: "안내", text: "이 워크플로우는 최신 ComfyUI 기능을 사용합니다. 로그를 붙여넣으면 버전 적합 여부를 판정해 드립니다.", kind: "gpuhint" });
+    if (coreCheck?.state === "outdated") rows.push({ rid: ++rid, verb: "확인", text: `이 워크플로우는 ComfyUI ${coreCheck.required} 이상이 필요합니다. 본체를 업데이트한 뒤 다시 열어 주세요.`, sub: `현재 로그의 버전: ${coreCheck.current}`, kind: "coreversion" });
+    else if (coreCheck?.state === "unknown") rows.push({ rid: ++rid, verb: "안내", text: "이 워크플로우는 최신 ComfyUI 기능을 사용합니다. 로그를 붙여넣으면 버전 적합 여부를 판정해 드립니다.", kind: "gpuhint" });
     const inst = rxTodos.filter((t) => t.kind === "nodegroup" && !packInstalled(t.g.repo || t.g.clone_url, logEnv.installedPacks));
     if (inst.length) {
       const nm = inst.map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop());
@@ -1317,10 +1334,9 @@ export default function Teardown() {
       // UX4: 실행 위치를 설치 행에 직접(로그 추출 경로 or 자리표시자). 결함5 규칙 유지.
       const runLoc = env.customNodesPath ? `실행 위치: ${env.customNodesPath}` : "실행 위치: ComfyUI 설치 폴더의 custom_nodes (로그를 붙여넣으면 경로를 채워 드립니다)";
       const noRegMsg = noReg ? ` ${noReg}개는 Manager에 없는 팩이라 install.bat로 직접 설치해 주세요.` : "";
-      rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install" });
-      installN = n;
+      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install" });
     }
-    // 확인 — 로그의 missing_node_type. 결함3: 최신 세션 + 현재 워크플로우 대조. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행), 특정 불가만 삭제/재추가.
+    // 확인 — 로그의 missing_node_type. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행 최종 연번은 rxGroups에서 해소).
     const wfTypes2 = new Set((report?.nodeTypes || []).map((t) => t.toLowerCase())), wfIds2 = new Set(report?.nodeIds || []);
     const idType = report?.nodeIdType || {};
     const repoByType = {}; for (const u of (report?.unmapped || [])) if (u.repo || u.clone_url) repoByType[u.type] = (u.repo || u.clone_url).replace("https://github.com/", "").replace(/\.git$/, "");
@@ -1328,37 +1344,107 @@ export default function Teardown() {
       const cls = b.nodeId ? idType[String(b.nodeId)] : b.nodeType;
       const repo = cls ? repoByType[cls] : null;
       if (repo) {
-        rows.push({ n: ++n, verb: "확인", text: `노드 #${b.nodeId}(${cls})은 ${repo.split("/").pop()} 소속입니다.`, sub: `${installN ? installN + "번 행" : "설치 행"}의 clone을 실행하면 해결됩니다.`, kind: "broken", crosslink: true });
+        rows.push({ rid: ++rid, verb: "확인", text: `노드 #${b.nodeId}(${cls})은 ${repo.split("/").pop()} 소속입니다.`, sub: "설치 행의 clone을 실행하면 해결됩니다.", kind: "broken", crosslink: true, crosslinkInstall: true });
       } else {
         const label = b.nodeId ? `노드 ID #${b.nodeId}이(가) 깨져 있습니다` : b.nodeType ? `노드 '${b.nodeType}'을(를) 찾을 수 없습니다` : "깨진 노드가 있습니다";
-        rows.push({ n: ++n, verb: "확인", text: label, sub: "워크플로우에서 해당 노드를 삭제하거나 다시 추가해 주세요.", kind: "broken" });
+        rows.push({ rid: ++rid, verb: "확인", text: label, sub: "워크플로우에서 해당 노드를 삭제하거나 다시 추가해 주세요.", kind: "broken" });
       }
     }
     // 확인 — 소속 팩 미확인 노드를 1행으로 병합. Manager는 팩 단위 검색이므로 정직하게: 노드명 검색 + 본체 업데이트 2택.
     const nodeTodos = rxTodos.filter((x) => x.kind === "node");
-    if (nodeTodos.length) rows.push({ n: ++n, verb: "확인", text: `소속 팩을 확인하지 못한 노드 ${nodeTodos.length}개`, nodes: nodeTodos.map((t) => t.u.type), kind: "node",
+    if (nodeTodos.length) rows.push({ rid: ++rid, verb: "확인", text: `소속 팩을 확인하지 못한 노드 ${nodeTodos.length}개`, nodes: nodeTodos.map((t) => t.u.type), kind: "node",
       guides: [
         "ComfyUI Manager 검색창에 노드 이름이나 비슷한 팩 이름을 넣어 보세요. 맞는 팩이 나오면 설치하면 됩니다.",
         "ComfyUI 본체가 구버전이면 코어 신규 노드일 수 있습니다. ComfyUI를 업데이트한 뒤 다시 확인해 주세요.",
       ] });
     // 패밀리 감지됐는데 GPU 미입력 → 추천 대신 안내(불변①). 확정 판정 안 함.
-    if (plan && plan.family && plan.needs.includes("gpu")) rows.push({ n: ++n, verb: "안내", text: `이 워크플로우는 ${plan.label}로 보입니다. GPU를 입력하면 넣을 위치와 환경에 맞는 변형을 추천해 드립니다.`, kind: "gpuhint" });
+    if (plan && plan.family && plan.needs.includes("gpu")) rows.push({ rid: ++rid, verb: "안내", text: `이 워크플로우는 ${plan.label}로 보입니다. GPU를 입력하면 넣을 위치와 환경에 맞는 변형을 추천해 드립니다.`, kind: "gpuhint" });
     // 받기 — modelPlan.items(단일 진실 공급원). 근거 4단계 뱃지. 넣기=fullPath(절대) 또는 folder(상대), 용량·직링크·근거는 planItem에.
-    for (const it of plan?.items || []) rows.push({ n: ++n, verb: "받기", text: it.workflowValue, folders: it.fullPath ? [it.fullPath] : (it.folder ? [it.folder] : []), badge: it.badge, selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
-    // 받기 스크립트(모델 받기.bat) — 받기 흐름 안에서 즉시(하단 분리 금지). 직링크 확정 항목이 있을 때만.
-    if (plan?.items?.some((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || ""))) rows.push({ n: ++n, verb: "받기", text: "모델 일괄 받기 스크립트", kind: "dlscript" });
+    for (const it of plan?.items || []) rows.push({ rid: ++rid, verb: "받기", text: it.workflowValue, folders: it.fullPath ? [it.fullPath] : (it.folder ? [it.folder] : []), badge: it.badge, selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
+    // 받기 스크립트(모델 받기.bat) — 파인딩 m: 경로 입력 시 절대 경로(어디서 실행해도 OK), 미입력 시 ComfyUI 루트 실행 경고(화면 행 = bat 주석 2곳 중 하나).
+    if (plan?.items?.some((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || ""))) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: (env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다. 어디서 실행해도 됩니다." : "경로 미입력 상태입니다. 받은 스크립트는 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요.", kind: "dlscript" });
     // 대체 후보 / 제외(주 모델) — "OOM 시 대체 후보" 톤(추천 아님). 별도 1행.
-    if ((plan?.alternatives?.length || 0) + (plan?.exclusions?.length || 0) > 0) rows.push({ n: ++n, verb: "참고", text: "메인 모델 대체·제외 안내", kind: "altexcl", alternatives: plan.alternatives, exclusions: plan.exclusions });
+    if ((plan?.alternatives?.length || 0) + (plan?.exclusions?.length || 0) > 0) rows.push({ rid: ++rid, verb: "참고", text: "메인 모델 대체·제외 안내", kind: "altexcl", alternatives: plan.alternatives, exclusions: plan.exclusions });
     // 확인 필요 — 출처 확인 못한 모델(unknowns)
-    for (const it of plan?.unknowns || []) rows.push({ n: ++n, verb: "확인", text: it.workflowValue, folders: it.folder ? [it.folder] : [], badge: "확인 필요", selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
-    for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
+    for (const it of plan?.unknowns || []) rows.push({ rid: ++rid, verb: "확인", text: it.workflowValue, folders: it.folder ? [it.folder] : [], badge: "확인 필요", selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
+    for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ rid: ++rid, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
     // 결함h: auto_download 노드 → 실행 시 자동 다운로드 안내(C드라이브 캐시 용량). 없으면 미노출.
-    if (report?.autoDownloadNodes?.length) rows.push({ n: ++n, verb: "참고", text: "이 워크플로우는 실행 시 모델을 자동으로 내려받습니다. 기본 저장 위치가 C드라이브 캐시라 용량을 확인해 주세요.", nodes: report.autoDownloadNodes, kind: "node" });
+    if (report?.autoDownloadNodes?.length) rows.push({ rid: ++rid, verb: "참고", text: "이 워크플로우는 실행 시 모델을 자동으로 내려받습니다. 기본 저장 위치가 C드라이브 캐시라 용량을 확인해 주세요.", nodes: report.autoDownloadNodes, kind: "node" });
     // 슬롯 매칭 실패한 제작자 안내 링크 → 일괄 1행(버리지 않음). 강도 지시 병기.
-    if (plan?.authorLinks?.length) rows.push({ n: ++n, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: plan.authorLinks });
-    rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
-    return rows; // UX1: n(=화면 노출 순서 연번) 그대로 식별자. 그룹 알파벳 폐기. 종류는 라벨 열(verb)이 전달.
-  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck, report]);
+    if (plan?.authorLinks?.length) rows.push({ rid: ++rid, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: plan.authorLinks });
+    rows.push({ rid: ++rid, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
+    return rows;
+  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck, report, env.modelRoot, env.basePath, env.customNodesPath]);
+
+  // UX2 솔루션 필터링 + 넘버링 최종 부여.
+  // 주노출(실행 차단): 로그 거부값·깨진 노드·설치·디스크·버전 + 대조 미보유 받기. 이미 있음(dim ✓, 하단) / 참고·미확정(접기2). 판정 근거 없으면 전량 순서 노출(현행).
+  const rxGroups = React.useMemo(() => {
+    const rows = actionRows;
+    const heldSet = reconcile?.heldSet;
+    const isHeld = (r) => r.kind === "model" && r.verb === "받기" && !!heldSet?.has(r.planItem?.selectedFile);
+    const isRefInfo = (r) => r.verb === "참고" || r.verb === "안내" || (r.kind === "model" && r.badge === "확인 필요");
+    const hasBasis = !!summary?.hasLogError || !!reconcile?.scanned; // 로그 실행오류 or 대조 수행
+    let primary, heldDim, refInfo;
+    if (!hasBasis) { primary = rows; heldDim = []; refInfo = []; }
+    else {
+      primary = []; heldDim = []; refInfo = [];
+      for (const r of rows) { if (isHeld(r)) heldDim.push(r); else if (isRefInfo(r)) refInfo.push(r); else primary.push(r); }
+    }
+    // 표시 순서(주노출 → 참고·미확정)로 실행 연번. 이미 있음(dim)은 ✓라 번호 미부여 → 가시 번호 끊김·역행 없음.
+    let n = 0; const num = (arr) => arr.map((r) => ({ ...r, n: ++n }));
+    const P = num(primary);
+    const H = heldDim.map((r) => ({ ...r, n: null }));
+    const R = num(refInfo);
+    const installN = P.find((r) => r.kind === "install")?.n;
+    const fill = (r) => (r.crosslinkInstall ? { ...r, sub: `${installN ? installN + "번 행" : "설치 행"}의 clone을 실행하면 해결됩니다.` } : r);
+    return { primary: P.map(fill), heldDim: H, refInfo: R.map(fill), hasBasis };
+  }, [actionRows, reconcile, summary]);
+
+  // 액션 행 1개 렌더. first=구분선 제외, dim=이미 있음(✓·딤). 넘버링 시각: 원형 배지(판단근거 30px 노랑 원과 동일 체계).
+  const renderActionRow = (r, first, dim) => (
+    <div key={r.rid} style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: first ? "none" : `1px solid ${C.divider}`, opacity: dim ? 0.55 : 1 }}>
+      <div style={{ width: 30, height: 30, borderRadius: 15, background: dim ? C.line : C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{r.n == null ? <Check size={15} color={C.dim} /> : r.n}</div>
+      <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
+        {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
+        {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
+        {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
+        {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
+        {r.kind === "model" && r.planItem?.vramWarning && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.point, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.vramWarning}</div>}
+        {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
+        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>워크플로우 원 지정값(상위 VRAM용): <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
+        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.</div>}
+        {r.kind === "altexcl" && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
+          {r.alternatives.map((a, ai) => <div key={"a" + ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>대체 후보: <span style={{ fontFamily: MONO, color: C.text }}>{a.filename}</span>{a.size ? ` · ${a.size}` : ""} · {a.reason}</div>)}
+          {r.exclusions.map((e, ei) => <div key={"e" + ei} style={{ fontFamily: SANS, fontSize: 13.5, color: C.faint, lineHeight: 1.5 }}>받지 말 것: <span style={{ fontFamily: MONO }}>{e.filename}</span> ({e.quant}) · {e.reason}</div>)}
+        </div>}
+        {r.kind === "authorlinks" && (() => { const seen = new Map(); for (const al of r.links) if (!seen.has(al.url)) seen.set(al.url, al); const uniq = [...seen.values()]; return (
+          <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 9 }}>{uniq.map((al, ai) => (
+            <div key={ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
+                <span style={{ color: C.text, fontWeight: 600 }}>제작자 안내 {ai + 1}</span>
+                {al.linkLabel && al.linkLabel !== al.label && <span style={{ color: C.dim }}>{al.linkLabel}</span>}
+                <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12 }}>링크 ↗</a>
+                {al.strength && <span style={{ color: C.memoBright }}>강도 {al.strength}</span>}
+              </div>
+              {(al.label || al.folder) && <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>{al.label ? `출처: ${al.label}` : ""}{al.label && al.folder ? " · " : ""}{al.folder ? <span style={{ fontFamily: MONO }}>{al.folder}</span> : null}</div>}
+            </div>))}</div>); })()}
+        {r.kind === "node" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.nodes.map((nd, ni) => <span key={ni} style={{ fontFamily: MONO }}>{ni > 0 ? " · " : ""}{nd}</span>)}</div>}
+        {r.kind === "node" && r.guides && r.guides.map((gd, gi) => <div key={gi} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5, display: "flex", gap: 7 }}><span style={{ color: C.point, flexShrink: 0 }}>{gi + 1}.</span><span>{gd}</span></div>)}
+      </div>
+      <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        {r.kind === "install" && <><button className="td-hf" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={{ border: "none", cursor: "pointer" }}>install.bat ↓</button><a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>스크립트 보기</a></>}
+        {r.kind === "dlscript" && <button className="td-hf" onClick={() => downloadText("download_models.bat", buildDownloadScript(plan, env))} style={{ border: "none", cursor: "pointer" }}>모델 받기.bat ↓</button>}
+        {r.kind === "broken" && r.crosslink && <a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>설치 행 보기</a>}
+        {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
+          if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
+            ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
+            : <a className="td-hf td-outline-w" href={rawUrl} target="_blank" rel="noopener noreferrer">링크 ↗</a>; }
+          return q ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a> : null; })()}
+      </div>
+    </div>
+  );
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1497,13 +1583,13 @@ export default function Teardown() {
                 </div>
               </div>
 
-              {/* ②-b 내 모델 루트 경로 */}
+              {/* ②-b 내 모델 폴더 경로 (파인딩 m: checkpoints·vae가 바로 들어 있는 폴더 = 받기 절대 경로 기준) */}
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>내 모델 루트 경로 (선택)</div>
-                <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>폴더 안을 확인하지는 않습니다. 넣기 경로와 받기 스크립트를 내 PC 실제 경로로 완성해 줍니다.</div>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>내 모델 폴더 경로 (선택)</div>
+                <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>폴더 안을 확인하지는 않습니다. 넣기 경로와 받기 스크립트를 내 PC 실제 경로로 완성해 줍니다. checkpoints·vae 폴더가 바로 들어 있는 상위 폴더를 입력해 주세요.</div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   <input type="text" value={env.modelRoot} onChange={(e) => setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false }))}
-                    placeholder="내 ComfyUI 루트 경로"
+                    placeholder="예: D:\ComfyUI\models"
                     style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
                   <button onClick={async () => {
                     try {
@@ -1528,6 +1614,33 @@ export default function Teardown() {
                   </button>
                 </div>
                 {env.modelRootPartial && <div style={{ fontSize: 13, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>브라우저 보안상 전체 경로는 직접 입력해 주세요.</div>}
+              </div>
+
+              {/* ②-c 내 모델 폴더 대조 (P2.7) — 읽기전용 나열 명령 복사 → 붙여넣기 → 요구 모델과 대조 → 완비 판정 */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>내 모델 폴더 대조 (선택)</div>
+                <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>아래 명령을 복사해 실행한 뒤 나온 목록을 붙여넣으면, 필요한 모델을 이미 가지고 있는지 대조해 드립니다. 명령은 폴더 안을 읽기만 하며 아무것도 바꾸지 않습니다.</div>
+                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+                  {[{ k: "win", l: "Windows" }, { k: "unix", l: "Mac · Linux" }].map((o) => (
+                    <button key={o.k} onClick={() => setScanOs(o.k)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, padding: "5px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${scanOs === o.k ? C.point : C.line}`, background: scanOs === o.k ? "rgba(244,255,117,0.10)" : "transparent", color: scanOs === o.k ? C.point : C.dim }}>{o.l}</button>
+                  ))}
+                </div>
+                {(() => { const snip = buildScanSnippet(env.modelRoot, scanOs); return (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.bg, borderRadius: 8, padding: "8px 11px", marginBottom: 6 }}>
+                    <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, flex: 1, overflowWrap: "anywhere", lineHeight: 1.55 }}>{snip}</code>
+                    <button onClick={() => copy(snip, "scan")} title="명령 복사" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: C.point, flexShrink: 0 }}>{copiedKey === "scan" ? <Check size={14} /> : <Copy size={14} />}</button>
+                  </div>); })()}
+                {!env.modelRoot?.trim() && <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>지금은 기본 ComfyUI 모델 폴더 기준입니다. 위에 경로를 입력하면 내 모델 폴더 기준으로 만들어 드립니다.</div>}
+                <textarea value={folderScan} onChange={(e) => setFolderScan(e.target.value)} placeholder="명령 실행 결과를 여기에 붙여넣어 주세요" rows={3}
+                  style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box", resize: "vertical", lineHeight: 1.5 }} />
+                {reconcile?.scanned && (
+                  <div style={{ fontSize: 13, marginTop: 7, lineHeight: 1.5, color: reconcile.complete ? C.green : C.point }}>
+                    {reconcile.complete
+                      ? `요구 모델 ${plan?.items?.length || 0}개가 모두 확인됐습니다. 구조상 실행 준비 완료로 판정됩니다.`
+                      : `${reconcile.heldSet.size}/${plan?.items?.length || 0}개 확인됨. 나머지는 아래 받기 목록에 표시됩니다.`}
+                    {reconcile.results.some((r) => r.corrupt) && <span style={{ color: C.red }}> · 크기 이상(파일 깨짐 의심) {reconcile.results.filter((r) => r.corrupt).length}개</span>}
+                  </div>
+                )}
               </div>
 
               {/* ③ 명령어 안내 */}
@@ -1565,9 +1678,11 @@ export default function Teardown() {
               const gbg = summary.grade === "red" ? "rgba(239,83,80,0.08)" : summary.grade === "yellow" ? "rgba(244,255,117,0.08)" : "rgba(193,191,186,0.08)";
               return (
               <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, border: `1px solid ${gc}`, background: gbg, borderRadius: 14, padding: "14px 20px", marginBottom: 20 }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={gc} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-                </svg>
+                {summary.envComplete
+                  ? <Check size={18} color={gc} style={{ flexShrink: 0 }} />
+                  : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke={gc} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                      <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" /><line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>}
                 <span style={{ fontSize: 15, fontWeight: 700, color: gc, lineHeight: 1.5 }}>{summary.diagLine}</span>
               </div>);
             })()}
@@ -1611,45 +1726,14 @@ export default function Teardown() {
               {revisit && <button onClick={() => setRxUserToggled(!rxShow)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, padding: "10px 2px", marginBottom: rxShow ? 8 : 16 }}>{rxShow ? "▾" : "▸"} 처방 다시 보기</button>}
               {rxShow && (
               <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
-                {actionRows.map((r, ri) => (
-                  <div key={r.n} style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
-                    <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.point }}>{r.n}</span>
-                    <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
-                    <div style={{ minWidth: 0 }}>
-                      <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}</div>
-                      {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
-                      {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
-                      {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
-                      {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
-                      {r.kind === "model" && r.planItem?.vramWarning && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.point, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.vramWarning}</div>}
-                      {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
-                      {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>워크플로우 원 지정값(상위 VRAM용): <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
-                      {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.</div>}
-                      {r.kind === "altexcl" && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
-                        {r.alternatives.map((a, ai) => <div key={"a" + ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>대체 후보: <span style={{ fontFamily: MONO, color: C.text }}>{a.filename}</span>{a.size ? ` · ${a.size}` : ""} · {a.reason}</div>)}
-                        {r.exclusions.map((e, ei) => <div key={"e" + ei} style={{ fontFamily: SANS, fontSize: 13.5, color: C.faint, lineHeight: 1.5 }}>받지 말 것: <span style={{ fontFamily: MONO }}>{e.filename}</span> ({e.quant}) · {e.reason}</div>)}
-                      </div>}
-                      {r.kind === "authorlinks" && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 7 }}>{r.links.map((al, ai) => (
-                        <div key={ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.45, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
-                          <span style={{ color: C.text }}>{al.label}</span>
-                          <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12 }}>링크 ↗</a>
-                          {al.strength && <span style={{ color: C.memoBright }}>강도 {al.strength}</span>}
-                          {al.folder && <span style={{ fontFamily: MONO, color: C.faint, fontSize: 12 }}>{al.folder}</span>}
-                        </div>))}</div>}
-                      {r.kind === "node" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.nodes.map((nd, ni) => <span key={ni} style={{ fontFamily: MONO }}>{ni > 0 ? " · " : ""}{nd}</span>)}</div>}
-                      {r.kind === "node" && r.guides && r.guides.map((gd, gi) => <div key={gi} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5, display: "flex", gap: 7 }}><span style={{ color: C.point, flexShrink: 0 }}>{gi + 1}.</span><span>{gd}</span></div>)}
-                    </div>
-                    <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-                      {r.kind === "install" && <><button className="td-hf" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={{ border: "none", cursor: "pointer" }}>install.bat ↓</button><a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>스크립트 보기</a></>}
-                      {r.kind === "dlscript" && <button className="td-hf" onClick={() => downloadText("download_models.bat", buildDownloadScript(plan, env))} style={{ border: "none", cursor: "pointer" }}>모델 받기.bat ↓</button>}
-                      {r.kind === "broken" && r.crosslink && <a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>설치 행 보기</a>}
-                      {r.kind === "model" && (() => { const url = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim(); return url
-                        ? <a className="td-hf" href={url} target="_blank" rel="noopener noreferrer">링크 ↗</a>
-                        : q ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
-                        : null; })()}
-                    </div>
-                  </div>
-                ))}
+                {rxGroups.primary.map((r, ri) => renderActionRow(r, ri === 0, false))}
+                {rxGroups.heldDim.map((r) => renderActionRow(r, false, true))}
+                {rxGroups.refInfo.length > 0 && (
+                  <details style={{ borderTop: `1px solid ${C.divider}` }}>
+                    <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none" }}>▸ 참고 · 미확정 {rxGroups.refInfo.length}개 (대체 후보 · 제작자 안내 · 확인 필요)</summary>
+                    {rxGroups.refInfo.map((r) => renderActionRow(r, false, false))}
+                  </details>
+                )}
               </div>
               )}
             </>)}
@@ -2608,7 +2692,7 @@ export default function Teardown() {
                 <div className="td-fade" style={{ marginTop: 12, padding: "11px 14px", background: C.surfaceHi, borderRadius: 10, display: "flex", alignItems: "center", gap: 9, justifyContent: "center", flexWrap: "wrap", textAlign: "center" }}>
                   <Check size={15} color={C.point} style={{ flexShrink: 0 }} />
                   <span style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>
-                    구조 분석{briefingInfo.lines > 0 ? ` + 에러 ${briefingInfo.lines}줄` : ""} 정리 완료 · 총 {briefingInfo.chars.toLocaleString()}자 복사됨 · {briefingInfo.chars <= 10000 ? "LLM 채팅창 1회 분량" : "1회 분량 초과 — 나눠 붙여넣기 권장"}
+                    구조 분석{briefingInfo.lines > 0 ? ` + 에러 ${briefingInfo.lines}줄` : ""} 정리 완료 · 총 {briefingInfo.chars.toLocaleString()}자 복사됨 · {briefingInfo.chars <= 10000 ? "LLM 채팅창 1회 분량" : "1회 분량 초과, 나눠 붙여넣기 권장"}
                     {briefingInfo.shots > 0 ? <span style={{ color: C.dim }}> · 이미지 {briefingInfo.shots}장은 텍스트에 안 담기니 챗에 따로 첨부하세요</span> : null}
                   </span>
                 </div>
