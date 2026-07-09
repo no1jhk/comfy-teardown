@@ -7,9 +7,9 @@ import {
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
 import { buildRecipes, groupNodesByRepo } from "./data/redNodeRecipe.js";
-import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion, latestLogSession, extractErrorLines } from "./logParse.js";
+import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion, latestLogSession, extractErrorLines, hasDiskError } from "./logParse.js";
 import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkflow.js";
-import { recommend } from "./lib/modelRecommender.js";
+import { recommend, gpuProfile } from "./lib/modelRecommender.js";
 import { matchLabelToNode } from "./lib/parseWorkflowNotes.js";
 import { buildModelPlan } from "./lib/modelPlan.js";
 import nodeRepoMap from "./data/node_repo_map.json";
@@ -208,14 +208,17 @@ function reportToContext(report, env) {
   const muted = report.muted.map((m) => `${m.type}(${m.mode === 4 ? "bypass" : "muted"})`);
   const port = report.portability.map((h) => `${h.node}: ${h.value} — ${h.risk}`);
   const lines = [
-    `전체 노드: ${report.totalNodes} / 커스텀 pack: ${report.customPackCount}`,
+    `전체 노드: ${report.totalNodes} / 커스텀 pack: ${report.customPackTotal}`,
     `패키지·버전:\n${packs.map((x) => "  - " + x).join("\n") || "  없음"}`,
     `참조 모델·자산:\n${models.map((x) => "  - " + x).join("\n") || "  없음"}`,
     `이식 위험 값:\n${port.map((x) => "  - " + x).join("\n") || "  없음"}`,
     `비활성 노드: ${muted.join(", ") || "없음"}`,
   ];
-  if (env && (env.gpu || env.torch || env.cuda)) {
-    lines.push(`사용자 환경: GPU=${env.gpu || "?"} / torch=${env.torch || "?"} / CUDA=${env.cuda || "?"}`);
+  if (env && (env.gpu || env.torch || env.cuda || env.vram)) {
+    // 결함e: VRAM 병기. 로그 추출 우선, 없으면 gpu_rules 폴백 + "(추정)".
+    const prof = gpuProfile(env.gpu, env.vram);
+    const vramStr = env.vram ? `${env.vram}GB` : (prof?.vram ? `${prof.vram}GB (추정)` : "?");
+    lines.push(`사용자 환경: GPU=${env.gpu || "?"} / VRAM=${vramStr} / torch=${env.torch || "?"} / CUDA=${env.cuda || "?"}`);
   }
   return lines.join("\n");
 }
@@ -616,7 +619,7 @@ function buildMarkdown(report, summary, rx, env) {
   L.push(`| 항목 | 값 |`);
   L.push(`| --- | --- |`);
   L.push(`| 전체 노드 | ${report.totalNodes} |`);
-  L.push(`| 커스텀 pack | ${report.customPackCount} |`);
+  L.push(`| 커스텀 pack | ${report.customPackTotal} |`);
   L.push(`| 모델 | ${summary ? summary.weightCount : 0} |`);
   L.push(`| 버전 충돌 | ${report.packs.filter((p) => p.conflict).length} |`);
   L.push(`| 이식 위험 | ${report.portability.length} |`);
@@ -772,7 +775,16 @@ function buildBriefing(report, errlog, env) {
     L.push(`## 받을 모델 (파일 · 넣을 폴더 · 용량 · 직링크 · 근거)`);
     L.push(`| 받을 파일 | 넣을 폴더 | 용량 | 직링크 | 근거 |`);
     L.push(`|---|---|---|---|---|`);
-    for (const it of plan.items) L.push(`| ${it.selectedFile} | ${it.fullPath || it.folder || "확인 필요"} | ${it.size || "미실측"} | ${it.downloadUrl || "확인 필요"} | ${it.confidence} |`);
+    for (const it of plan.items) {
+      // 결함e: 화면과 같은 단일 소스(promoted) 반영. 저VRAM 승격 시 대체가 1순위, 원 지정값은 아래 dim.
+      const p = it.promoted;
+      const file = p?.filename || it.selectedFile;
+      const folder = (p ? (p.fullPath || p.folder) : (it.fullPath || it.folder)) || "확인 필요";
+      const size = p?.size || it.size || "미실측";
+      const url = (p?.downloadUrl || it.downloadUrl) || "확인 필요";
+      L.push(`| ${file} | ${folder} | ${size} | ${url} | ${p ? "이 PC 기준 권장" : it.confidence} |`);
+      if (p) L.push(`| ↳ ${it.selectedFile} | (상위 VRAM용, 워크플로우 원 지정값) | ${it.size || "미실측"} | | 참고 |`);
+    }
     L.push(``);
     if (plan.alternatives.length) { L.push(`### 대체 후보 (OOM 발생 시에만. 1순위 대체용, 추천 아님)`); for (const a of plan.alternatives) L.push(`- ${a.filename}${a.size ? ` · ${a.size}` : ""} · ${a.reason}`); L.push(``); }
     if (plan.exclusions.length) { L.push(`### 받지 말 것 (이 워크플로우에 부적합)`); for (const e of plan.exclusions) L.push(`- ${e.filename} (${e.quant}) · ${e.reason}`); L.push(``); }
@@ -907,6 +919,19 @@ function MetricBox({ value, label, unit }) {
 }
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.faint, padding: "4px 0" }}>{text}</div>; }
 
+// P0: 국소 렌더 크래시가 전체 화면을 날리지 않도록 구역별 경계. 특정 구역이 터져도 나머지(구조·브리핑)는 유지.
+class SectionBoundary extends React.Component {
+  constructor(p) { super(p); this.state = { err: null }; }
+  static getDerivedStateFromError(err) { return { err }; }
+  render() {
+    if (this.state.err) return this.props.fallback ?? (
+      <div style={{ fontSize: 13, color: C.faint, background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 12, padding: "14px 16px", lineHeight: 1.6 }}>
+        이 구역을 표시하는 중 문제가 발생했습니다. 다른 구역과 브리핑은 정상입니다. 파일 형식이 특이할 수 있으니, ComfyUI에서 워크플로우를 다시 저장해 시도해 주세요.
+      </div>);
+    return this.props.children;
+  }
+}
+
 /* ---------- 메인 ---------- */
 export default function Teardown() {
   const [report, setReport] = useState(null);
@@ -926,6 +951,8 @@ export default function Teardown() {
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
   const [uploadCount, setUploadCount] = useState(0); // UX3: 파일 로드 횟수(재방문 판정)
   const [rxUserToggled, setRxUserToggled] = useState(null); // UX3: 처방 테이블 접힘 사용자 오버라이드(null=기본 따름)
+  const [showTop, setShowTop] = useState(false); // UX6: 스크롤 1뷰포트 초과 시 Top 버튼
+  useEffect(() => { const onScroll = () => setShowTop(window.scrollY > window.innerHeight); window.addEventListener("scroll", onScroll, { passive: true }); return () => window.removeEventListener("scroll", onScroll); }, []);
   const [rawSrc, setRawSrc] = useState("");
   const [aiResult, setAiResult] = useState(null);  // AI 정밀 진단 결과
   const [aiLoading, setAiLoading] = useState(false);
@@ -978,7 +1005,7 @@ export default function Teardown() {
     setLiveCompat({}); setModelResearch({}); // 새 분석 시 이전 상태 초기화
     try {
       const norm = normalize(JSON.parse(text));
-      if (!norm) throw new Error("ComfyUI 워크플로우 형식이 아닙니다. nodes 배열 또는 class_type 키가 보이지 않습니다.");
+      if (!norm) throw new Error("이 파일 형식을 해석하지 못했습니다. ComfyUI에서 워크플로우 저장(캔버스) 또는 API 형식 내보내기 파일인지 확인해 주세요.");
       const rep = analyze(norm, mgrMap);
       setReport({ ...rep, source: src });
     } catch (e) {
@@ -1278,6 +1305,8 @@ export default function Teardown() {
   const actionRows = React.useMemo(() => {
     const rows = [];
     let n = 0;
+    // 결함k: 디스크 공간 부족 — 최상단(실행 중단 확정). auto_download(결함h)와 크로스링크.
+    if (hasDiskError(latestLogSession(errlog || ""))) rows.push({ n: ++n, verb: "확인", text: "디스크 공간 부족으로 실행이 중단됐습니다.", sub: "모델 자동 다운로드가 C드라이브 캐시로 향하는 경우가 많으니 C드라이브 여유 공간을 확인해 주세요." + ((report?.autoDownloadNodes?.length) ? " (아래 자동 다운로드 노드 참고)" : ""), kind: "disk" });
     // 작업 A: 코어 버전 요구 — 최상단 1행. outdated=확인 행(확정), unknown(로그 없음)=dim 안내(확정 금지).
     if (coreCheck?.state === "outdated") rows.push({ n: ++n, verb: "확인", text: `이 워크플로우는 ComfyUI ${coreCheck.required} 이상이 필요합니다. 본체를 업데이트한 뒤 다시 열어 주세요.`, sub: `현재 로그의 버전: ${coreCheck.current}`, kind: "coreversion" });
     else if (coreCheck?.state === "unknown") rows.push({ n: ++n, verb: "안내", text: "이 워크플로우는 최신 ComfyUI 기능을 사용합니다. 로그를 붙여넣으면 버전 적합 여부를 판정해 드립니다.", kind: "gpuhint" });
@@ -1285,7 +1314,10 @@ export default function Teardown() {
     if (inst.length) {
       const nm = inst.map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop());
       const noReg = inst.filter((t) => t.g.registry === false).length;
-      rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: noReg ? `${noReg}개는 Manager에 없는 팩입니다. 스크립트 보기에서 git clone 명령을 확인해 주세요.` : undefined, kind: "install" });
+      // UX4: 실행 위치를 설치 행에 직접(로그 추출 경로 or 자리표시자). 결함5 규칙 유지.
+      const runLoc = env.customNodesPath ? `실행 위치: ${env.customNodesPath}` : "실행 위치: ComfyUI 설치 폴더의 custom_nodes (로그를 붙여넣으면 경로를 채워 드립니다)";
+      const noRegMsg = noReg ? ` ${noReg}개는 Manager에 없는 팩이라 install.bat로 직접 설치해 주세요.` : "";
+      rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install" });
     }
     // 확인 — 로그의 missing_node_type. 결함3: 최신 세션 + 현재 워크플로우 대조. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행), 특정 불가만 삭제/재추가.
     const wfTypes2 = new Set((report?.nodeTypes || []).map((t) => t.toLowerCase())), wfIds2 = new Set(report?.nodeIds || []);
@@ -1295,7 +1327,7 @@ export default function Teardown() {
       const cls = b.nodeId ? idType[String(b.nodeId)] : b.nodeType;
       const repo = cls ? repoByType[cls] : null;
       if (repo) {
-        rows.push({ n: ++n, verb: "확인", text: `노드 #${b.nodeId}(${cls})은 ${repo.split("/").pop()} 소속입니다.`, sub: "위 설치 행의 clone을 실행하면 해결됩니다.", kind: "broken", crosslink: true });
+        rows.push({ n: ++n, verb: "확인", text: `노드 #${b.nodeId}(${cls})은 ${repo.split("/").pop()} 소속입니다.`, sub: "설치(A) 행의 clone을 실행하면 해결됩니다.", kind: "broken", crosslink: true });
       } else {
         const label = b.nodeId ? `노드 ID #${b.nodeId}이(가) 깨져 있습니다` : b.nodeType ? `노드 '${b.nodeType}'을(를) 찾을 수 없습니다` : "깨진 노드가 있습니다";
         rows.push({ n: ++n, verb: "확인", text: label, sub: "워크플로우에서 해당 노드를 삭제하거나 다시 추가해 주세요.", kind: "broken" });
@@ -1319,11 +1351,17 @@ export default function Teardown() {
     // 확인 필요 — 출처 확인 못한 모델(unknowns)
     for (const it of plan?.unknowns || []) rows.push({ n: ++n, verb: "확인", text: it.workflowValue, folders: it.folder ? [it.folder] : [], badge: "확인 필요", selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
     for (const t of rxTodos.filter((x) => x.kind === "input")) rows.push({ n: ++n, verb: "확인", text: `${t.h.value} 입력 파일을 준비해 주세요`, kind: "input" });
+    // 결함h: auto_download 노드 → 실행 시 자동 다운로드 안내(C드라이브 캐시 용량). 없으면 미노출.
+    if (report?.autoDownloadNodes?.length) rows.push({ n: ++n, verb: "참고", text: "이 워크플로우는 실행 시 모델을 자동으로 내려받습니다. 기본 저장 위치가 C드라이브 캐시라 용량을 확인해 주세요.", nodes: report.autoDownloadNodes, kind: "node" });
     // 슬롯 매칭 실패한 제작자 안내 링크 → 일괄 1행(버리지 않음). 강도 지시 병기.
     if (plan?.authorLinks?.length) rows.push({ n: ++n, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: plan.authorLinks });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
+    // UX1: 단일 넘버링 A1/B1/C1(그룹 접두어+행 번호). 동그라미·맨숫자 혼용 제거.
+    const GL = { 설치: "A", 받기: "B", 확인: "C", 실행: "D", 참고: "E", 안내: "F" };
+    const ctr = {};
+    for (const r of rows) { const L = GL[r.verb] || "Z"; ctr[L] = (ctr[L] || 0) + 1; r.id = `${L}${ctr[L]}`; }
     return rows;
-  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck]);
+  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck, report]);
 
   return (
     <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", background: C.bg, color: C.text, fontFamily: SANS, position: "relative", overflowX: "hidden",
@@ -1522,7 +1560,7 @@ export default function Teardown() {
           <CircleAlert size={17} color={C.red} style={{ flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 14, lineHeight: 1.55 }}>{err}</span></div>)}
 
-        {report && (<div className="td-fade">
+        {report && (<SectionBoundary><div className="td-fade">
           {/* ══ 처방전 (첫 화면). 기존 데이터(unmapped·recipesEnriched)에서 '할 일'만 뽑은 체크리스트 ══ */}
           <div style={{ marginTop: 40 }}>
             {summary && (() => {
@@ -1561,7 +1599,7 @@ export default function Teardown() {
               <div style={{ fontSize: 13, color: C.dim, marginTop: 8, marginBottom: 20, lineHeight: 1.5 }}>에러 로그를 붙여넣으면 실행 시 값 오류까지 판정해 드립니다.</div>
             )}
             {rxTodos.length > 0 && (
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22, marginTop: 40 }}>
               <div style={{ minWidth: 0 }}>
                 <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>Solution</h2>
               </div>
@@ -1577,8 +1615,8 @@ export default function Teardown() {
               {rxShow && (
               <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
                 {actionRows.map((r, ri) => (
-                  <div key={r.n} style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
-                    <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.point }}>{r.n}</span>
+                  <div key={r.id || r.n} style={{ display: "grid", gridTemplateColumns: "40px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
+                    <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, color: C.point }}>{r.id || r.n}</span>
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}</div>
@@ -1608,9 +1646,10 @@ export default function Teardown() {
                       {r.kind === "install" && <><button className="td-hf" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={{ border: "none", cursor: "pointer" }}>install.bat ↓</button><a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>스크립트 보기</a></>}
                       {r.kind === "dlscript" && <button className="td-hf" onClick={() => downloadText("download_models.bat", buildDownloadScript(plan, env))} style={{ border: "none", cursor: "pointer" }}>모델 받기.bat ↓</button>}
                       {r.kind === "broken" && r.crosslink && <a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>설치 행 보기</a>}
-                      {r.kind === "model" && (() => { const url = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; return url
+                      {r.kind === "model" && (() => { const url = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim(); return url
                         ? <a className="td-hf" href={url} target="_blank" rel="noopener noreferrer">링크 ↗</a>
-                        : <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>; })()}
+                        : q ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
+                        : null; })()}
                     </div>
                   </div>
                 ))}
@@ -1674,10 +1713,13 @@ export default function Teardown() {
                   right = null;
                 } else if (t.kind === "input") {
                   const h = t.h;
+                  // 결함a: 실제 입력 노드 class_type에서 파생(LoadAudio 하드코딩 제거). 확장자로 종류 보조.
+                  const ext = (h.value.split(".").pop() || "").toLowerCase();
+                  const kindLabel = /png|jpe?g|webp|bmp|gif|tiff?/.test(ext) ? "이미지" : /mp4|mov|webm|mkv|avi/.test(ext) ? "영상" : /wav|mp3|flac|ogg/.test(ext) ? "오디오" : "입력";
                   left = (<>
                     <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                      <span style={{ fontFamily: MONO }}>{h.value}</span> 입력 파일 준비</div>
-                    <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>ComfyUI의 input 폴더에 넣거나 LoadAudio 노드에서 다시 선택. 이미 준비돼 있으면 건너뛰기</div>
+                      <span style={{ fontFamily: MONO }}>{h.value}</span> {kindLabel} 파일 준비</div>
+                    <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>ComfyUI의 input 폴더에 넣거나 <span style={{ fontFamily: MONO }}>{h.node || "입력"}</span> 노드에서 다시 선택. 이미 준비돼 있으면 건너뛰기</div>
                   </>);
                   right = null;
                 } else {
@@ -1732,7 +1774,7 @@ export default function Teardown() {
               <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6 }}>※ 모든 항목을 마쳤다면 ComfyUI를 완전히 재시작한 뒤 워크플로우를 다시 열어 주세요. 빨간 노드가 남아 있지 않으면 정상적으로 설치된 것입니다.</div>
             </div>
           </div>
-        </div>)}
+        </div></SectionBoundary>)}
         {!report && !err && (<div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "0 20px 40px", boxSizing: "border-box", textAlign: "center", color: C.faint, fontSize: 13 }}>
           <Boxes size={26} strokeWidth={1.25} style={{ opacity: 0.5 }} />
           <div style={{ marginTop: 10 }}>파일을 올리거나 "샘플로 보기"로 시작하세요.</div></div>)}
@@ -1760,7 +1802,7 @@ export default function Teardown() {
               </div>
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 24px" }}>
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
-                <MetricBox value={report.customPackCount} label="커스텀 pack" unit="개" />
+                <MetricBox value={report.customPackTotal} label="커스텀 pack" unit="개" />
               </div>
               {report.authorNotes?.length > 0 && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${C.divider}` }}>
@@ -1929,9 +1971,11 @@ export default function Teardown() {
                               )}
                             </div>
                             <div style={{ minWidth: 0 }}>
-                              <div style={{ fontFamily: MONO, fontSize: 14, color: s.folder === "확인 필요" ? C.red : C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.folder}</div>
-                              {s.src && s.src !== "rule" && s.src !== "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{s.src}</span>}
-                              {s.src === "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.red }}>폴더 확인 필요</span>}
+                              {(() => { const pit = planByFile.get(s.value.replace(/\\/g, "/").split("/").pop().toLowerCase()); const folder = pit ? (pit.promoted ? (pit.promoted.fullPath || pit.promoted.folder) : (pit.fullPath || pit.folder)) : s.folder; return (<>
+                                <div style={{ fontFamily: MONO, fontSize: 14, color: folder === "확인 필요" ? C.red : C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{folder}</div>
+                                {pit ? <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{pit.confidence}</span> : (s.src && s.src !== "rule" && s.src !== "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{s.src}</span>)}
+                                {!pit && s.src === "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.red }}>폴더 확인 필요</span>}
+                              </>); })()}
                             </div>
                             <div>
                               {s.url && s.url !== "확인 필요" ? (
@@ -2739,6 +2783,9 @@ export default function Teardown() {
             </div>
           </div>
         )}
+      {/* UX6: Top 버튼 — 1뷰포트 초과 스크롤 시 페이드인. 보라 line-style. */}
+      <button aria-label="맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
+        style={{ position: "fixed", right: 24, bottom: 24, zIndex: 40, width: 44, height: 44, borderRadius: 999, background: "transparent", border: `1px solid ${C.violet || C.point}`, color: C.violet || C.point, cursor: "pointer", display: "grid", placeItems: "center", opacity: showTop ? 1 : 0, pointerEvents: showTop ? "auto" : "none", transition: "opacity 0.3s", fontSize: 18, lineHeight: 1 }}>↑</button>
     </div>
   );
 }

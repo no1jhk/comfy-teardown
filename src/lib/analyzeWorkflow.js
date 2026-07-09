@@ -132,6 +132,7 @@ export function normalizeNode(n, subgraph) {
   return { id: n.id, type: n.type, cnr_id: n.properties?.cnr_id ?? null,
     ver: n.properties?.ver ?? null, mode: n.mode ?? 0,
     widgets: wv,
+    autoDownload: n.properties?.auto_download === true, // 결함h: 실행 시 모델 자동 다운로드 위젯(BOOLEAN true)
     noteText: isNote ? (typeof n.properties?.text === "string" && n.properties.text.trim() ? n.properties.text : wv.filter((w) => typeof w === "string").join("\n")) : null,
     color: n.color ?? null, bgcolor: n.bgcolor ?? null,
     subgraph: subgraph ?? null };
@@ -162,7 +163,9 @@ export function normalize(wf) {
 }
 
 // 노드 타입 → 모델 폴더 매핑 (ComfyUI 표준). 노드가 로드하는 위치가 곧 정답.
+export const SEEDVR2_FOLDER = "models/SEEDVR2"; // 결함c: numz/ComfyUI-SeedVR2_VideoUpscaler 자동 다운로드 경로(전부 대문자, DiT·VAE·GGUF 단일 폴더)
 const NODE_FOLDER_MAP = [
+  [/SeedVR2/i, SEEDVR2_FOLDER], // dit 패턴보다 앞 — SeedVR2LoadDiTModel이 hymotion으로 오매핑되지 않게
   [/CLIPLoader|DualCLIPLoader|TripleCLIPLoader|TextEncoderLoader/i, "models/text_encoders"], // TextEncoderLoader: LTXAVTextEncoderLoader 등 — 이름의 TextEncoder가 폴더 단서
   [/UNETLoader|UnetLoader/i, "models/unet"],
   [/VAELoader/i, "models/vae"],
@@ -203,7 +206,8 @@ export function portabilityScan(nodes) {
     if (typeof w !== "string") continue;
     if (w === "flash_attn") hits.push({ node: n.type, value: w, risk: "flash_attn 어텐션은 설치(빌드)가 까다로울 수 있습니다(특히 Windows). 설치가 막히면 sdpa로 변경하세요." });
     else if (isAbsPath(w)) hits.push({ node: n.type, value: w, kind: "abspath", risk: "이 경로는 워크플로우를 만든 사람의 PC 폴더예요. 당신 PC엔 이 폴더가 없을 수 있으니, 이 경로는 무시하고 같은 파일을 당신 ComfyUI 폴더에 두면 됩니다." });
-    else if (/[A-Za-z0-9._-]+\\[A-Za-z0-9._\\-]+/.test(w)) {
+    else if (((w.match(/\\/g) || []).length >= 2 || /\\[\w.-]+\.[A-Za-z0-9]{2,5}(?:$|[\s"'])/.test(w)) && !/\s\\|\\\s/.test(w)) {
+      // 결함j: 경로 형태일 때만(다중 백슬래시 또는 백슬래시 뒤 확장자 파일명). 자연어 문장 속 1회성 백슬래시("shadow.\her face")는 제외.
       if (/_\d{8}_/.test(w) && /\.(fbx|glb|obj)$/i.test(w))
         hits.push({ node: n.type, value: w, risk: "워크플로우에 박힌 과거 파일 경로입니다. 내 입력 파일을 다시 넣거나 해당 단계를 다시 실행하면 됩니다 (다른 PC엔 이 경로가 없습니다)." });
       else hits.push({ node: n.type, value: w, risk: "Windows 경로 구분자(\\)입니다. Mac/Linux에선 / 로 바꿔야 합니다." });
@@ -309,9 +313,13 @@ export function analyze(norm, mgrMap) {
   }
   const dedupModels = [...modelMap.values()];
 
+  // 결함i: 커스텀 pack 통일 집계 = cnr_id 커스텀 팩 + 미매핑 repo 그룹(중복 1) + 미매핑 solo(각 1). 카운트·처방 동일 기준.
+  const uKeys = new Set(); let uSolo = 0;
+  for (const u of unmappedRaw) { if (u.isCore) continue; const key = u.repo || u.clone_url; if (key) uKeys.add(key); else uSolo++; }
+  const customPackTotal = packs.filter((p) => !p.isCore).length + uKeys.size + uSolo;
   return {
     format: norm.format, totalNodes: norm.nodes.length,
-    customPackCount: packs.filter((p) => !p.isCore).length,
+    customPackCount: packs.filter((p) => !p.isCore).length, customPackTotal,
     packs, unmapped: unmappedRaw.filter((u) => !u.isCore), frontendOnly: [...new Set(frontendOnly)],
     muted, models: dedupModels, sameRepo, broken, anomalous, portability: portabilityScan(norm.nodes),
     bypassBreaks: detectBypassBreaks(norm),
@@ -320,6 +328,7 @@ export function analyze(norm, mgrMap) {
     nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)
     nodeIds: norm.nodes.map((n) => String(n.id)),
     nodeIdType: Object.fromEntries(norm.nodes.filter((n) => n.type).map((n) => [String(n.id), n.type])), // missing_node_type 크로스링크용(id→class_type)
+    autoDownloadNodes: [...new Set(norm.nodes.filter((n) => n.autoDownload && n.type).map((n) => n.type))], // 결함h: 실행 시 모델 자동 다운로드 노드
     authorNotes,
   };
 }

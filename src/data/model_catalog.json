@@ -70,7 +70,7 @@
     "seedvr2": {
       "label": "SeedVR2",
       "detect": { "filename": ["seedvr2", "seedvr_2", "seedvr-2"], "nodeType": ["SeedVR2"] },
-      "folders": { "main_model": "diffusion_models", "vae": "vae" },
+      "folders": { "main_model": "SEEDVR2", "vae": "SEEDVR2" },
       "variants": [],
       "source": null
     }

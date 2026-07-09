@@ -79,6 +79,11 @@ export function extractErrorLines(log, context = 2) {
   return { text: out.join("\n"), errorCount };
 }
 
+// 결함k: 디스크 공간 부족 에러 클래스(WinError 112 / No space left / errno 28 / 한글).
+export function hasDiskError(log) {
+  return /WinError 112|No space left on device|errno 28|디스크 공간이 부족/i.test(log || "");
+}
+
 // semver 비교(a<b → -1, a==b → 0, a>b → 1). "0.25.1" vs "0.27" 등. 코어 버전 요구 판정용.
 export function compareVersion(a, b) {
   const pa = String(a || "").split(".").map((x) => parseInt(x, 10) || 0);
