@@ -79,9 +79,16 @@ export function extractErrorLines(log, context = 2) {
   return { text: out.join("\n"), errorCount };
 }
 
-// 결함k: 디스크 공간 부족 에러 클래스(WinError 112 / No space left / errno 28 / 한글).
+// 결함k: 디스크 공간 부족 에러 클래스. 직접형 + 간접형 조합.
 export function hasDiskError(log) {
-  return /WinError 112|No space left on device|errno 28|디스크 공간이 부족/i.test(log || "");
+  if (!log) return false;
+  // 직접형: 명시적 디스크 부족 메시지.
+  if (/WinError 112|No space left on device|errno 28|디스크 공간이 부족/i.test(log)) return true;
+  // 간접형: writer channel 실패(증상) + 동일 세션 내 free disk space 경고(원인) 조합.
+  // (hasDiskError는 latestLogSession으로 호출되므로 두 신호가 같은 세션 안에 있을 때만 성립.)
+  const writerFail = /Internal Writer Error|Background writer channel closed/i.test(log);
+  const diskWarn = /Not enough free disk space|free disk space/i.test(log);
+  return writerFail && diskWarn;
 }
 
 // semver 비교(a<b → -1, a==b → 0, a>b → 1). "0.25.1" vs "0.27" 등. 코어 버전 요구 판정용.
