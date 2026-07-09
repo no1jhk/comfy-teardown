@@ -1,6 +1,6 @@
 import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
-  Upload, Boxes, ChevronRight, GitBranch,
+  Upload, Boxes, ChevronRight, ChevronUp, GitBranch,
   CircleAlert, Copy, Check, Plus, Minus, Download,
   Terminal, ImagePlus, X, Loader2, FolderOpen,
 } from "lucide-react";
@@ -1304,7 +1304,7 @@ export default function Teardown() {
   // 액션 테이블(당장 할 일) — rxTodos를 동사 선행 행으로. 표시층 전용(판정·데이터 불변).
   const actionRows = React.useMemo(() => {
     const rows = [];
-    let n = 0;
+    let n = 0, installN = null; // UX1: 식별자 = 화면 노출 순서 단일 연번(1,2,3…). installN=설치 행 연번(크로스링크 지칭용).
     // 결함k: 디스크 공간 부족 — 최상단(실행 중단 확정). auto_download(결함h)와 크로스링크.
     if (hasDiskError(latestLogSession(errlog || ""))) rows.push({ n: ++n, verb: "확인", text: "디스크 공간 부족으로 실행이 중단됐습니다.", sub: "모델 자동 다운로드가 C드라이브 캐시로 향하는 경우가 많으니 C드라이브 여유 공간을 확인해 주세요." + ((report?.autoDownloadNodes?.length) ? " (아래 자동 다운로드 노드 참고)" : ""), kind: "disk" });
     // 작업 A: 코어 버전 요구 — 최상단 1행. outdated=확인 행(확정), unknown(로그 없음)=dim 안내(확정 금지).
@@ -1318,6 +1318,7 @@ export default function Teardown() {
       const runLoc = env.customNodesPath ? `실행 위치: ${env.customNodesPath}` : "실행 위치: ComfyUI 설치 폴더의 custom_nodes (로그를 붙여넣으면 경로를 채워 드립니다)";
       const noRegMsg = noReg ? ` ${noReg}개는 Manager에 없는 팩이라 install.bat로 직접 설치해 주세요.` : "";
       rows.push({ n: ++n, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install" });
+      installN = n;
     }
     // 확인 — 로그의 missing_node_type. 결함3: 최신 세션 + 현재 워크플로우 대조. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행), 특정 불가만 삭제/재추가.
     const wfTypes2 = new Set((report?.nodeTypes || []).map((t) => t.toLowerCase())), wfIds2 = new Set(report?.nodeIds || []);
@@ -1327,7 +1328,7 @@ export default function Teardown() {
       const cls = b.nodeId ? idType[String(b.nodeId)] : b.nodeType;
       const repo = cls ? repoByType[cls] : null;
       if (repo) {
-        rows.push({ n: ++n, verb: "확인", text: `노드 #${b.nodeId}(${cls})은 ${repo.split("/").pop()} 소속입니다.`, sub: "설치(A) 행의 clone을 실행하면 해결됩니다.", kind: "broken", crosslink: true });
+        rows.push({ n: ++n, verb: "확인", text: `노드 #${b.nodeId}(${cls})은 ${repo.split("/").pop()} 소속입니다.`, sub: `${installN ? installN + "번 행" : "설치 행"}의 clone을 실행하면 해결됩니다.`, kind: "broken", crosslink: true });
       } else {
         const label = b.nodeId ? `노드 ID #${b.nodeId}이(가) 깨져 있습니다` : b.nodeType ? `노드 '${b.nodeType}'을(를) 찾을 수 없습니다` : "깨진 노드가 있습니다";
         rows.push({ n: ++n, verb: "확인", text: label, sub: "워크플로우에서 해당 노드를 삭제하거나 다시 추가해 주세요.", kind: "broken" });
@@ -1356,11 +1357,7 @@ export default function Teardown() {
     // 슬롯 매칭 실패한 제작자 안내 링크 → 일괄 1행(버리지 않음). 강도 지시 병기.
     if (plan?.authorLinks?.length) rows.push({ n: ++n, verb: "참고", text: "워크플로우 제작자 안내 링크", kind: "authorlinks", links: plan.authorLinks });
     rows.push({ n: ++n, verb: "실행", text: inst.length ? "ComfyUI 재시작 후 큐를 실행해 주세요." : "큐를 실행해 주세요.", kind: "run" });
-    // UX1: 단일 넘버링 A1/B1/C1(그룹 접두어+행 번호). 동그라미·맨숫자 혼용 제거.
-    const GL = { 설치: "A", 받기: "B", 확인: "C", 실행: "D", 참고: "E", 안내: "F" };
-    const ctr = {};
-    for (const r of rows) { const L = GL[r.verb] || "Z"; ctr[L] = (ctr[L] || 0) + 1; r.id = `${L}${ctr[L]}`; }
-    return rows;
+    return rows; // UX1: n(=화면 노출 순서 연번) 그대로 식별자. 그룹 알파벳 폐기. 종류는 라벨 열(verb)이 전달.
   }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck, report]);
 
   return (
@@ -1615,8 +1612,8 @@ export default function Teardown() {
               {rxShow && (
               <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
                 {actionRows.map((r, ri) => (
-                  <div key={r.id || r.n} style={{ display: "grid", gridTemplateColumns: "40px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
-                    <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 800, color: C.point }}>{r.id || r.n}</span>
+                  <div key={r.n} style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
+                    <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 800, color: C.point }}>{r.n}</span>
                     <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
                     <div style={{ minWidth: 0 }}>
                       <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}</div>
@@ -2783,9 +2780,10 @@ export default function Teardown() {
             </div>
           </div>
         )}
-      {/* UX6: Top 버튼 — 1뷰포트 초과 스크롤 시 페이드인. 보라 line-style. */}
+      {/* UX6: Top 버튼 — 1뷰포트 초과 스크롤 시 페이드인. 플로팅 예외로 원형 필 허용(테두리 없음·옅은 보라 배경·chevron up). */}
       <button aria-label="맨 위로" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })}
-        style={{ position: "fixed", right: 24, bottom: 24, zIndex: 40, width: 44, height: 44, borderRadius: 999, background: "transparent", border: `1px solid ${C.violet || C.point}`, color: C.violet || C.point, cursor: "pointer", display: "grid", placeItems: "center", opacity: showTop ? 1 : 0, pointerEvents: showTop ? "auto" : "none", transition: "opacity 0.3s", fontSize: 18, lineHeight: 1 }}>↑</button>
+        style={{ position: "fixed", right: 24, bottom: 24, zIndex: 40, width: 44, height: 44, borderRadius: 999, background: "rgba(166,120,224,0.18)", border: "none", color: C.violet, cursor: "pointer", display: "grid", placeItems: "center", opacity: showTop ? 1 : 0, pointerEvents: showTop ? "auto" : "none", transition: "opacity 0.3s" }}>
+        <ChevronUp size={20} strokeWidth={2} /></button>
     </div>
   );
 }
