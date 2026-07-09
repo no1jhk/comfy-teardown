@@ -908,6 +908,19 @@ function BlockHead({ num, label, count, role, open, onToggle }) {
   );
 }
 
+// 순번 원형 배지 — 단일 컴포넌트. variant로 fill(행동 구역=Solution)/line(근거·참고·접기 구역) 분기. 크기·타이포 동일(30px·15·800).
+// n==null → 완료(✓). muted=완료·충족(회색 토큰). onClick 있으면 완료 토글(클릭 가능). 상단 정렬(marginTop 1)로 제목 첫 줄 광학 정렬.
+function NumBadge({ n, variant = "fill", muted = false, onClick, title }) {
+  const line = variant === "line";
+  const accent = muted ? C.line : C.point;
+  return (
+    <div onClick={onClick} title={title}
+      style={{ width: 30, height: 30, borderRadius: 15, boxSizing: "border-box", background: line ? "transparent" : accent, border: line ? `1px solid ${accent}` : "none", color: line ? accent : INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1, cursor: onClick ? "pointer" : undefined }}>
+      {n == null ? <Check size={15} color={line ? accent : C.dim} /> : n}
+    </div>
+  );
+}
+
 function MetricBox({ value, label, unit }) {
   // comfy.org 공식 카드: 스트로크 없음 / 배경보다 살짝 밝은 플럼 / 위가 미세하게 더 밝은 그라데이션 (이미지에서 추출)
   return (<div style={{ background: "#28222E", border: "none", borderRadius: 16, padding: "16px 18px" }}>
@@ -1401,12 +1414,15 @@ export default function Teardown() {
   }, [actionRows, reconcile, summary]);
 
   // 액션 행 1개 렌더. first=구분선 제외, dim=이미 있음(✓·딤). 넘버링 시각: 원형 배지(판단근거 30px 노랑 원과 동일 체계).
-  const renderActionRow = (r, first, dim) => (
-    <div key={r.rid} style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", borderTop: first ? "none" : `1px solid ${C.divider}`, opacity: dim ? 0.55 : 1 }}>
-      <div style={{ width: 30, height: 30, borderRadius: 15, background: dim ? C.line : C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{r.n == null ? <Check size={15} color={C.dim} /> : r.n}</div>
+  const renderActionRow = (r, first, dim, variant = "fill") => (
+    <React.Fragment key={r.rid}>
+      {/* 구분선: 판단근거 체계와 동일 — 라운드 박스 좌우 여백 인셋(100% 가로지르기 금지), 색·두께 동일 토큰 */}
+      {!first && <div style={{ borderTop: `1px solid ${C.divider}`, marginLeft: 18, marginRight: 18 }} />}
+      <div style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", opacity: dim ? 0.55 : 1 }}>
+      <NumBadge n={r.n} variant={variant} />
       <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
       <div style={{ minWidth: 0 }}>
-        <div style={{ fontFamily: SANS, fontSize: 15, color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
+        <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
         {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
         {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
         {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
@@ -1443,7 +1459,8 @@ export default function Teardown() {
             : <a className="td-hf td-outline-w" href={rawUrl} target="_blank" rel="noopener noreferrer">링크 ↗</a>; }
           return q ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a> : null; })()}
       </div>
-    </div>
+      </div>
+    </React.Fragment>
   );
 
   return (
@@ -1726,12 +1743,12 @@ export default function Teardown() {
               {revisit && <button onClick={() => setRxUserToggled(!rxShow)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, padding: "10px 2px", marginBottom: rxShow ? 8 : 16 }}>{rxShow ? "▾" : "▸"} 처방 다시 보기</button>}
               {rxShow && (
               <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
-                {rxGroups.primary.map((r, ri) => renderActionRow(r, ri === 0, false))}
-                {rxGroups.heldDim.map((r) => renderActionRow(r, false, true))}
+                {rxGroups.primary.map((r, ri) => renderActionRow(r, ri === 0, false, "fill"))}
+                {rxGroups.heldDim.map((r) => renderActionRow(r, false, true, "line"))}
                 {rxGroups.refInfo.length > 0 && (
                   <details style={{ borderTop: `1px solid ${C.divider}` }}>
                     <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none" }}>▸ 참고 · 미확정 {rxGroups.refInfo.length}개 (대체 후보 · 제작자 안내 · 확인 필요)</summary>
-                    {rxGroups.refInfo.map((r) => renderActionRow(r, false, false))}
+                    {rxGroups.refInfo.map((r) => renderActionRow(r, false, false, "line"))}
                   </details>
                 )}
               </div>
@@ -1841,9 +1858,8 @@ export default function Teardown() {
                 <React.Fragment key={t.key}>
                 {i > 0 && <div style={{ borderTop: `1px solid ${C.divider}`, marginLeft: 20, marginRight: 20 }} />}
                 <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "22px 20px", opacity: done ? 0.5 : 1 }}>
-                  <div onClick={() => toggleRx(t.key)} title="완료 표시" style={{ width: 30, height: 30, borderRadius: 15, background: done ? C.line : C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, cursor: "pointer", marginTop: 1 }}>
-                    {done ? <Check size={15} color={C.dim} /> : i + 1}
-                  </div>
+                  {/* 판단근거 구역 배지 = line-style(단일 NumBadge). 완료 시 muted(회색). 위계: 필(Solution) > 라인(근거·참고) > 라인 dim */}
+                  <NumBadge n={done ? null : i + 1} variant="line" muted={done} onClick={() => toggleRx(t.key)} title="완료 표시" />
                   <div style={{ flex: 1, minWidth: 0 }}>{left}</div>
                   {right && <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", alignSelf: "center" }}>{right}</div>}
                 </div></React.Fragment>);
