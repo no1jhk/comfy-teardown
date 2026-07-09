@@ -6,6 +6,25 @@
 
 ---
 
+## 2026-07-09 (마감: P0 + 결함 a·b·c·e·h·i·j·k + UX 1·3·4·5·6·7)
+**한 일**(9f210c8) — 회사 3060 Ti krea2 완주 후 PiD 업스케일 실전 파인딩 소탕.
+- **P0 국소 크래시**: SectionBoundary(Solution 구역 경계 — 크래시 시 Findings·브리핑 유지). 형식 감지 메시지(미상→판정 화면). PiD fixture(PiD_upscale_crash.json) 등록. src에 .workflow 접근 0건 확인(방어 대상 없음) → 안전망으로 대응.
+- **결함a**: 입력 안내 LoadAudio 하드코딩 → 실제 노드 class_type + 확장자 종류.
+- **결함b**: 모델 맞추기 folder를 planByFile 단일 소스로(models/unet 하드코딩 제거).
+- **결함c**: models/hymotion→models/SEEDVR2 상수(SeedVR2 dit 오매핑). hymotion 0.
+- **결함e**: 브리핑 표 promoted 반영 + 환경 줄 VRAM 병기(로그 우선/gpu_rules (추정)).
+- **결함h**: auto_download 노드 감지 → 자동 다운로드 참고 행. krea2 미노출.
+- **결함i**: customPackTotal 통일 집계(cnr_id 팩+미매핑 그룹+solo).
+- **결함j**: 경로 휴리스틱 강화(다중 백슬래시/확장자만, 자연어 1회성 제외).
+- **결함k**: 디스크 부족 클래스(WinError 112) 최상단 + auto_download 크로스링크.
+- **UX**: 1(A1/B1/C1 넘버링) 3(HF 빈 쿼리 미노출) 4(설치 행 실행 위치) 5(진단/Solution 여백) 6(Top 버튼) 7(첫 방문 펼침).
+
+**파킹(다음 라운드)**: P2.7(환경 수집·보유 대조·완비 배너), 결함 d(완비 환경 빨강), UX2(솔루션 필터링).
+
+**막힌 점**: 사용자 제공 PiD 크래시 JSON 미첨부 → 기술(빈 groups·cnr_id 부재·PiDConditioning·auto_download)대로 합성 fixture. src에 .workflow 리터럴 없어 정확 크래시 라인 미특정 → SectionBoundary 안전망 + 결함 b/i 정비로 대응.
+
+**다음 할 일**: 화면 검수 후 push.
+
 ## 2026-07-08 (파인딩2: 결함 6·7·8 + UX3 재방문)
 **한 일**(3eb4c5b)
 - **결함6 크로스링크**: analyze.nodeIdType(id→class_type). missing_node_type broken 행이 node_id 역조회 → 팩 소속이면 '노드 #N(클래스)은 {팩} 소속' + 설치 행 앵커. 특정 불가만 삭제/재추가. (실측 #333→Krea2ControlApply→facok)
