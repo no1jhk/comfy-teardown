@@ -118,6 +118,13 @@ export function parseNoteModelEntries(notes) {
     if (!e.folder) { const folM = line.match(/\b(models[\/\\][\w][\w\/\\.-]*)/i) || line.match(/(?:goes?\s+in(?:to)?|put\s+(?:it\s+)?in|place\s+(?:it\s+)?in)\s+(?:the\s+)?([\w][\w\/\\.-]*)/i); if (folM) e.folder = folM[1].replace(/[.\s]+$/, "").replace(/\\/g, "/"); }
     if (!e.size) { const szM = line.match(/(\d+(?:\.\d+)?)\s*(GB|MB|TB)\b/i); if (szM) e.size = `${szM[1]}${szM[2].toUpperCase()}`; }
   }
+  // 0-1 2차 폴백: Place in 힌트 없으면 URL의 resolve|blob|tree/{브랜치}/{디렉터리}/{파일} 에서 디렉터리 추출(다단 허용, 파일명 제외).
+  for (const e of entries.values()) {
+    if (!e.folder && e.url) {
+      const m = e.url.match(/\/(?:resolve|blob|tree)\/[^/]+\/(.+)\/[^/]+\.(?:safetensors|gguf|ckpt|pt|pth|bin|sft)(?:$|[?#])/i);
+      if (m && m[1]) e.folder = "models/" + m[1].replace(/^models\//i, "");
+    }
+  }
   return entries;
 }
 

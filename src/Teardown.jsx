@@ -162,6 +162,14 @@ function quantWarnings(models, gpuStr) {
   return out;
 }
 const GEN_LABEL = { ampere: "Ampere(30xx)", ada: "Ada(40xx)", blackwell: "Blackwell(50xx)" };
+// 0-3: 대체 양자화 안내 문구 조립 + dedupe. alt("GGUF 또는 bf16")에 fp8 시 "bf16" 추가 → "또는 bf16 또는 bf16" 중복 방지.
+function altListText(w) {
+  const tokens = String(w?.alt || "GGUF").split(/\s*또는\s*/).filter(Boolean);
+  if (/fp8/i.test(w?.quant || "")) tokens.push("bf16");
+  const seen = new Set(), uniq = [];
+  for (const t of tokens) { const k = t.toLowerCase(); if (!seen.has(k)) { seen.add(k); uniq.push(t); } }
+  return uniq.join(" 또는 ");
+}
 
 // node_repo_map.json → class_type exact match index
 // troubleshooting_patterns.json → error log keyword matching (OR per pattern)
@@ -412,7 +420,7 @@ function buildPrescription(r, envGpu) {
       severity: "mid",
       items: qw.map((w) => ({
         file: w.file,
-        desc: `${w.quant} 형식은 이 GPU(${GEN_LABEL[w.gen] || w.gen})에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 ${w.alt}${/fp8/i.test(w.quant) ? " 또는 bf16" : ""} 대체를 권장합니다.`,
+        desc: `${w.quant} 형식은 이 GPU(${GEN_LABEL[w.gen] || w.gen})에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 ${altListText(w)} 대체를 권장합니다.`,
         gguf: w.gguf,
       })),
     });
@@ -701,7 +709,7 @@ function buildMarkdown(report, summary, rx, env) {
   const mdQw = quantWarnings(report.models, env?.gpu);
   if (mdQw.length) {
     L.push(`### 3. 양자화 호환성 (${mdQw.length})`);
-    for (const w of mdQw) L.push(`- \`${w.file}\`: ${w.quant} 형식은 ${GEN_LABEL[w.gen] || w.gen}에서 기본 미지원(변환 경로로 실행될 수 있으나 불안정). ${w.alt}${/fp8/i.test(w.quant) ? " 또는 bf16" : ""} 대체 권장`);
+    for (const w of mdQw) L.push(`- \`${w.file}\`: ${w.quant} 형식은 ${GEN_LABEL[w.gen] || w.gen}에서 기본 미지원(변환 경로로 실행될 수 있으나 불안정). ${altListText(w)} 대체 권장`);
     const seen = new Set();
     for (const w of mdQw) {
       if (!w.gguf) continue;
@@ -756,7 +764,7 @@ function buildBriefing(report, errlog, env) {
   L.push(``);
   if (qw.length) {
     L.push(`## 이미 발견된 양자화 호환성 문제 (Teardown 룰)`);
-    for (const w of qw) L.push(`- ${w.file}: ${w.quant} 형식은 ${GEN_LABEL[w.gen] || w.gen}에서 기본 미지원(변환 경로로 실행될 수 있으나 불안정). ${w.alt}${/fp8/i.test(w.quant) ? " 또는 bf16" : ""} 대체 권장`);
+    for (const w of qw) L.push(`- ${w.file}: ${w.quant} 형식은 ${GEN_LABEL[w.gen] || w.gen}에서 기본 미지원(변환 경로로 실행될 수 있으나 불안정). ${altListText(w)} 대체 권장`);
     const seen = new Set();
     for (const w of qw) {
       if (!w.gguf) continue;
