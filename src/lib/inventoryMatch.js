@@ -117,6 +117,10 @@ export function assembleModelPath(drive, folderName, os) {
   if (!name) return "";
   return os === "win" ? `${drive || "C"}:\\${name}` : name;
 }
+// 파인딩 t: 조립 산출 경로의 드라이브 문자만 교체(C:\X → N:\X). 선행 "X:"가 없으면 그대로(안전). 조립 여부 판정은 호출측 상태 플래그로(문자열 추정 금지).
+export function swapDriveLetter(path, drive) {
+  return String(path || "").replace(/^[A-Za-z]:/, `${drive}:`);
+}
 
 // 환경 수집 스니펫(읽기전용 나열만). os: "win" | "unix".
 // 파인딩 n-1: 입력 경로를 절대 경로 리터럴로 삽입(따옴표). 드라이브 문자(X:\)·UNC·/ 시작이 아니면 스니펫 생성 안 함(드라이브 추정 금지).

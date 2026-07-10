@@ -13,7 +13,7 @@ import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType
 import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
 import { gpuProfile } from "../src/lib/modelRecommender.js";
 import { buildModelPlan, downloadTargetFolder } from "../src/lib/modelPlan.js";
-import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath } from "../src/lib/inventoryMatch.js";
+import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath, swapDriveLetter } from "../src/lib/inventoryMatch.js";
 import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, matchLabelToNode, parseNoteModelEntries } from "../src/lib/parseWorkflowNotes.js";
 import nodeRepoMap from "../src/data/node_repo_map.json" with { type: "json" };
 
@@ -661,6 +661,10 @@ console.log("\n" + "=".repeat(70) + "\n수리 스프린트: r 노트 · s 조립
   if (assembleModelPath("D", "ComfyModels", "win") !== "D:\\ComfyModels") { console.log("  ❌ s win 조립 실패"); fail++; ok = false; }
   if (assembleModelPath("D", "ComfyModels", "unix") !== "ComfyModels") { console.log("  ❌ s unix 폴더명 유지 실패"); fail++; ok = false; }
   if (!isTypeFolder("vae") || !isTypeFolder("checkpoints") || isTypeFolder("ComfyModels")) { console.log("  ❌ s 종류 폴더 판정 오류"); fail++; ok = false; }
+  // 파인딩 t: 조립 산출값은 드라이브 세그먼트만 교체(C:\X → N:\X). 드라이브 없는(직접 타이핑) 값은 불변.
+  const asmT = assembleModelPath("C", "ComfyUI_models", "win");
+  if (asmT !== "C:\\ComfyUI_models" || swapDriveLetter(asmT, "N") !== "N:\\ComfyUI_models") { console.log("  ❌ t 드라이브 교체(C→N) 실패"); fail++; ok = false; }
+  if (swapDriveLetter("D:\\Foo", "Z") !== "Z:\\Foo" || swapDriveLetter("직접타이핑_no_drive", "N") !== "직접타이핑_no_drive") { console.log("  ❌ t 드라이브 없는 값 불변 실패"); fail++; ok = false; }
   // 접기1: bypass 그룹 전용 모델 감지(active 제외, 그룹 제목 라벨)
   const bg = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "bypass_group_synth.json"), "utf8")))).bypassGroupModels;
   if (bg["alt_only_model.safetensors"] !== "Alt path (off)" || bg["active_model.safetensors"]) { console.log(`  ❌ 접기1 bypass 그룹 매핑 오류: ${JSON.stringify(bg)}`); fail++; ok = false; }

@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-07-11 (파인딩 t: 드라이브 셀렉트 변경 미반영)
+**한 일** — 폴더 버튼 조립 후 드라이브 셀렉트를 바꿔도 입력란·스니펫·bat이 옛 드라이브(C:) 유지하던 결함 수리.
+- **원인**: 드라이브 셀렉트 onChange가 scanDrive만 바꾸고 조립 산출값(env.modelRoot)은 재계산 안 함.
+- **수리**: 조립 산출 여부를 상태 플래그(env.modelRootAssembled)로 추적(문자열 추정 금지). 드라이브 변경 시 플래그면 swapDriveLetter로 드라이브 세그먼트만 교체(C:\X → N:\X). 폴더 선택 시 항상 현재 드라이브로 조립+플래그 세움. 직접 타이핑(입력 onChange) 시 플래그 해제 → 셀렉트 변경에도 불변(직접 입력 최우선).
+- swapDriveLetter 순수 함수 분리(회귀). 수용: 폴더 선택(C:) 후 N: 변경 → N:\ComfyUI_models로 입력란·스니펫·bat 동시 갱신, 직접 타이핑값 불변.
+- build·regression(t: 드라이브 교체·불변)·e2e 13/13.
+
+**다음 할 일**: 화면 검수 후 push.
+
 ## 2026-07-10 (push 전 마감 3건: install.bat 동일 규칙 · 라벨 정렬 · 폴더 우선순위)
 **한 일** — push 전 소형 3건.
 - **#1 install.bat 모델 섹션**: 받기.bat과 동일 규칙으로 결선 — downloadTargetFolder(base, 표시폴더)로 입력 시 절대 "{입력}\{종류}", 미입력 시 상대 "models\{종류}"(cd ..로 루트 기준). downloadTargetFolder를 "models" 단독·접두 변형에 견고화. 헤더도 절대/상대 조건 표기.

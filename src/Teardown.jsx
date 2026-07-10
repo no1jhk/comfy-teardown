@@ -12,7 +12,7 @@ import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkfl
 import { recommend, gpuProfile } from "./lib/modelRecommender.js";
 import { matchLabelToNode } from "./lib/parseWorkflowNotes.js";
 import { buildModelPlan, downloadTargetFolder } from "./lib/modelPlan.js";
-import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath } from "./lib/inventoryMatch.js";
+import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath, swapDriveLetter } from "./lib/inventoryMatch.js";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
 import modelAliases from "./data/model_aliases.json";
@@ -978,7 +978,7 @@ export default function Teardown() {
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const [envOpen, setEnvOpen] = useState(false);
   const [envLog, setEnvLog] = useState("");
-  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [] });
+  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], modelRootAssembled: false });
   const [folderScan, setFolderScan] = useState(""); // P2.7: 붙여넣은 폴더 스캔 출력(내 모델 폴더 대조)
   const [scanOs, setScanOs] = useState("win");      // P2.7: 스니펫 OS 토글(win|unix)
   const [scanDrive, setScanDrive] = useState("C");  // 파인딩 s: Windows 드라이브 셀렉트(폴더 버튼 경로 조립용)
@@ -1014,8 +1014,11 @@ export default function Teardown() {
     if (!clean) return;
     if (isTypeFolder(clean)) { setFolderPickWarn(true); return; }
     setFolderPickWarn(false);
-    const isAbs = (p) => /^[A-Za-z]:[\\/]/.test(p) || /^\//.test(p);
-    setEnv((p) => isAbs(p.modelRoot || "") ? { ...p, modelRootPartial: false } : { ...p, modelRoot: assembleModelPath(scanDrive, clean, scanOs), modelRootPartial: scanOs !== "win" });
+    const isAbs = (v) => /^[A-Za-z]:[\\/]/.test(v) || /^\//.test(v);
+    // 직접 타이핑한 절대 경로(조립 산출 아님)는 우선 유지. 그 외엔 현재 드라이브로 조립하고 조립 산출 플래그 세움.
+    setEnv((p) => (isAbs(p.modelRoot || "") && !p.modelRootAssembled)
+      ? { ...p, modelRootPartial: false }
+      : { ...p, modelRoot: assembleModelPath(scanDrive, clean, scanOs), modelRootPartial: scanOs !== "win", modelRootAssembled: true });
   };
   const toggleRx = (k) => setRxChecked((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const saveReport = () => {
@@ -1656,12 +1659,12 @@ export default function Teardown() {
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
                   {/* 파인딩 s: Windows 토글에서만 드라이브 셀렉트(폴더 버튼이 폴더명만 주므로 조립용). 기본 C. */}
                   {scanOs === "win" && (
-                    <select value={scanDrive} onChange={(e) => setScanDrive(e.target.value)} title="드라이브"
+                    <select value={scanDrive} onChange={(e) => { const d = e.target.value; setScanDrive(d); setEnv((p) => p.modelRootAssembled ? { ...p, modelRoot: swapDriveLetter(p.modelRoot, d) } : p); }} title="드라이브"
                       style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 6px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box", flexShrink: 0, cursor: "pointer" }}>
                       {["C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"].map((d) => <option key={d} value={d}>{d}:</option>)}
                     </select>
                   )}
-                  <input type="text" value={env.modelRoot} onChange={(e) => { setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false })); setFolderPickWarn(false); }}
+                  <input type="text" value={env.modelRoot} onChange={(e) => { setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false, modelRootAssembled: false })); setFolderPickWarn(false); }}
                     placeholder="예: D:\ComfyUI\models"
                     style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
                   <button onClick={async () => {
