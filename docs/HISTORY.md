@@ -6,9 +6,8 @@
 
 ---
 
-## 2026-07-10 (봉인 선언 + 수리 스프린트 1차: r·s·소형4)
-**봉인 선언**: v1.0 진단 파이프라인 봉인(P2.7 + 파인딩 a~q 완료). 이후는 실사용 파인딩 수리 스프린트로 운영.
-**한 일** — 봉인 후 Boogu·실측 파인딩 r·s + 다듬기 4건.
+## 2026-07-10 (수리 스프린트 1차: r·s·소형4)
+**한 일** — Boogu·실측 파인딩 r·s + 다듬기 4건.
 - **r 리치 노트 파싱**: PixaromaNote 등 HTML/JSON 래핑({version,content}) 노트를 노드 type 하드코딩 대신 내용(링크+파일명)으로 수집. HTML→텍스트(<a href> 보존·태그 제거·엔티티 해제). per-line 파싱(parseNoteModelEntries)으로 파일별 직링크·폴더(models/X·Place in)·용량 추출 → workflow_author 승격. 카탈로그 충돌 시 카탈로그 우선 + 노트 병기. Boogu 3모델 전부 직링크·폴더(diffusion_models/boogu)·용량, [확인 필요] 0. content 없는 config JSON(DenoLTX 등)은 노트 제외(오인식 방지).
 - **s 드라이브 셀렉트 + 조립**: Windows 토글에서 드라이브 셀렉트(C~Z, 기본 C) + 폴더 버튼 선택값 조립("D:\\ComfyModels"). 직접 타이핑 절대 경로 우선. 종류 폴더(vae·loras 등) 오선택 시 상위 폴더 발화. n-1·q 경로 파이프라인으로 흐름.
 - **소형**: (1) UX2 접기1 "다른 그룹용"(analyze 그룹 bbox→노드→모델, bypass 그룹 전용 모델 분류·그룹명 라벨, 그룹 없으면 현행) (2) 푸터 최하단 고정(marginTop auto, 부유 제거, 상단 여백 64→40) (3) line 배지 스트록 2px 확정(주석 기록, 화면서 얇으면 3px) (4) 위치 불일치에 동명이인 고지 1줄.
