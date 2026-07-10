@@ -1373,7 +1373,9 @@ export default function Teardown() {
     // 결함k: 디스크 공간 부족 — 최상단(실행 중단 확정). auto_download(결함h)와 크로스링크.
     if (hasDiskError(latestLogSession(errlog || ""))) rows.push({ rid: ++rid, verb: "확인", text: "디스크 공간 부족으로 실행이 중단됐습니다.", sub: "모델 자동 다운로드가 C드라이브 캐시로 향하는 경우가 많으니 C드라이브 여유 공간을 확인해 주세요." + ((report?.autoDownloadNodes?.length) ? " (아래 자동 다운로드 노드 참고)" : ""), kind: "disk" });
     // 작업 A: 코어 버전 요구 — 최상단 1행. outdated=확인 행(확정), unknown(로그 없음)=dim 안내(확정 금지).
+    // 6: 버전 2단화. 1단(정적 JSON) = savedVersion "comfy-core X 기준 저장". 2단(로그) = coreCheck 대조(outdated 시 확인 행).
     if (coreCheck?.state === "outdated") rows.push({ rid: ++rid, verb: "확인", text: `이 워크플로우는 ComfyUI ${coreCheck.required} 이상이 필요합니다. 본체를 업데이트한 뒤 다시 열어 주세요.`, sub: `현재 로그의 버전: ${coreCheck.current}`, kind: "coreversion" });
+    else if (report?.savedVersion) rows.push({ rid: ++rid, verb: "안내", text: `이 워크플로우는 comfy-core ${report.savedVersion.core} 기준으로 저장되었습니다${report.savedVersion.coreNode ? ` (${report.savedVersion.coreNode} 등)` : ""}.`, sub: coreCheck?.state === "ok" ? `로그의 설치 버전(${coreCheck.current})이 요건을 충족합니다.` : "로그를 붙여넣으면 설치된 버전과 대조해 드립니다.", kind: "gpuhint" });
     else if (coreCheck?.state === "unknown") rows.push({ rid: ++rid, verb: "안내", text: "이 워크플로우는 최신 ComfyUI 기능을 사용합니다. 로그를 붙여넣으면 버전 적합 여부를 판정해 드립니다.", kind: "gpuhint" });
     const inst = rxTodos.filter((t) => t.kind === "nodegroup" && !packInstalled(t.g.repo || t.g.clone_url, logEnv.installedPacks));
     if (inst.length) {
@@ -1409,8 +1411,9 @@ export default function Teardown() {
     if (plan && plan.family && plan.needs.includes("gpu")) rows.push({ rid: ++rid, verb: "안내", text: `이 워크플로우는 ${plan.label}로 보입니다. GPU를 입력하면 넣을 위치와 환경에 맞는 변형을 추천해 드립니다.`, kind: "gpuhint" });
     // 받기 — modelPlan.items(단일 진실 공급원). 근거 4단계 뱃지. 넣기=fullPath(절대) 또는 folder(상대), 용량·직링크·근거는 planItem에.
     for (const it of plan?.items || []) rows.push({ rid: ++rid, verb: "받기", text: it.workflowValue, folders: it.fullPath ? [it.fullPath] : (it.folder ? [it.folder] : []), badge: it.badge, selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
-    // 받기 스크립트(모델 받기.bat) — 파인딩 m: 경로 입력 시 절대 경로(어디서 실행해도 OK), 미입력 시 ComfyUI 루트 실행 경고(화면 행 = bat 주석 2곳 중 하나).
-    if (plan?.items?.some((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || ""))) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: (env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다. 어디서 실행해도 됩니다." : "경로 미입력 상태입니다. 받은 스크립트는 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요.", kind: "dlscript" });
+    // 5: 일괄 받기 스크립트는 받기 항목(직링크 확정) 3개 이상일 때만. 1~2개면 각 행 개별 다운로드로 충분(미노출). 파인딩 m: 경로 입력 시 절대, 미입력 시 루트 실행.
+    const dlEligible = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || ""));
+    if (dlEligible.length >= 3) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: `위 받기 항목 ${dlEligible.length}개를 한 번에 내려받습니다. ` + ((env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다." : "경로 미입력이면 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요."), kind: "dlscript" });
     // 대체 후보 / 제외(주 모델) — "OOM 시 대체 후보" 톤(추천 아님). 별도 1행.
     if ((plan?.alternatives?.length || 0) + (plan?.exclusions?.length || 0) > 0) rows.push({ rid: ++rid, verb: "참고", text: "메인 모델 대체·제외 안내", kind: "altexcl", alternatives: plan.alternatives, exclusions: plan.exclusions });
     // 확인 필요 — 출처 확인 못한 모델(unknowns)

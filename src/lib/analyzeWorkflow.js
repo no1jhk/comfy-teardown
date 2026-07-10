@@ -6,6 +6,7 @@ import nodeRepoMap from "../data/node_repo_map.json" with { type: "json" };
 import mgrList from "../data/manager-model-list.json" with { type: "json" };
 import tsPatterns from "../data/troubleshooting_patterns.json" with { type: "json" };
 import coreFeatureRules from "../data/core_feature_rules.json" with { type: "json" };
+import { compareVersion } from "../logParse.js";
 
 // 코어 기능 요구 스캔 — 워크플로우가 특정 ComfyUI 버전/확장을 요구하는 기능을 쓰는지. 로그 버전 대조는 호출부(요약)에서.
 export function scanCoreFeatures(nodes) {
@@ -185,7 +186,7 @@ export function normalize(wf) {
     }
     const subgraphIds = new Set((Array.isArray(subs) ? subs : []).map((s) => s?.id).filter(Boolean)); // 서브그래프 정의 ID(UUID) — anomalous 대조용
     const groups = (Array.isArray(wf.groups) ? wf.groups : []).map((g) => ({ title: g.title || g.name || "", bounding: Array.isArray(g.bounding) ? g.bounding : null })); // 소형1: 그룹(제목·bbox)
-    return { format: "UI", nodes, links: Array.isArray(wf.links) ? wf.links : [], subgraphIds, groups };
+    return { format: "UI", nodes, links: Array.isArray(wf.links) ? wf.links : [], subgraphIds, groups, frontendVersion: wf.extra?.frontendVersion || null };
   }
   if (wf && typeof wf === "object") {
     const e = Object.entries(wf).filter(([, v]) => v && typeof v === "object");
@@ -342,6 +343,10 @@ export function analyze(norm, mgrMap) {
   }
   const bypassGroupModels = {};
   for (const [b, e] of byBaseG) if (!e.anyActive && e.group) bypassGroupModels[b] = e.group;
+  // 6-1단(정적 버전 요구): cnr_id="comfy-core" 노드의 최고 ver = "이 버전 기준으로 저장". frontendVersion 병기.
+  let savedCore = null, savedCoreNode = null;
+  for (const n of norm.nodes) { if (/comfy-core/i.test(n.cnr_id || "") && n.ver) { if (!savedCore || compareVersion(n.ver, savedCore) > 0) { savedCore = n.ver; savedCoreNode = n.type; } } }
+  const savedVersion = savedCore ? { core: savedCore, coreNode: savedCoreNode, frontend: norm.frontendVersion || null } : null;
   const packs = Object.keys(packVers).map((id) => {
     const vers = [...packVers[id]].filter(Boolean).map(String);
     return { id, vers, repo: compatNodeRepo(id), nodeTypes: [...packNodes[id]],
@@ -377,6 +382,7 @@ export function analyze(norm, mgrMap) {
     muted, models: dedupModels, sameRepo, broken, anomalous, portability: portabilityScan(norm.nodes),
     bypassBreaks: detectBypassBreaks(norm),
     bypassGroupModels, // 소형1: basename → bypass 그룹 제목(다른 그룹용 = 접기1 분류)
+    savedVersion, // 6: 정적 저장 버전 {core, coreNode, frontend}
     ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
     coreFeatures: scanCoreFeatures(norm.nodes),
     nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)
