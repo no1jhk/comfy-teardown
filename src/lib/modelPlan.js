@@ -43,9 +43,11 @@ function sizeToGB(s) {
 // 파인딩 m: 받기 bat의 폴더 대상 조립(Windows). base(모델 루트) 있으면 절대 "{base}\{종류폴더}", 없으면 상대 "models\{종류폴더}".
 // 규칙: 입력경로 자체가 models 루트 → "models" 세그먼트 삽입 금지(표시 폴더의 models/ 접두 제거). 백슬래시 정규화.
 export function downloadTargetFolder(base, displayFolder) {
-  const type = String(displayFolder || "models").replace(/^models[/\\]/i, "").replace(/\//g, "\\");
+  // 표시폴더에서 선행 "models"(단독 또는 접두) 제거 → 종류 세그먼트만. 백슬래시 정규화.
+  const type = String(displayFolder || "").replace(/^models([/\\]|$)/i, "").replace(/\//g, "\\").replace(/^\\+|\\+$/g, "");
   const b = String(base || "").replace(/[/\\]+$/, "").replace(/\//g, "\\").trim();
-  return b ? `${b}\\${type}` : `models\\${type}`;
+  if (b) return type ? `${b}\\${type}` : b;
+  return type ? `models\\${type}` : "models";
 }
 
 export function buildModelPlan(report, env) {
@@ -66,11 +68,12 @@ export function buildModelPlan(report, env) {
     const role = db?.role || recSlot?.slotType || null;
     const norm = m.file.replace(/\\/g, "/");
     const sub = norm.includes("/") ? norm.slice(0, norm.lastIndexOf("/")) : ""; // 워크플로우 값의 서브폴더(케이스 보존)
-    // 파인딩 r: 폴더 = 카탈로그 우선, 없으면 노트 지정 폴더(하위 경로 포함, 예 diffusion_models/boogu). 노트 폴더는 전체 경로라 워크플로우 sub 중복 append 안 함.
-    const catFolderBase = db?.folder || (recSlot ? recSlot.folder.replace(/^models\//, "").split("/")[0] : null); // 카탈로그 폴더(diffusion_models 등)
-    const noteFolderBase = noteLink?.folder ? noteLink.folder.replace(/^models[\/\\]/i, "").replace(/\\/g, "/").replace(/\/+$/, "") : null;
-    const folderBase = catFolderBase || noteFolderBase;
-    const usesNoteFolder = !catFolderBase && !!noteFolderBase;
+    // 파인딩 #3: 폴더 우선순위 = 확정 카탈로그(db) > 노트(제작자 지정) > 추론 슬롯(recSlot) > 로더 타입 폴백(m.folder).
+    // (노트 폴더가 추론 슬롯·로더 폴백을 이기게 → UNETLoader가 note diffusion_models/boogu를 models/unet로 덮던 소실 수리.)
+    const noteFolderBase = noteLink?.folder ? noteLink.folder.replace(/^models[\/\\]/i, "").replace(/\\/g, "/").replace(/\/+$/, "") : null; // 하위 경로 포함(예 diffusion_models/boogu)
+    const recFolderBase = recSlot ? recSlot.folder.replace(/^models\//, "").split("/")[0] : null;
+    const folderBase = db?.folder || noteFolderBase || recFolderBase;
+    const usesNoteFolder = !db?.folder && !!noteFolderBase; // 노트 폴더 사용 시 전체 경로 → 워크플로우 sub 중복 append 안 함
     const folder = folderBase ? `models/${folderBase}` + (!usesNoteFolder && sub ? `/${sub}` : "") : (m.folder || null);
     const fullPath = basePath && folderBase ? (usesNoteFolder ? joinPath(basePath, folderBase) : joinPath(basePath, folderBase, sub)) : null;
     let confidence, sourceRepo = null, sourcePath = null, size = null, downloadUrl = null, reason = "", renameHint = null;

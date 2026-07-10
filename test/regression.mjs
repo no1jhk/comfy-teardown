@@ -14,7 +14,7 @@ import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
 import { gpuProfile } from "../src/lib/modelRecommender.js";
 import { buildModelPlan, downloadTargetFolder } from "../src/lib/modelPlan.js";
 import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath } from "../src/lib/inventoryMatch.js";
-import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, matchLabelToNode } from "../src/lib/parseWorkflowNotes.js";
+import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, matchLabelToNode, parseNoteModelEntries } from "../src/lib/parseWorkflowNotes.js";
 import nodeRepoMap from "../src/data/node_repo_map.json" with { type: "json" };
 
 const DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -667,6 +667,28 @@ console.log("\n" + "=".repeat(70) + "\n수리 스프린트: r 노트 · s 조립
   // 동명이인 카피: 위치 불일치 발화의 basename 한계 고지(정적 문자열) 존재
   if (!fs.readFileSync(path.join(DIR, "..", "src", "Teardown.jsx"), "utf8").includes("이름이 같은 다른 모델일 수 있습니다")) { console.log("  ❌ 동명이인 고지 카피 누락"); fail++; ok = false; }
   if (ok) console.log("  ✅ r(3모델 workflow_author·폴더·용량·직링크 · unknowns 0) · s(조립·종류폴더) · 접기1(bypass 그룹) · 동명이인 카피");
+}
+
+// === 마감 3건: #1 install.bat 포맷 · #3 폴더 우선순위(노트 > 로더 폴백) · multi-line 노트 ===
+console.log("\n" + "=".repeat(70) + "\n마감: install.bat 포맷 · 폴더 우선순위 · multi-line 노트");
+{
+  let ok = true;
+  // #1 install.bat 폴더 포맷(info.folder=bare "vae" / m.folder "models/x" / "models") — downloadTargetFolder 동일 규칙(절대·상대·삽입0)
+  if (downloadTargetFolder("D:\\ComfyModels", "vae") !== "D:\\ComfyModels\\vae") { console.log("  ❌ #1 bare 폴더 절대 실패"); fail++; ok = false; }
+  if (downloadTargetFolder("", "vae") !== "models\\vae") { console.log("  ❌ #1 bare 폴더 상대 폴백 실패"); fail++; ok = false; }
+  if (downloadTargetFolder("D:\\ComfyModels", "models") !== "D:\\ComfyModels") { console.log("  ❌ #1 'models' 단독 처리 실패"); fail++; ok = false; }
+  if (/[\\/]models[\\/]/i.test(downloadTargetFolder("D:\\ComfyModels", "models/diffusion_models/boogu"))) { console.log("  ❌ #1 하위경로 models 삽입"); fail++; ok = false; }
+  // #3 폴더 우선순위: 노트 폴더가 로더 타입 폴백을 이김 (boogu UNETLoader guessFolder=models/unet → 노트 diffusion_models/boogu)
+  const boogu = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "boogu_synth.json"), "utf8"))));
+  const guess = boogu.models.find((m) => /boogu_image/.test(m.file))?.folder;
+  const bfolder = buildModelPlan(boogu, {}).items.find((i) => /boogu_image/.test(i.selectedFile))?.folder;
+  if (guess !== "models/unet") { console.log(`  ❌ #3 전제: UNETLoader guessFolder 기대 models/unet, 실제 ${guess}`); fail++; ok = false; }
+  if (bfolder !== "models/diffusion_models/boogu") { console.log(`  ❌ #3 노트 폴더가 로더 폴백에 덮임: ${bfolder}`); fail++; ok = false; }
+  // #3 multi-line 노트: 파일명 다음 줄에 링크·폴더·용량 → 파일별 귀속
+  const ml = "boogu_image_turbo_hotfix_int8_convrot.safetensors\nhttps://example.com/dl/boogu_image_turbo_hotfix_int8_convrot.safetensors\nPlace in: models/diffusion_models/boogu\n10.3GB";
+  const e = parseNoteModelEntries([ml]).get("boogu_image_turbo_hotfix_int8_convrot.safetensors");
+  if (!e || e.folder !== "models/diffusion_models/boogu" || !/^https?:/.test(e.url || "") || e.size !== "10.3GB") { console.log(`  ❌ #3 multi-line 파싱 실패: ${JSON.stringify(e)}`); fail++; ok = false; }
+  if (ok) console.log("  ✅ #1(install 포맷 절대·상대·models단독·삽입0) · #3(노트>로더 폴백 · multi-line 파일별 귀속)");
 }
 
 console.log("\n" + "=".repeat(70));

@@ -99,26 +99,24 @@ export function matchLabelToNode(label, nodeName) {
   return editDistance(a, b) <= 2;
 }
 
-// 파인딩 r: 노트 텍스트를 줄 단위로 파싱 → Map(파일명소문자 → {file, url, folder, size}).
-// 리치 노트(파일명 + 직링크 + "Place in: models/X" + 용량이 한 줄/근처)를 파일별로 구조화.
+// 파인딩 r/#3: 노트 텍스트 → Map(파일명소문자 → {file, url, folder, size}).
+// 한 줄형(파일명+직링크+"Place in: models/X"+용량)과 다중 줄형(파일명 다음 줄에 링크·폴더·용량) 모두 대응.
+// 파일명이 나오면 curBase 설정 → 이후 같은 블록 줄의 url·folder·size를 그 파일에 귀속. 빈 줄(문단 경계)에서 리셋(교차 오귀속 방지).
 export function parseNoteModelEntries(notes) {
-  const text = Array.isArray(notes) ? notes.join("\n") : String(notes || "");
+  const text = Array.isArray(notes) ? notes.join("\n\n") : String(notes || "");
   const entries = new Map();
   if (!text.trim()) return entries;
+  let curBase = null;
   for (const line of text.split(/\r?\n/)) {
-    if (!line.trim()) continue;
+    if (!line.trim()) { curBase = null; continue; }
     const fm = line.match(/([\w.\-]+\.(?:safetensors|gguf|ckpt|pt|pth|bin|sft))\b/i);
-    if (!fm) continue;
-    const file = fm[1]; const base = file.toLowerCase(); const stem = base.replace(/\.[^.]+$/, "");
-    const urls = [...line.matchAll(/\bhttps?:\/\/[^\s)\]"'`]+/gi)].map((m) => m[0].replace(/[.,)]+$/, ""));
-    const url = urls.find((u) => u.toLowerCase().includes(stem)) || urls[0] || null;
-    // 폴더: "models/X" 경로 우선(하위 경로 보존), 없으면 "goes in/put in/place in X".
-    const folM = line.match(/\b(models[\/\\][\w][\w\/\\.-]*)/i) || line.match(/(?:goes?\s+in(?:to)?|put\s+(?:it\s+)?in|place\s+(?:it\s+)?in)\s+(?:the\s+)?([\w][\w\/\\.-]*)/i);
-    const folder = folM ? folM[1].replace(/[.\s]+$/, "").replace(/\\/g, "/") : null;
-    const szM = line.match(/(\d+(?:\.\d+)?)\s*(GB|MB|TB)\b/i);
-    const size = szM ? `${szM[1]}${szM[2].toUpperCase()}` : null;
-    const prev = entries.get(base) || {};
-    entries.set(base, { file, url: url || prev.url, folder: folder || prev.folder, size: size || prev.size });
+    if (fm) { curBase = fm[1].toLowerCase(); if (!entries.has(curBase)) entries.set(curBase, { file: fm[1], url: null, folder: null, size: null }); }
+    if (!curBase) continue;
+    const e = entries.get(curBase);
+    const stem = curBase.replace(/\.[^.]+$/, "");
+    if (!e.url) { const urls = [...line.matchAll(/\bhttps?:\/\/[^\s)\]"'`]+/gi)].map((m) => m[0].replace(/[.,)]+$/, "")); if (urls.length) e.url = urls.find((u) => u.toLowerCase().includes(stem)) || urls[0]; }
+    if (!e.folder) { const folM = line.match(/\b(models[\/\\][\w][\w\/\\.-]*)/i) || line.match(/(?:goes?\s+in(?:to)?|put\s+(?:it\s+)?in|place\s+(?:it\s+)?in)\s+(?:the\s+)?([\w][\w\/\\.-]*)/i); if (folM) e.folder = folM[1].replace(/[.\s]+$/, "").replace(/\\/g, "/"); }
+    if (!e.size) { const szM = line.match(/(\d+(?:\.\d+)?)\s*(GB|MB|TB)\b/i); if (szM) e.size = `${szM[1]}${szM[2].toUpperCase()}`; }
   }
   return entries;
 }

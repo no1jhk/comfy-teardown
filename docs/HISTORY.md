@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-07-10 (push 전 마감 3건: install.bat 동일 규칙 · 라벨 정렬 · 폴더 우선순위)
+**한 일** — push 전 소형 3건.
+- **#1 install.bat 모델 섹션**: 받기.bat과 동일 규칙으로 결선 — downloadTargetFolder(base, 표시폴더)로 입력 시 절대 "{입력}\{종류}", 미입력 시 상대 "models\{종류}"(cd ..로 루트 기준). downloadTargetFolder를 "models" 단독·접두 변형에 견고화. 헤더도 절대/상대 조건 표기.
+- **#2 라벨 정렬**: 식별자 그룹에 라벨 열(받기·실행·확인·안내·참고) 포함. 라벨을 배지와 한 몸으로 — 배지 높이(30px) 밴드 lineHeight + 동일 mt(광학). 다행 top·단행 center에서 배지·라벨이 제목 첫 줄 동일 기준선.
+- **#3 r 잔여(UNET 폴더 소실)**: 폴더 우선순위 = 확정 카탈로그(db) > 노트(제작자) > 추론 슬롯(recSlot) > 로더 폴백(m.folder). 노트가 추론·로더 폴백을 이기게 → UNETLoader가 note diffusion_models/boogu를 models/unet로 덮던 소실 수리. parseNoteModelEntries를 multi-line(파일명 다음 줄에 링크·폴더·용량) 대응(빈 줄 경계 리셋). Boogu 2번 행 models/diffusion_models/boogu, ae·qwen 무회귀.
+- 회귀: 마감 블록(#1 install 포맷 절대·상대·삽입0 · #3 노트>로더 폴백·multi-line 파싱). build·regression·e2e 13/13.
+
+**판단 필요/주의**: #3 폴더 우선순위는 "확정 카탈로그 > 노트"로 유지(r 규칙 '카탈로그 우선' 존중). 지시서의 "노트 > 카탈로그"는 워크플로우_author(미등재) 대상에 적용되며, 확정 카탈로그 모델은 검증 폴더 우선. 확정 모델까지 노트 우선 원하면 별도 지시 요망.
+
+**다음 할 일**: 화면 검수 후 push.
+
 ## 2026-07-10 (파인딩 m 재수리: 받기 bat 절대 경로 결선)
 **한 일** — 받기.bat이 modelRoot 입력에도 실행 위치에 상대 models\ 생성하던 결함 재수리.
 - **원인**: buildDownloadScript가 plan.items[].fullPath에 의존 → UI 상태에서 누락 시 it.folder(상대 "models/vae")로 폴백.

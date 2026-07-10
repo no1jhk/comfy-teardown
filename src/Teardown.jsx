@@ -526,27 +526,28 @@ function buildInstallScript(report, os, env) {
 
   const dl = report.models.filter((m) => WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e)));
   if (dl.length) {
-    L.push(`${cmt} === 모델 ${dl.length}개 (ComfyUI 루트 기준 경로) ===`);
-    L.push(isWin ? "cd .." : "cd ..");
+    // #1: 받기.bat과 동일 규칙 — 모델 폴더 입력 시 절대 {입력}\{종류}(어디서 실행해도 고정), 미입력 시 상대 "models\{종류}"(custom_nodes에서 cd ..로 ComfyUI 루트 기준).
+    const hasRoot = !!(env?.modelRoot || env?.basePath);
+    L.push(`${cmt} === 모델 ${dl.length}개 (${hasRoot ? "입력한 모델 폴더 절대 경로" : "ComfyUI 루트 기준 상대 경로. custom_nodes에서 실행 시 자동으로 상위(루트)로 이동"}) ===`);
+    if (!hasRoot) L.push(isWin ? "cd .." : "cd ..");
     L.push(`${cmt} ⚠ 큰 모델 다운로드 중에는 ComfyUI/PC를 재부팅하지 마세요. 끊기면 빈 파일이 됩니다.`);
     L.push(`${cmt} ⚠ 받은 뒤 용량 확인. 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운로드.`);
     L.push(`${cmt}   (.safetensors가 비정상적으로 작으면 JSONDecodeError 발생)`);
     L.push("");
     for (const m of dl) {
       const info = m.compat;
-      const folder = (info && info.folder) || m.folder || "models";
-      const folderWin = folder.replace(/\//g, "\\");
+      const displayFolder = (info && info.folder) || m.folder || "models";
+      const targetWin = downloadTargetFolder(env?.modelRoot || env?.basePath, displayFolder); // 절대 or 상대(백슬래시)
+      const target = isWin ? targetWin : targetWin.replace(/\\/g, "/");
       const fname = m.file.replace(/\\/g, "/").split("/").pop();
       const ks = knownModelSize(m.file);
       const sizeNote = info?.size_gb ? `정상 약 ${fmtSize(info.size_gb)}` : info?.size_label ? `정상 약 ${info.size_label}` : ks ? `정상 약 ${fmtSize(ks)}` : "용량 확인 필요";
       if (info && info.exact && info.url) {
-        L.push(isWin ? `if not exist "${folderWin}" mkdir "${folderWin}"` : `mkdir -p "${folder}"`);
-        L.push(isWin
-          ? `curl -L -o "${folderWin}\\${fname}" "${info.url}"`
-          : `curl -L -o "${folder}/${fname}" "${info.url}"`);
+        L.push(isWin ? `if not exist "${target}" mkdir "${target}"` : `mkdir -p "${target}"`);
+        L.push(isWin ? `curl -L -o "${target}\\${fname}" "${info.url}"` : `curl -L -o "${target}/${fname}" "${info.url}"`);
         L.push(`${cmt}   → ${sizeNote}`);
       } else {
-        L.push(`${cmt} [수동] ${fname} → ${folder} (URL 미확인) · ${sizeNote}`);
+        L.push(`${cmt} [수동] ${fname} → ${target} (URL 미확인) · ${sizeNote}`);
       }
     }
     L.push("");
@@ -1443,7 +1444,7 @@ export default function Teardown() {
   }, [actionRows, reconcile, summary, report]);
 
   // 액션 행 1개 렌더. first=구분선 제외, dim=이미 있음(✓·딤). 넘버링: 원형 배지(판단근거 30px 노랑 원과 동일 체계).
-  // 배지 정렬(4-1): 다행 행(부속 줄 있음·받기류)=top(배지가 제목 첫 줄에 고정돼야 위→아래 스캔 가능). 단행 행(안내·확인·실행 1줄)=center. 행 줄 수 기준 자동 분기.
+  // 배지·라벨 정렬(4-1 + #2): 식별자 그룹(원형 배지 + 라벨 열)을 한 몸으로 — 다행 행(부속 줄 있음·받기류)=top(제목 첫 줄에 고정돼야 위→아래 스캔 가능), 단행 행(안내·확인·실행 1줄)=center. 행 줄 수 기준 자동 분기.
   // dev 비교 토글 유지(재비교용): ?align=center|top이면 전 행 강제. 없으면 auto(자동 분기). 프로덕션은 auto 고정(강제 경로 tree-shake).
   // 광학 보정(top, 제목 23px·lineHeight 1.3): x-height 중심 ≈ 15.6px, 배지 중심 = mt+15 → mt 0.6 → 정수 반올림 1(소수 금지). center는 그리드 중앙이라 mt 0.
   const alignMode = React.useMemo(() => {
@@ -1461,7 +1462,8 @@ export default function Teardown() {
       {!first && <div style={{ borderTop: `1px solid ${C.divider}`, marginLeft: 18, marginRight: 18 }} />}
       <div style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: align === "center" ? "center" : "start", padding: "14px 18px", opacity: dim ? 0.55 : 1 }}>
       <NumBadge n={r.n} variant={variant} mt={align === "center" ? 0 : 1} />
-      <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
+      {/* #2 라벨 정렬: 라벨(verb)을 배지와 한 몸으로 — 배지 높이(30px)와 같은 lineHeight 밴드 + 동일 mt(광학 보정). 다행 top·단행 center에서 배지·라벨이 제목 첫 줄과 동일 기준선. */}
+      <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text, lineHeight: "30px", marginTop: align === "center" ? 0 : 1 }}>{r.verb}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
         {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
