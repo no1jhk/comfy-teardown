@@ -910,12 +910,12 @@ function BlockHead({ num, label, count, role, open, onToggle }) {
 
 // 순번 원형 배지 — 단일 컴포넌트. variant로 fill(행동 구역=Solution)/line(근거·참고·접기 구역) 분기. 크기·타이포 동일(30px·15·800).
 // n==null → 완료(✓). muted=완료·충족(회색 토큰). onClick 있으면 완료 토글(클릭 가능). 상단 정렬(marginTop 1)로 제목 첫 줄 광학 정렬.
-function NumBadge({ n, variant = "fill", muted = false, onClick, title }) {
+function NumBadge({ n, variant = "fill", muted = false, onClick, title, mt = 1 }) {
   const line = variant === "line";
   const accent = muted ? C.line : C.point;
   return (
     <div onClick={onClick} title={title}
-      style={{ width: 30, height: 30, borderRadius: 15, boxSizing: "border-box", background: line ? "transparent" : accent, border: line ? `1px solid ${accent}` : "none", color: line ? accent : INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, marginTop: 1, cursor: onClick ? "pointer" : undefined }}>
+      style={{ width: 30, height: 30, borderRadius: 15, boxSizing: "border-box", background: line ? "transparent" : accent, border: line ? `1px solid ${accent}` : "none", color: line ? accent : INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, marginTop: mt, cursor: onClick ? "pointer" : undefined }}>
       {n == null ? <Check size={15} color={line ? accent : C.dim} /> : n}
     </div>
   );
@@ -1414,12 +1414,19 @@ export default function Teardown() {
   }, [actionRows, reconcile, summary]);
 
   // 액션 행 1개 렌더. first=구분선 제외, dim=이미 있음(✓·딤). 넘버링 시각: 원형 배지(판단근거 30px 노랑 원과 동일 체계).
+  // 배지 정렬: B(top) 확정. 왜 top인가 — 다행 행(받기류)에서 배지가 제목(첫 줄)에 고정돼야 위→아래 스캔이 됨(center는 배지가 행 중앙=2~3줄 옆으로 떠 제목과 분리).
+  // dev 비교 토글은 유지(추후 유사 정렬 재비교용): ?align=center|top. 프로덕션은 top 고정(import.meta.env.DEV=false → center 경로 tree-shake, dist 잔존 0 확인).
+  // 광학 보정 검산(제목 23px·lineHeight 1.3): x-height 중심 ≈ 15.6px, 배지(30px) 중심 = mt+15 → mt 0.6 → 정수 반올림 1(소수 금지). center는 그리드 중앙이라 mt 0.
+  const alignMode = React.useMemo(() => {
+    if (!import.meta.env.DEV) return "top";
+    try { return new URLSearchParams(window.location.search).get("align") === "center" ? "center" : "top"; } catch { return "top"; }
+  }, []);
   const renderActionRow = (r, first, dim, variant = "fill") => (
     <React.Fragment key={r.rid}>
       {/* 구분선: 판단근거 체계와 동일 — 라운드 박스 좌우 여백 인셋(100% 가로지르기 금지), 색·두께 동일 토큰 */}
       {!first && <div style={{ borderTop: `1px solid ${C.divider}`, marginLeft: 18, marginRight: 18 }} />}
-      <div style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: "start", padding: "14px 18px", opacity: dim ? 0.55 : 1 }}>
-      <NumBadge n={r.n} variant={variant} />
+      <div style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: alignMode === "center" ? "center" : "start", padding: "14px 18px", opacity: dim ? 0.55 : 1 }}>
+      <NumBadge n={r.n} variant={variant} mt={alignMode === "center" ? 0 : 1} />
       <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{r.verb}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
