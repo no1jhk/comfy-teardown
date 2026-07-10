@@ -40,6 +40,14 @@ function sizeToGB(s) {
   return /mb/i.test(m[2]) ? v / 1000 : v;
 }
 
+// 파인딩 m: 받기 bat의 폴더 대상 조립(Windows). base(모델 루트) 있으면 절대 "{base}\{종류폴더}", 없으면 상대 "models\{종류폴더}".
+// 규칙: 입력경로 자체가 models 루트 → "models" 세그먼트 삽입 금지(표시 폴더의 models/ 접두 제거). 백슬래시 정규화.
+export function downloadTargetFolder(base, displayFolder) {
+  const type = String(displayFolder || "models").replace(/^models[/\\]/i, "").replace(/\//g, "\\");
+  const b = String(base || "").replace(/[/\\]+$/, "").replace(/\//g, "\\").trim();
+  return b ? `${b}\\${type}` : `models\\${type}`;
+}
+
 export function buildModelPlan(report, env) {
   const rec = recommend(report, env); // 패밀리/슬롯/폴더 override/note/exclude 재사용
   const models = report?.models || [];

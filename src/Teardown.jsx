@@ -11,7 +11,7 @@ import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType
 import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkflow.js";
 import { recommend, gpuProfile } from "./lib/modelRecommender.js";
 import { matchLabelToNode } from "./lib/parseWorkflowNotes.js";
-import { buildModelPlan } from "./lib/modelPlan.js";
+import { buildModelPlan, downloadTargetFolder } from "./lib/modelPlan.js";
 import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath } from "./lib/inventoryMatch.js";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
@@ -578,7 +578,8 @@ function buildDownloadScript(plan, env) {
   for (const it of items) {
     const p = it.promoted; // 저VRAM 승격 시 대체 파일을 받는다(받기 행과 일치)
     const file = p?.filename || it.selectedFile;
-    const folder = p ? (p.fullPath || p.folder) : (it.fullPath || it.folder);
+    // 파인딩 m 재수리: 받기 절대 경로를 env.modelRoot에서 직접 조립(plan.fullPath 의존 제거 → UI 상태 누락 방지). {입력}\{종류}\{파일}, models 삽입 금지.
+    const folder = downloadTargetFolder(env?.modelRoot || env?.basePath, p ? p.folder : it.folder);
     const size = p?.size || it.size;
     const url = ((p?.downloadUrl || it.downloadUrl) || "").replace("/blob/", "/resolve/"); // HF 뷰어(blob) → 직다운(resolve)
     L.push(`REM ${file}${size ? ` (${size})` : ""} · ${it.confidence}${p ? " (이 PC VRAM 기준 대체 권장)" : ""}`);

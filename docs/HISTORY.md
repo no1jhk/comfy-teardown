@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-07-10 (파인딩 m 재수리: 받기 bat 절대 경로 결선)
+**한 일** — 받기.bat이 modelRoot 입력에도 실행 위치에 상대 models\ 생성하던 결함 재수리.
+- **원인**: buildDownloadScript가 plan.items[].fullPath에 의존 → UI 상태에서 누락 시 it.folder(상대 "models/vae")로 폴백.
+- **수리**: 순수 함수 downloadTargetFolder(base, 표시폴더) 신설 — env.modelRoot에서 직접 조립. {입력}\{종류}\{파일}, "models" 세그먼트 삽입 금지(입력 자체가 models 루트), 미입력 시 상대 "models\" 폴백. buildDownloadScript가 이걸로 mkdir·curl 대상 생성(plan.fullPath 비의존).
+- 회귀 교정: 입력=D:\ComfyModels(models 루트) → bat 대상 절대·"\models\" 삽입 0, 미입력 → 상대 폴백. (기존 D:\ComfyUI\models 케이스는 입력에 models가 포함돼 오해 소지 → 교정)
+- build·regression·e2e 13/13.
+
+**판단 필요**: install.bat 모델 다운로드 섹션(cd .. + 상대 "models\")은 modelRoot 미반영(별개 레거시). 동일 규칙 적용 원하면 별도 지시 요망.
+
+**다음 할 일**: 화면 검수 후 push.
+
 ## 2026-07-10 (수리 스프린트 1차: r·s·소형4)
 **한 일** — Boogu·실측 파인딩 r·s + 다듬기 4건.
 - **r 리치 노트 파싱**: PixaromaNote 등 HTML/JSON 래핑({version,content}) 노트를 노드 type 하드코딩 대신 내용(링크+파일명)으로 수집. HTML→텍스트(<a href> 보존·태그 제거·엔티티 해제). per-line 파싱(parseNoteModelEntries)으로 파일별 직링크·폴더(models/X·Place in)·용량 추출 → workflow_author 승격. 카탈로그 충돌 시 카탈로그 우선 + 노트 병기. Boogu 3모델 전부 직링크·폴더(diffusion_models/boogu)·용량, [확인 필요] 0. content 없는 config JSON(DenoLTX 등)은 노트 제외(오인식 방지).
