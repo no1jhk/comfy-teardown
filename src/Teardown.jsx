@@ -1207,8 +1207,8 @@ export default function Teardown() {
     const joined = texts.join("\n");
     const hasImport = /Import times for custom nodes/i.test(joined);
     const hasPrestartup = /Prestartup times for custom nodes/i.test(joined);
-    return { truncated: hasPrestartup && !hasImport, packN: logEnv.installedPacks.length, failN: logEnv.importFailed.length, gpu: env.gpu, basePath: env.basePath };
-  }, [envLog, errlog, logEnv.installedPacks, logEnv.importFailed, env.gpu, env.basePath]);
+    return { truncated: hasPrestartup && !hasImport, packN: logEnv.installedPacks.length, failN: logEnv.importFailed.length, gpu: env.gpu, basePath: env.basePath, modelRoot: env.modelRoot };
+  }, [envLog, errlog, logEnv.installedPacks, logEnv.importFailed, env.gpu, env.basePath, env.modelRoot]);
 
   // 코어 버전 요구 판정(작업 A). 워크플로우가 쓰는 코어 기능이 로그 ComfyUI 버전보다 신버전을 요구하면 최상단 확인 행.
   const coreCheck = React.useMemo(() => {
@@ -1588,7 +1588,7 @@ export default function Teardown() {
                 style={{ width: "100%", minHeight: 110, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", color: C.text, fontFamily: MONO, fontSize: 13, lineHeight: 1.6, resize: "vertical", boxSizing: "border-box" }} />
               {logInfo && (
                 <div style={{ marginTop: 8, fontSize: 13, color: "#8BC34A", lineHeight: 1.5 }}>
-                  로그에서 확인됨: GPU {logInfo.gpu || "확인 안 됨"} · 경로 {logInfo.basePath || "확인 안 됨"} · 설치 팩 {logInfo.packN}개{logInfo.failN > 0 ? ` · 로드 실패 ${logInfo.failN}개` : ""}
+                  로그에서 확인됨: GPU {logInfo.gpu || "확인 안 됨"} · 경로 {logInfo.modelRoot ? `${logInfo.modelRoot} (직접 입력)` : (logInfo.basePath || "확인 안 됨")} · 설치 팩 {logInfo.packN}개{logInfo.failN > 0 ? ` · 로드 실패 ${logInfo.failN}개` : ""}
                 </div>
               )}
               {logInfo?.truncated && (
@@ -1672,7 +1672,8 @@ export default function Teardown() {
                   ))}
                 </div>
                 {(() => {
-                  const s = buildScanSnippet(env.modelRoot, scanOs);
+                  // 파인딩 q: 경로 채택 우선순위 = 수동 입력(modelRoot) > 로그 추출(basePath). bat·스니펫 공통.
+                  const s = buildScanSnippet(env.modelRoot || env.basePath, scanOs);
                   // 파인딩 n-1: 폴더명만 입력(비절대) → 스니펫 대신 발화. 드라이브 추정 금지.
                   if (s.needsAbsolute) return <div style={{ fontSize: 13, color: C.point, marginBottom: 8, lineHeight: 1.5 }}>전체 경로(예: D:\ComfyModels)를 입력해 주세요. 폴더 이름만으로는 명령을 만들 수 없습니다.</div>;
                   return (<>

@@ -16,6 +16,7 @@
 - **6-2 상태별 카피**: 전량/부분/0건 3분기 + 완비 배너와 중복 발화 금지 + 대조 성공(보유 1+) 시 첫 이미 있음(✓) 행 스크롤 1회.
 - **6-3 위치 불일치**: basename 일치 + 폴더 불일치 → 이동 안내(요구 폴더 모르면 ✓ 유지, 오판보다 관대·날조 금지).
 - **배지(4)**: 정렬 자동 분기(다행 top·단행 center, dev ?align 강제 유지). line 배지 스트록 1→2px.
+- **파인딩 q (수동 입력 경로 미결선)**: 경로 채택 우선순위 = 수동 입력(env.modelRoot) > 로그 추출(env.basePath). 로그 판정 줄이 수동 입력 무시하고 "경로 확인 안 됨" 표기하던 것 수정 → "경로: {입력값} (직접 입력)". 스니펫도 modelRoot||basePath 폴백(bat은 modelPlan에서 이미 우선순위).
 - 회귀: Boogu 합성 fixture 등록 + p(1/3·₩)·n-1·n-2·6-2·6-3. build·regression·e2e 13/13.
 
 **막힌 점**: Boogu 실 JSON 미첨부 → 참조 3 모델(VAELoader ae · UNETLoader boogu · CLIPLoader qwen3vl) 구조로 합성 fixture(모델명은 실측 파일명).
