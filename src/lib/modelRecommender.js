@@ -5,7 +5,7 @@
 //       카탈로그 밖 패밀리 날조 금지 → 미감지 시 family null(호출부는 기존 폴백 유지).
 import catalog from "../data/model_catalog.json" with { type: "json" };
 import gpuRules from "../data/gpu_rules.json" with { type: "json" };
-import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, parseNoteSections } from "./parseWorkflowNotes.js";
+import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, parseNoteSections, parseNoteModelEntries } from "./parseWorkflowNotes.js";
 
 const baseName = (v) => (v || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
 function fileSim(a, b) {
@@ -45,6 +45,19 @@ export function promoteNoteLinks(report) {
       sections[si].links.forEach((l, li) => { const s = l.file ? fileSim(l.file, mb) : (st === "lora" ? 0 : 0.4); if (s > bestScore) { bestScore = s; bestLi = li; } });
       if (bestLi < 0 || bestScore < 0.3) continue; // 최소 유사도 미달 → 오매칭 방지(컨트롤 lora↔turbo/anti-censorship 등)
       linkByBase.set(mb, mkLink(sections[si].links[bestLi], sections[si])); usedLink.add(`${si}:${bestLi}`); break;
+    }
+  });
+  // 2.5 파인딩 r: 리치 노트 per-line 항목(파일별 url·folder·size)로 보강. 미매칭 파일은 추가(직링크 있으면).
+  const entries = parseNoteModelEntries(report?.authorNotes || []);
+  models.forEach((m) => {
+    const mb = baseName(m.file);
+    const e = entries.get(mb);
+    if (!e) return;
+    if (linkByBase.has(mb)) {
+      const cur = linkByBase.get(mb);
+      linkByBase.set(mb, { ...cur, url: cur.url || e.url, folder: cur.folder || e.folder, size: cur.size || e.size });
+    } else if (e.url) {
+      linkByBase.set(mb, { url: e.url, label: e.file, file: e.file, folder: e.folder, size: e.size, strength: null, sectionHeader: null });
     }
   });
   // 3. 미매칭 섹션 링크 → 제작자 안내 링크(모델 다운로드성: 파일 직링크 or huggingface/civitai/github)

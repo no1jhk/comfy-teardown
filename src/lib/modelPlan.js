@@ -58,9 +58,13 @@ export function buildModelPlan(report, env) {
     const role = db?.role || recSlot?.slotType || null;
     const norm = m.file.replace(/\\/g, "/");
     const sub = norm.includes("/") ? norm.slice(0, norm.lastIndexOf("/")) : ""; // 워크플로우 값의 서브폴더(케이스 보존)
-    const folderBase = db?.folder || (recSlot ? recSlot.folder.replace(/^models\//, "").split("/")[0] : null); // 카탈로그 폴더(diffusion_models 등)
-    const folder = folderBase ? `models/${folderBase}` + (sub ? `/${sub}` : "") : (m.folder || null);
-    const fullPath = basePath && folderBase ? joinPath(basePath, folderBase, sub) : null;
+    // 파인딩 r: 폴더 = 카탈로그 우선, 없으면 노트 지정 폴더(하위 경로 포함, 예 diffusion_models/boogu). 노트 폴더는 전체 경로라 워크플로우 sub 중복 append 안 함.
+    const catFolderBase = db?.folder || (recSlot ? recSlot.folder.replace(/^models\//, "").split("/")[0] : null); // 카탈로그 폴더(diffusion_models 등)
+    const noteFolderBase = noteLink?.folder ? noteLink.folder.replace(/^models[\/\\]/i, "").replace(/\\/g, "/").replace(/\/+$/, "") : null;
+    const folderBase = catFolderBase || noteFolderBase;
+    const usesNoteFolder = !catFolderBase && !!noteFolderBase;
+    const folder = folderBase ? `models/${folderBase}` + (!usesNoteFolder && sub ? `/${sub}` : "") : (m.folder || null);
+    const fullPath = basePath && folderBase ? (usesNoteFolder ? joinPath(basePath, folderBase) : joinPath(basePath, folderBase, sub)) : null;
     let confidence, sourceRepo = null, sourcePath = null, size = null, downloadUrl = null, reason = "", renameHint = null;
     if (db) {
       confidence = "confirmed"; sourceRepo = db.repo; sourcePath = db.repo_path; size = db.size;
@@ -73,7 +77,8 @@ export function buildModelPlan(report, env) {
       reason = `검증된 카탈로그(${db.repo})에 이 파일이 실존${size ? ` (${size})` : ""}${repoFn && repoFn.toLowerCase() !== b ? ` · repo 실파일명 ${repoFn}` : ""}.`;
     } else if (noteLink) {
       confidence = "workflow_author"; downloadUrl = noteLink.url;
-      reason = `워크플로우 제작자가 이 파일의 출처를 안내했습니다${noteLink.sectionHeader ? ` (${noteLink.sectionHeader})` : ""}. 공식 카탈로그 확인은 아닙니다.`;
+      if (noteLink.size) size = noteLink.size; // 파인딩 r: 노트 명시 용량
+      reason = `워크플로우 제작자가 이 파일의 출처를 안내했습니다${noteLink.sectionHeader ? ` (${noteLink.sectionHeader})` : ""}${size ? ` · 안내 용량 ${size}` : ""}. 공식 카탈로그 확인은 아닙니다.`;
     } else if (recSlot) {
       confidence = "inferred";
       reason = `파일명·노드 패턴으로 ${rec.label} 구성요소로 보이는 추정 후보입니다. 공식 카탈로그 확인이 필요합니다.`;

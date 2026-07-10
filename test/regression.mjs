@@ -13,7 +13,7 @@ import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType
 import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
 import { gpuProfile } from "../src/lib/modelRecommender.js";
 import { buildModelPlan } from "../src/lib/modelPlan.js";
-import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis } from "../src/lib/inventoryMatch.js";
+import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath } from "../src/lib/inventoryMatch.js";
 import { parseWorkflowNotes, isVariantExcluded, preferredVariant, notedFolder, matchLabelToNode } from "../src/lib/parseWorkflowNotes.js";
 import nodeRepoMap from "../src/data/node_repo_map.json" with { type: "json" };
 
@@ -631,6 +631,35 @@ console.log("\n" + "=".repeat(70) + "\nACE-Step 오디오 fixture(합성) 무크
   const a2a = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "acestep_synth_a2a.json"), "utf8"))), mgr);
   if (!(a2a.portability || []).some((h) => h.value === "reference_track.mp3")) { console.log("  ❌ a2a 오디오 입력 파일(reference_track.mp3) 미감지"); fail++; ok = false; }
   if (ok) console.log("  ✅ 오디오 fixture 2종 무크래시(broken·anomalous 0) · a2a 오디오 입력(reference_track.mp3) 감지");
+}
+
+// === 수리 스프린트: r(리치 노트) · s(경로 조립) · 접기1(bypass 그룹) · 동명이인 카피 ===
+console.log("\n" + "=".repeat(70) + "\n수리 스프린트: r 노트 · s 조립 · 접기1 · 동명이인");
+{
+  let ok = true;
+  // r: Boogu Pixaroma 리치 노트(JSON 래핑 HTML) → 3모델 workflow_author + 정확 폴더 + 용량 + 직링크, unknowns 0
+  const boogu = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "boogu_synth.json"), "utf8"))));
+  const plan = buildModelPlan(boogu, {});
+  const byF = Object.fromEntries(plan.items.map((i) => [i.selectedFile, i]));
+  const need = { "boogu_image_turbo_hotfix_int8_convrot.safetensors": ["models/diffusion_models/boogu", "10.3GB"], "qwen3vl_8b_fp8_scaled.safetensors": ["models/text_encoders", "9.9GB"], "ae.safetensors": ["models/vae", "320MB"] };
+  for (const [f, [fol, sz]] of Object.entries(need)) {
+    const it = byF[f];
+    if (!it || it.confidence !== "workflow_author") { console.log(`  ❌ r ${f} workflow_author 아님(${it?.confidence})`); fail++; ok = false; continue; }
+    if (it.folder !== fol) { console.log(`  ❌ r ${f} 폴더 기대 ${fol}, 실제 ${it.folder}`); fail++; ok = false; }
+    if (it.size !== sz) { console.log(`  ❌ r ${f} 용량 기대 ${sz}, 실제 ${it.size}`); fail++; ok = false; }
+    if (!/^https?:\/\//.test(it.downloadUrl || "")) { console.log(`  ❌ r ${f} 직링크 없음`); fail++; ok = false; }
+  }
+  if (plan.unknowns.length) { console.log(`  ❌ r unknowns 0 기대, 실제 ${plan.unknowns.length}(${plan.unknowns.map((u) => u.selectedFile)})`); fail++; ok = false; }
+  // s: 경로 조립(win 절대/unix 폴더명) + 종류 폴더 오선택 판정
+  if (assembleModelPath("D", "ComfyModels", "win") !== "D:\\ComfyModels") { console.log("  ❌ s win 조립 실패"); fail++; ok = false; }
+  if (assembleModelPath("D", "ComfyModels", "unix") !== "ComfyModels") { console.log("  ❌ s unix 폴더명 유지 실패"); fail++; ok = false; }
+  if (!isTypeFolder("vae") || !isTypeFolder("checkpoints") || isTypeFolder("ComfyModels")) { console.log("  ❌ s 종류 폴더 판정 오류"); fail++; ok = false; }
+  // 접기1: bypass 그룹 전용 모델 감지(active 제외, 그룹 제목 라벨)
+  const bg = analyze(normalize(JSON.parse(fs.readFileSync(path.join(FIX, "bypass_group_synth.json"), "utf8")))).bypassGroupModels;
+  if (bg["alt_only_model.safetensors"] !== "Alt path (off)" || bg["active_model.safetensors"]) { console.log(`  ❌ 접기1 bypass 그룹 매핑 오류: ${JSON.stringify(bg)}`); fail++; ok = false; }
+  // 동명이인 카피: 위치 불일치 발화의 basename 한계 고지(정적 문자열) 존재
+  if (!fs.readFileSync(path.join(DIR, "..", "src", "Teardown.jsx"), "utf8").includes("이름이 같은 다른 모델일 수 있습니다")) { console.log("  ❌ 동명이인 고지 카피 누락"); fail++; ok = false; }
+  if (ok) console.log("  ✅ r(3모델 workflow_author·폴더·용량·직링크 · unknowns 0) · s(조립·종류폴더) · 접기1(bypass 그룹) · 동명이인 카피");
 }
 
 console.log("\n" + "=".repeat(70));

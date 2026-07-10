@@ -12,7 +12,7 @@ import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkfl
 import { recommend, gpuProfile } from "./lib/modelRecommender.js";
 import { matchLabelToNode } from "./lib/parseWorkflowNotes.js";
 import { buildModelPlan } from "./lib/modelPlan.js";
-import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis } from "./lib/inventoryMatch.js";
+import { parseFolderScan, reconcileInventory, buildScanSnippet, scanInputDiagnosis, isTypeFolder, assembleModelPath } from "./lib/inventoryMatch.js";
 import nodeRepoMap from "./data/node_repo_map.json";
 import tsPatterns from "./data/troubleshooting_patterns.json";
 import modelAliases from "./data/model_aliases.json";
@@ -910,6 +910,7 @@ function BlockHead({ num, label, count, role, open, onToggle }) {
 
 // 순번 원형 배지 — 단일 컴포넌트. variant로 fill(행동 구역=Solution)/line(근거·참고·접기 구역) 분기. 크기·타이포 동일(30px·15·800).
 // n==null → 완료(✓). muted=완료·충족(회색 토큰). onClick 있으면 완료 토글(클릭 가능). 상단 정렬(marginTop 1)로 제목 첫 줄 광학 정렬.
+// line 스트록 확정값 = 2px: fill(솔리드)과 병렬 렌더 시 30px 원에서 2px가 fill 대비 가독 유지하며 3px는 과중(테두리가 숫자를 압박). 화면 검수에서 여전히 얇으면 3px로 상향.
 function NumBadge({ n, variant = "fill", muted = false, onClick, title, mt = 1 }) {
   const line = variant === "line";
   const accent = muted ? C.line : C.point;
@@ -978,6 +979,8 @@ export default function Teardown() {
   const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [] });
   const [folderScan, setFolderScan] = useState(""); // P2.7: 붙여넣은 폴더 스캔 출력(내 모델 폴더 대조)
   const [scanOs, setScanOs] = useState("win");      // P2.7: 스니펫 OS 토글(win|unix)
+  const [scanDrive, setScanDrive] = useState("C");  // 파인딩 s: Windows 드라이브 셀렉트(폴더 버튼 경로 조립용)
+  const [folderPickWarn, setFolderPickWarn] = useState(false); // 파인딩 s: 종류 폴더 오선택 경고
   const [cmdOpen, setCmdOpen] = useState(false);
   const [mgrMap, setMgrMap] = useState(null); // manager_node_map.json (비동기 로드)
   useEffect(() => { fetch("/manager_node_map.json").then((r) => r.ok ? r.json() : null).then(setMgrMap).catch(() => {}); }, []);
@@ -1003,6 +1006,15 @@ export default function Teardown() {
     if (imgs.length) onShots(imgs);
   };
   const copy = (text, key) => { navigator.clipboard?.writeText(text); setCopiedKey(key); setTimeout(() => setCopiedKey(null), 1500); };
+  // 파인딩 s: 폴더 버튼 선택값 → 드라이브 조립 후 입력란 채움. 종류 폴더 오선택 시 발화. 직접 타이핑한 절대 경로가 있으면 우선(유지).
+  const applyPickedFolder = (name) => {
+    const clean = String(name || "").trim();
+    if (!clean) return;
+    if (isTypeFolder(clean)) { setFolderPickWarn(true); return; }
+    setFolderPickWarn(false);
+    const isAbs = (p) => /^[A-Za-z]:[\\/]/.test(p) || /^\//.test(p);
+    setEnv((p) => isAbs(p.modelRoot || "") ? { ...p, modelRootPartial: false } : { ...p, modelRoot: assembleModelPath(scanDrive, clean, scanOs), modelRootPartial: scanOs !== "win" });
+  };
   const toggleRx = (k) => setRxChecked((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const saveReport = () => {
     if (!report) return;
@@ -1408,22 +1420,26 @@ export default function Teardown() {
     // 파인딩 p: 보유+제자리(misplaced 제외 = heldSet)면 이미 있음 dim. 받기·확인(미등재) 모델 공통. 위치 다름은 heldSet에서 빠져 주노출에 남음(이동 안내).
     const isHeld = (r) => r.kind === "model" && !!heldSet?.has(r.planItem?.selectedFile);
     const isRefInfo = (r) => r.verb === "참고" || r.verb === "안내" || (r.kind === "model" && r.badge === "확인 필요");
+    // 소형1: bypass 그룹 전용 모델 → 접기1("다른 그룹용"). 그룹 매핑 없으면 빈 객체라 미분류(현행). basis 무관(구조 신호).
+    const bypassOf = (r) => (r.kind === "model" ? report?.bypassGroupModels?.[r.planItem?.selectedFile] : null);
     const hasBasis = !!summary?.hasLogError || !!reconcile?.scanned; // 로그 실행오류 or 대조 수행
-    let primary, heldDim, refInfo;
-    if (!hasBasis) { primary = rows; heldDim = []; refInfo = []; }
-    else {
-      primary = []; heldDim = []; refInfo = [];
-      for (const r of rows) { if (isHeld(r)) heldDim.push(r); else if (isRefInfo(r)) refInfo.push(r); else primary.push(r); }
+    const primary = [], heldDim = [], refInfo = [], otherGroup = [];
+    for (const r of rows) {
+      const bg = bypassOf(r);
+      if (bg) { otherGroup.push({ ...r, groupTitle: bg }); continue; }
+      if (!hasBasis) { primary.push(r); continue; }
+      if (isHeld(r)) heldDim.push(r); else if (isRefInfo(r)) refInfo.push(r); else primary.push(r);
     }
-    // 표시 순서(주노출 → 참고·미확정)로 실행 연번. 이미 있음(dim)은 ✓라 번호 미부여 → 가시 번호 끊김·역행 없음.
+    // 표시 순서(주노출 → 다른 그룹용 → 참고·미확정)로 실행 연번. 이미 있음(dim)은 ✓라 번호 미부여 → 가시 번호 끊김·역행 없음.
     let n = 0; const num = (arr) => arr.map((r) => ({ ...r, n: ++n }));
     const P = num(primary);
     const H = heldDim.map((r) => ({ ...r, n: null }));
+    const O = num(otherGroup);
     const R = num(refInfo);
     const installN = P.find((r) => r.kind === "install")?.n;
     const fill = (r) => (r.crosslinkInstall ? { ...r, sub: `${installN ? installN + "번 행" : "설치 행"}의 clone을 실행하면 해결됩니다.` } : r);
-    return { primary: P.map(fill), heldDim: H, refInfo: R.map(fill), hasBasis };
-  }, [actionRows, reconcile, summary]);
+    return { primary: P.map(fill), heldDim: H, otherGroup: O.map(fill), refInfo: R.map(fill), hasBasis };
+  }, [actionRows, reconcile, summary, report]);
 
   // 액션 행 1개 렌더. first=구분선 제외, dim=이미 있음(✓·딤). 넘버링: 원형 배지(판단근거 30px 노랑 원과 동일 체계).
   // 배지 정렬(4-1): 다행 행(부속 줄 있음·받기류)=top(배지가 제목 첫 줄에 고정돼야 위→아래 스캔 가능). 단행 행(안내·확인·실행 1줄)=center. 행 줄 수 기준 자동 분기.
@@ -1449,6 +1465,7 @@ export default function Teardown() {
         <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
         {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.5 }}>파일은 있으나 위치가 다릅니다. 현재 <span style={{ fontFamily: MONO }}>{mis.current}</span>에 있습니다. <span style={{ fontFamily: MONO }}>{mis.required}</span> 폴더로 이동해 주세요.</div>}
+        {mis && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 3, lineHeight: 1.5 }}>이름이 같은 다른 모델일 수 있습니다. 이동 전 용량·출처를 확인해 주세요.</div>}
         {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
         {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
         {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
@@ -1634,24 +1651,25 @@ export default function Teardown() {
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>내 모델 폴더 경로 (선택)</div>
                 <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>폴더 안을 확인하지는 않습니다. 넣기 경로와 받기 스크립트를 내 PC 실제 경로로 완성해 줍니다. checkpoints·vae 폴더가 바로 들어 있는 상위 폴더를 입력해 주세요.</div>
                 <div style={{ display: "flex", gap: 6, alignItems: "center" }}>
-                  <input type="text" value={env.modelRoot} onChange={(e) => setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false }))}
+                  {/* 파인딩 s: Windows 토글에서만 드라이브 셀렉트(폴더 버튼이 폴더명만 주므로 조립용). 기본 C. */}
+                  {scanOs === "win" && (
+                    <select value={scanDrive} onChange={(e) => setScanDrive(e.target.value)} title="드라이브"
+                      style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 6px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box", flexShrink: 0, cursor: "pointer" }}>
+                      {["C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"].map((d) => <option key={d} value={d}>{d}:</option>)}
+                    </select>
+                  )}
+                  <input type="text" value={env.modelRoot} onChange={(e) => { setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false })); setFolderPickWarn(false); }}
                     placeholder="예: D:\ComfyUI\models"
                     style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
                   <button onClick={async () => {
                     try {
                       if (window.showDirectoryPicker) {
                         const handle = await window.showDirectoryPicker();
-                        setEnv((p) => ({ ...p, modelRoot: handle.name, modelRootPartial: true }));
+                        applyPickedFolder(handle.name);
                       } else {
                         const input = document.createElement("input");
                         input.type = "file"; input.webkitdirectory = true;
-                        input.onchange = () => {
-                          const f = input.files?.[0];
-                          if (f?.webkitRelativePath) {
-                            const root = f.webkitRelativePath.split("/")[0];
-                            if (root) setEnv((p) => ({ ...p, modelRoot: root, modelRootPartial: true }));
-                          }
-                        };
+                        input.onchange = () => { const f = input.files?.[0]; if (f?.webkitRelativePath) applyPickedFolder(f.webkitRelativePath.split("/")[0]); };
                         input.click();
                       }
                     } catch { /* user cancelled */ }
@@ -1659,7 +1677,8 @@ export default function Teardown() {
                     <FolderOpen size={16} color={C.point} />
                   </button>
                 </div>
-                {env.modelRootPartial && <div style={{ fontSize: 13, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>브라우저 보안상 전체 경로는 직접 입력해 주세요.</div>}
+                {folderPickWarn && <div style={{ fontSize: 13, color: C.point, marginTop: 5, lineHeight: 1.4 }}>모델 종류 폴더가 아니라 그 상위 폴더를 선택해 주세요. checkpoints·vae·loras가 바로 들어 있는 폴더가 필요합니다.</div>}
+                {env.modelRootPartial && !folderPickWarn && <div style={{ fontSize: 13, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>브라우저 보안상 전체 경로는 직접 입력해 주세요.</div>}
               </div>
 
               {/* ②-c 내 모델 폴더 대조 (P2.7) — 읽기전용 나열 명령 복사 → 붙여넣기 → 요구 모델과 대조 → 완비 판정 */}
@@ -1794,6 +1813,11 @@ export default function Teardown() {
                 {rxGroups.primary.map((r, ri) => renderActionRow(r, ri === 0, false, "fill"))}
                 {rxGroups.heldDim.length > 0 && <div id="rx-held-anchor" style={{ scrollMarginTop: 90 }} />}
                 {rxGroups.heldDim.map((r) => renderActionRow(r, false, true, "line"))}
+                {rxGroups.otherGroup.length > 0 && (() => { const gts = [...new Set(rxGroups.otherGroup.map((r) => r.groupTitle).filter(Boolean))]; return (
+                  <details style={{ borderTop: `1px solid ${C.divider}` }}>
+                    <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none" }}>▸ 다른 그룹용 {rxGroups.otherGroup.length}개{gts.length ? ` · ${gts.join(", ")}` : ""} (현재 bypass된 그룹의 모델)</summary>
+                    {rxGroups.otherGroup.map((r) => renderActionRow(r, false, false, "line"))}
+                  </details>); })()}
                 {rxGroups.refInfo.length > 0 && (
                   <details style={{ borderTop: `1px solid ${C.divider}` }}>
                     <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none" }}>▸ 참고 · 미확정 {rxGroups.refInfo.length}개 (대체 후보 · 제작자 안내 · 확인 필요)</summary>
@@ -1926,7 +1950,7 @@ export default function Teardown() {
       </div>
 
       {report && (
-        <div style={{ flex: 1, position: "relative", width: "100%", background: C.bgDeep }}>
+        <div style={{ flex: 1, position: "relative", width: "100%", background: C.bgDeep, display: "flex", flexDirection: "column" }}>
           {/* ── 경계 divider: 존 컨테이너의 top edge에 absolute 걸침(translateY -50%). 텍스트가 라인에 수직 중앙, 배경 투명(상반부 밝은/하반부 어두운). 부모(존) 폭 기준 full-bleed(100vw 아님 → 가로 스크롤 없음). ── */}
           <div onClick={() => setDetailOpen((v) => !v)} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
@@ -1936,7 +1960,7 @@ export default function Teardown() {
             </div>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
           </div>
-          <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "36px 20px 0", boxSizing: "border-box" }}>
+          <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "36px 20px 0", boxSizing: "border-box", flex: 1, display: "flex", flexDirection: "column" }}>
 
           {detailOpen && (<div className="td-fade">
           {/* Summary. 아래 Solution과의 구분선 제거(borderBottom 없음) */}
@@ -2920,7 +2944,8 @@ export default function Teardown() {
           )}
 
           </div>)}
-          <div style={{ marginTop: 64, paddingBottom: 32, textAlign: "center" }}>
+          {/* 소형2: 푸터를 어두운 존 최하단 고정 흐름으로(marginTop auto, 빈 공간 부유 제거). 상단 여백 64→40 축소. */}
+          <div style={{ marginTop: "auto", paddingTop: 40, paddingBottom: 32, textAlign: "center" }}>
             <span style={{ fontFamily: MONO, fontSize: 13, color: C.faintDim, letterSpacing: "0.02em" }}>
               <span style={{ fontSize: "1.2em" }}>©</span> 2026 Comfy-Teardown · Built by Joon Hyung Kim
             </span>

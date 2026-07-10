@@ -126,15 +126,49 @@ export function nodeRepoDetail(type) {
   return NODE_REPO_INDEX[type] || null;
 }
 
+// 파인딩 r: 리치 노트 지원. HTML→텍스트(태그 제거·엔티티 해제·<a href> 링크 보존).
+export function htmlToText(s) {
+  return String(s || "")
+    .replace(/<a\b[^>]*?href\s*=\s*["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, "$2 ($1)") // 링크는 "텍스트 (URL)"로 보존
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|h[1-6]|li|tr|ul|ol)>/gi, "\n")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ").replace(/&amp;/gi, "&").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&quot;/gi, '"').replace(/&#0?39;|&#x27;/gi, "'").replace(/&#0?47;|&#x2f;/gi, "/")
+    .replace(/[ \t]+/g, " ").replace(/\n[ \t]+/g, "\n").replace(/\n{2,}/g, "\n").trim();
+}
+// 노트 텍스트 추출: Note/MarkdownNote + 범용 리치 노트(내용으로 판정, 노드 type 하드코딩 아님).
+// JSON은 {content:"<html>"}(리치 노트)만 채택 — presets·config 등 content 없는 JSON은 노트 아님(오인식 방지: 예 DenoLTXModelDownloader).
+function extractNoteText(n, wv) {
+  if (n.type === "Note" || n.type === "MarkdownNote") {
+    const t = typeof n.properties?.text === "string" && n.properties.text.trim() ? n.properties.text : wv.filter((w) => typeof w === "string").join("\n");
+    return /<[a-z][^>]*>/i.test(t) ? htmlToText(t) : t;
+  }
+  const parts = [];
+  const scan = (raw) => {
+    if (typeof raw !== "string" || !raw.trim()) return;
+    const s = raw.trim();
+    if (s.startsWith("{") || s.startsWith("[")) { // JSON: content(리치 노트)만
+      if (/"content"\s*:/.test(s)) { try { const o = JSON.parse(s); if (typeof o?.content === "string") parts.push(htmlToText(o.content)); } catch { /* not json */ } }
+      return;
+    }
+    const hasLink = /href\s*=|https?:\/\//i.test(s);
+    const hasFile = /\.(safetensors|gguf|ckpt|pt|pth|bin|sft)\b/i.test(s);
+    if (hasLink && hasFile) parts.push(/<[a-z][^>]*>/i.test(s) ? htmlToText(s) : s);
+  };
+  for (const w of wv) scan(w);
+  if (typeof n.properties?.text === "string") scan(n.properties.text);
+  return parts.length ? parts.join("\n") : null;
+}
+
 export function normalizeNode(n, subgraph) {
   const wv = Array.isArray(n.widgets_values) ? n.widgets_values : [];
-  const isNote = n.type === "Note" || n.type === "MarkdownNote";
   return { id: n.id, type: n.type, cnr_id: n.properties?.cnr_id ?? null,
     ver: n.properties?.ver ?? null, mode: n.mode ?? 0,
     widgets: wv,
     autoDownload: n.properties?.auto_download === true, // 결함h: 실행 시 모델 자동 다운로드 위젯(BOOLEAN true)
-    noteText: isNote ? (typeof n.properties?.text === "string" && n.properties.text.trim() ? n.properties.text : wv.filter((w) => typeof w === "string").join("\n")) : null,
+    noteText: extractNoteText(n, wv),
     color: n.color ?? null, bgcolor: n.bgcolor ?? null,
+    pos: Array.isArray(n.pos) ? n.pos : (n.pos && typeof n.pos === "object" ? [n.pos[0] ?? n.pos.x, n.pos[1] ?? n.pos.y] : null), // 소형1: 그룹 멤버십(bbox) 판정용
     subgraph: subgraph ?? null };
 }
 export function normalize(wf) {
@@ -150,7 +184,8 @@ export function normalize(wf) {
       }
     }
     const subgraphIds = new Set((Array.isArray(subs) ? subs : []).map((s) => s?.id).filter(Boolean)); // 서브그래프 정의 ID(UUID) — anomalous 대조용
-    return { format: "UI", nodes, links: Array.isArray(wf.links) ? wf.links : [], subgraphIds };
+    const groups = (Array.isArray(wf.groups) ? wf.groups : []).map((g) => ({ title: g.title || g.name || "", bounding: Array.isArray(g.bounding) ? g.bounding : null })); // 소형1: 그룹(제목·bbox)
+    return { format: "UI", nodes, links: Array.isArray(wf.links) ? wf.links : [], subgraphIds, groups };
   }
   if (wf && typeof wf === "object") {
     const e = Object.entries(wf).filter(([, v]) => v && typeof v === "object");
@@ -266,6 +301,14 @@ export function analyze(norm, mgrMap) {
   const packVers = {}, packNodes = {}, unmappedRaw = [], frontendOnly = [], muted = [], models = [], broken = [], anomalous = [];
   const authorNotes = norm.nodes.map((n) => n.noteText).filter((t) => t && t.trim());
   const noteLinks = extractNoteLinks(authorNotes);
+  // 소형1: 그룹 멤버십(노드 pos ∈ 그룹 bbox [x,y,w,h]) → 그룹 제목. bypass 그룹 전용 모델 분류(접기1)용.
+  const groupsG = Array.isArray(norm.groups) ? norm.groups.filter((g) => Array.isArray(g.bounding) && g.bounding.length >= 4) : [];
+  const groupOf = (n) => {
+    if (!groupsG.length || !Array.isArray(n.pos)) return null;
+    const px = n.pos[0], py = n.pos[1];
+    for (const g of groupsG) { const [gx, gy, gw, gh] = g.bounding; if (px >= gx && px <= gx + gw && py >= gy && py <= gy + gh) return g.title || "그룹"; }
+    return null;
+  };
   for (const n of norm.nodes) {
     if (!n.type) { broken.push({ id: n.id }); continue; }
     if (isUuidType(n.type)) { if (norm.subgraphIds?.has(n.type)) continue; anomalous.push({ id: n.id, type: n.type }); continue; } // 서브그래프 정의 ID면 정상 참조(재귀로 내부 진단) → anomalous·Findings 제외
@@ -286,9 +329,19 @@ export function analyze(norm, mgrMap) {
       const ci = compatModelInfo(filePath);
       const origin = n.subgraph != null ? `서브그래프 #${n.subgraph}에서 발견` : null;
       const noteUrl = noteLinks.find((l) => l.stem === base.replace(/\.[^.]+$/, ""))?.url || null;
-      models.push({ node: n.type, file: filePath, folder: ci?.exact ? `models/${ci.folder}` : guessFolder(w, n.type), rename: RENAME_HINT[base] || null, compat: ci?.exact ? ci : null, origin, noteUrl });
+      models.push({ node: n.type, file: filePath, folder: ci?.exact ? `models/${ci.folder}` : guessFolder(w, n.type), rename: RENAME_HINT[base] || null, compat: ci?.exact ? ci : null, origin, noteUrl, muted: n.mode === 2 || n.mode === 4, groupTitle: groupOf(n) });
     }
   }
+  // 소형1: bypass 그룹 전용 모델 — 어떤 basename의 모든 참조 노드가 muted이고 그중 그룹 소속이 있으면 "다른 그룹용"(접기1). 매핑 불가(그룹 없음)면 빈 객체(현행 유지).
+  const byBaseG = new Map();
+  for (const m of models) {
+    const b = m.file.split("/").pop().toLowerCase();
+    const e = byBaseG.get(b) || { anyActive: false, group: null };
+    if (!m.muted) e.anyActive = true; else if (m.groupTitle && !e.group) e.group = m.groupTitle;
+    byBaseG.set(b, e);
+  }
+  const bypassGroupModels = {};
+  for (const [b, e] of byBaseG) if (!e.anyActive && e.group) bypassGroupModels[b] = e.group;
   const packs = Object.keys(packVers).map((id) => {
     const vers = [...packVers[id]].filter(Boolean).map(String);
     return { id, vers, repo: compatNodeRepo(id), nodeTypes: [...packNodes[id]],
@@ -323,6 +376,7 @@ export function analyze(norm, mgrMap) {
     packs, unmapped: unmappedRaw.filter((u) => !u.isCore), frontendOnly: [...new Set(frontendOnly)],
     muted, models: dedupModels, sameRepo, broken, anomalous, portability: portabilityScan(norm.nodes),
     bypassBreaks: detectBypassBreaks(norm),
+    bypassGroupModels, // 소형1: basename → bypass 그룹 제목(다른 그룹용 = 접기1 분류)
     ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
     coreFeatures: scanCoreFeatures(norm.nodes),
     nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)

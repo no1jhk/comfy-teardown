@@ -99,6 +99,30 @@ export function matchLabelToNode(label, nodeName) {
   return editDistance(a, b) <= 2;
 }
 
+// 파인딩 r: 노트 텍스트를 줄 단위로 파싱 → Map(파일명소문자 → {file, url, folder, size}).
+// 리치 노트(파일명 + 직링크 + "Place in: models/X" + 용량이 한 줄/근처)를 파일별로 구조화.
+export function parseNoteModelEntries(notes) {
+  const text = Array.isArray(notes) ? notes.join("\n") : String(notes || "");
+  const entries = new Map();
+  if (!text.trim()) return entries;
+  for (const line of text.split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    const fm = line.match(/([\w.\-]+\.(?:safetensors|gguf|ckpt|pt|pth|bin|sft))\b/i);
+    if (!fm) continue;
+    const file = fm[1]; const base = file.toLowerCase(); const stem = base.replace(/\.[^.]+$/, "");
+    const urls = [...line.matchAll(/\bhttps?:\/\/[^\s)\]"'`]+/gi)].map((m) => m[0].replace(/[.,)]+$/, ""));
+    const url = urls.find((u) => u.toLowerCase().includes(stem)) || urls[0] || null;
+    // 폴더: "models/X" 경로 우선(하위 경로 보존), 없으면 "goes in/put in/place in X".
+    const folM = line.match(/\b(models[\/\\][\w][\w\/\\.-]*)/i) || line.match(/(?:goes?\s+in(?:to)?|put\s+(?:it\s+)?in|place\s+(?:it\s+)?in)\s+(?:the\s+)?([\w][\w\/\\.-]*)/i);
+    const folder = folM ? folM[1].replace(/[.\s]+$/, "").replace(/\\/g, "/") : null;
+    const szM = line.match(/(\d+(?:\.\d+)?)\s*(GB|MB|TB)\b/i);
+    const size = szM ? `${szM[1]}${szM[2].toUpperCase()}` : null;
+    const prev = entries.get(base) || {};
+    entries.set(base, { file, url: url || prev.url, folder: folder || prev.folder, size: size || prev.size });
+  }
+  return entries;
+}
+
 // URL 끝에서 모델 파일명 추출(safetensors 등). tree/blob 경로면 null(파일 직링크 아님).
 function fileFromUrl(url) {
   const last = url.split(/[?#]/)[0].replace(/\/+$/, "").split("/").pop();

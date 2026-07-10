@@ -108,6 +108,16 @@ export function reconcileInventory(models, invMap, plan) {
   return { results, heldSet, byFile, complete, scanned };
 }
 
+// 파인딩 s: 모델 종류 폴더명(이걸 선택하면 상위 폴더를 골라야 함). 하위 폴더 오선택 방어용.
+export const TYPE_FOLDERS = ["checkpoints", "vae", "loras", "lora", "diffusion_models", "text_encoders", "unet", "clip", "clip_vision", "controlnet", "upscale_models", "embeddings", "style_models", "gligen", "hypernetworks", "vae_approx", "photomaker"];
+export function isTypeFolder(name) { return TYPE_FOLDERS.includes(String(name || "").trim().toLowerCase()); }
+// 드라이브 + 폴더명 → 경로 조립. win: "D:\name"(절대). unix: name(브라우저가 루트 못 주므로 그대로). 이미 절대 입력이면 호출측에서 우선.
+export function assembleModelPath(drive, folderName, os) {
+  const name = String(folderName || "").trim();
+  if (!name) return "";
+  return os === "win" ? `${drive || "C"}:\\${name}` : name;
+}
+
 // 환경 수집 스니펫(읽기전용 나열만). os: "win" | "unix".
 // 파인딩 n-1: 입력 경로를 절대 경로 리터럴로 삽입(따옴표). 드라이브 문자(X:\)·UNC·/ 시작이 아니면 스니펫 생성 안 함(드라이브 추정 금지).
 // 반환: { snippet: string|null, needsAbsolute: bool, usingDefault: bool }.
