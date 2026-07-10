@@ -1,8 +1,13 @@
 // P2.7 — 내 모델 폴더 대조. 순수 함수(브라우저·node 공용).
-// 도구는 PC를 직접 못 보므로: 읽기전용 나열 명령(스니펫) → 사용자가 붙여넣은 목록 → modelPlan 요구와 대조 → 완비 판정.
+// 도구는 PC를 직접 못 보므로: 읽기전용 나열 명령(스니펫) → 사용자가 붙여넣은 목록 → 워크플로우 참조 모델과 대조 → 완비 판정.
 // 불변: 붙여넣지 않으면 대조하지 않는다(입력 없인 판정 금지). 명령은 읽기만(dir/ls 계열), 쓰기·삭제 없음.
+// 파인딩 p: 대조 층(보유 확인)과 카탈로그 층(출처·다운로드)을 분리 — 분모는 워크플로우 참조 모델 전체(미등재 포함).
 
-const baseName = (v) => (v || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
+// 경로 구분자 3종 동치: 백슬래시(\) · 슬래시(/) · 원화기호(₩ U+20A9, 한글 Windows에서 \가 ₩로 표시).
+const SEP = /[\\₩]/g;
+const baseName = (v) => (v || "").replace(SEP, "/").split("/").pop().toLowerCase();
+// 폴더명 정규화(위치 비교용): 소문자 + 공백·구분자·언더스코어·점·하이픈 제거.
+const normFolder = (s) => String(s || "").toLowerCase().replace(/[\s_.\-/\\₩]/g, "");
 
 // "26.3GB"/"484MB"/"137KB" → GB(십진). modelPlan.sizeToGB와 동일 규약(GB as-is, MB/1000).
 function sizeToGB(s) {
@@ -15,21 +20,22 @@ function sizeToGB(s) {
 
 // 폴더 스캔 출력 텍스트 → Map(파일명소문자 → {size:bytes|null, folder}).
 // PowerShell(부모\파일<TAB>바이트) · bash(전체경로<TAB>바이트) · 사람이 붙인 KB/MB/GB 혼용 모두 허용.
-// 대소문자 무시, 경로 구분자(\ /) 혼용 허용, 크기 단위 정규화.
+// 대소문자 무시, 경로 구분자(\ / ₩) 혼용 허용, 크기 단위 정규화.
 export function parseFolderScan(text) {
   const inv = new Map();
   if (!text) return inv;
   for (const raw of text.split(/\r?\n/)) {
     const line = raw.trim();
     if (!line) continue;
-    const norm = line.replace(/\\/g, "/");
+    const norm = line.replace(SEP, "/");
     // 파일 토큰: 모델 확장자로 끝나는 경로/파일명. 탭·2칸+ 공백으로 열 분리 우선(구조적), 없으면 전체 스캔.
     const cols = norm.split(/\t|\s{2,}/).map((s) => s.trim()).filter(Boolean);
+    const EXT = /\.(?:safetensors|ckpt|pth|pt|gguf|bin|sft|onnx|vae|pte|npz)$/i;
     let fileTok = null;
-    for (const c of (cols.length ? cols : [norm])) {
-      const mm = c.match(/(\S*\.(?:safetensors|ckpt|pth|pt|gguf|bin|sft|onnx|vae|pte|npz))\b/i);
-      if (mm) { fileTok = mm[1]; break; }
-    }
+    // 1순위: 열 전체가 모델 확장자로 끝나면 그 열이 경로(공백 포함 폴더명 보존 — "새 폴더\file").
+    for (const c of (cols.length ? cols : [norm])) if (EXT.test(c)) { fileTok = c; break; }
+    // 폴백: 비구조 라인에서 토큰 스캔(공백 앞까지).
+    if (!fileTok) for (const c of (cols.length ? cols : [norm])) { const mm = c.match(/(\S*\.(?:safetensors|ckpt|pth|pt|gguf|bin|sft|onnx|vae|pte|npz))\b/i); if (mm) { fileTok = mm[1]; break; } }
     if (!fileTok) continue;
     const segs = fileTok.split("/").filter(Boolean);
     const filename = segs[segs.length - 1].toLowerCase();
@@ -51,39 +57,68 @@ export function parseFolderScan(text) {
   return inv;
 }
 
-// modelPlan 요구 항목과 붙여넣은 목록 대조.
-// 반환: results[{file, held, corrupt, parsedSize, expected}] · heldSet · complete · scanned.
-// complete(구조상 준비 완료 판정 근거) = 스캔됨 + 요구(items)>0 + 전부 보유 + 크기 이상 없음 + 확인필요(unknowns) 0.
-// corrupt(137KB 사태 클래스): 크기가 파싱됐고 기대 용량의 10% 미만.
-export function reconcileInventory(plan, invMap) {
-  const items = plan?.items || [];
-  const scanned = invMap.size > 0;
-  const results = items.map((it) => {
-    const key = it.selectedFile || baseName(it.workflowValue);
-    const hit = invMap.get(key) || invMap.get(baseName(it.workflowValue));
-    const held = !!hit;
-    let corrupt = false;
-    if (hit && hit.size && it.size) {
-      const expBytes = (sizeToGB(it.size) || 0) * 1e9;
-      if (expBytes && hit.size < expBytes * 0.1) corrupt = true;
-    }
-    return { file: key, held, corrupt, parsedSize: hit ? hit.size : null, expected: it.size || null };
-  });
-  const heldSet = new Set(results.filter((r) => r.held).map((r) => r.file));
-  const complete = scanned && items.length > 0 && results.every((r) => r.held && !r.corrupt) && (plan?.unknowns?.length || 0) === 0;
-  return { results, heldSet, complete, scanned };
+// 파서 실패 진단(무반응 금지). 반환: null(정상) | "error_path"(경로 못 찾음 에러) | "no_items"(목록 아님).
+export function scanInputDiagnosis(rawText, parsedCount) {
+  const t = String(rawText || "");
+  if (!t.trim()) return null;       // 빈 입력 → 발화 없음
+  if (parsedCount > 0) return null;  // 파일 파싱됨 → 발화 없음
+  if (/PathNotFound|ItemNotFoundException|Cannot find path|is not recognized|No such file or directory|찾을 수 없습니다|does not exist/i.test(t)) return "error_path";
+  return "no_items";
 }
 
-// 환경 수집 스니펫(읽기전용 나열만). os: "win" | "unix". modelRoot 없으면 기본 ComfyUI 모델 폴더 대상.
-// 출력 형식: "<폴더 또는 경로>\t<바이트>" 한 줄에 파일 하나 → parseFolderScan이 파싱.
+// 워크플로우 참조 모델 전체와 붙여넣은 목록 대조.
+// models: report.models(참조 모델 전체, 미등재 포함) = 대조 분모. plan: 기대 용량·요구 폴더 lookup(카탈로그).
+// 반환: results[{file, held, corrupt, misplaced, parsedSize, expected}] · heldSet(보유+제자리) · byFile · complete · scanned.
+// corrupt(137KB 사태): 크기 파싱됨 + 기대 용량 10% 미만. misplaced: basename 일치 + 폴더 불일치(요구 폴더 알 때만).
+export function reconcileInventory(models, invMap, plan) {
+  const scanned = invMap.size > 0;
+  // 기대 용량·요구 폴더 lookup — 카탈로그(plan) 우선, 없으면 워크플로우 참조 경로 접두.
+  const meta = new Map();
+  const put = (base, size, folder) => { if (!base) return; const e = meta.get(base) || {}; meta.set(base, { size: size != null ? size : e.size, folder: folder != null ? folder : e.folder }); };
+  for (const it of [...(plan?.items || []), ...(plan?.unknowns || [])]) put(baseName(it.selectedFile || it.workflowValue), it.size, it.folder);
+  for (const m of (models || [])) {
+    const b = baseName(m.file);
+    const norm = String(m.file || "").replace(SEP, "/");
+    const wf = norm.includes("/") ? norm.slice(0, norm.lastIndexOf("/")) : "";
+    if (wf && !(meta.get(b) && meta.get(b).folder)) put(b, undefined, wf);
+  }
+  const seen = new Set(); const results = [];
+  for (const m of (models || [])) {
+    const key = baseName(m.file);
+    if (!key || seen.has(key)) continue; seen.add(key);
+    const info = meta.get(key) || {};
+    const hit = invMap.get(key);
+    const held = !!hit;
+    let corrupt = false;
+    if (hit && hit.size && info.size) { const expBytes = (sizeToGB(info.size) || 0) * 1e9; if (expBytes && hit.size < expBytes * 0.1) corrupt = true; }
+    // 위치 불일치: basename 일치 + 폴더 불일치. 요구 폴더 모르면 판정 생략(오판보다 관대가 안전, 날조 금지).
+    let misplaced = null;
+    if (held && hit.folder && info.folder) {
+      const heldF = normFolder(hit.folder);
+      const segs = String(info.folder).split(SEP).flatMap((p) => p.split("/")).map(normFolder).filter(Boolean);
+      if (heldF && segs.length && !segs.some((s) => s === heldF || s.includes(heldF) || heldF.includes(s))) {
+        misplaced = { current: hit.folder, required: String(info.folder).replace(/^models[\\/]/i, "") };
+      }
+    }
+    results.push({ file: key, held, corrupt, misplaced, parsedSize: hit ? hit.size : null, expected: info.size || null });
+  }
+  const heldSet = new Set(results.filter((r) => r.held && !r.misplaced).map((r) => r.file));
+  const byFile = new Map(results.map((r) => [r.file, r]));
+  const complete = scanned && results.length > 0 && results.every((r) => r.held && !r.corrupt && !r.misplaced);
+  return { results, heldSet, byFile, complete, scanned };
+}
+
+// 환경 수집 스니펫(읽기전용 나열만). os: "win" | "unix".
+// 파인딩 n-1: 입력 경로를 절대 경로 리터럴로 삽입(따옴표). 드라이브 문자(X:\)·UNC·/ 시작이 아니면 스니펫 생성 안 함(드라이브 추정 금지).
+// 반환: { snippet: string|null, needsAbsolute: bool, usingDefault: bool }.
 export function buildScanSnippet(modelRoot, os) {
   const root = (modelRoot || "").trim();
-  if (os === "win") {
-    const target = root || "ComfyUI\\models";
-    // Get-ChildItem 읽기 전용 나열(부모폴더\파일명 + 바이트). 경로 따옴표로 공백·한글 방어.
-    return 'Get-ChildItem -LiteralPath "' + target + '" -Recurse -File | ForEach-Object { "$($_.Directory.Name)\\$($_.Name)`t$($_.Length)" }';
-  }
-  const target = root || "ComfyUI/models";
-  // find + wc -c 읽기 전용(전체경로 + 바이트). 경로 따옴표로 공백·한글 방어.
-  return "find \"" + target + "\" -type f -exec sh -c 'printf \"%s\\t%s\\n\" \"$1\" \"$(wc -c <\"$1\")\"' _ {} \\;";
+  const isAbsolute = (p) => /^[A-Za-z]:[\\/]/.test(p) || /^\\\\/.test(p) || /^\//.test(p);
+  if (root && !isAbsolute(root)) return { snippet: null, needsAbsolute: true, usingDefault: false };
+  const usingDefault = !root;
+  const target = root || (os === "win" ? "ComfyUI\\models" : "ComfyUI/models");
+  const snippet = os === "win"
+    ? 'Get-ChildItem -LiteralPath "' + target + '" -Recurse -File | ForEach-Object { "$($_.Directory.Name)\\$($_.Name)`t$($_.Length)" }'
+    : "find \"" + target + "\" -type f -exec sh -c 'printf \"%s\\t%s\\n\" \"$1\" \"$(wc -c <\"$1\")\"' _ {} \\;";
+  return { snippet, needsAbsolute: false, usingDefault };
 }
