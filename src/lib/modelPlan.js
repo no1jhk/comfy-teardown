@@ -97,12 +97,11 @@ export function buildModelPlan(report, env) {
       confidence = "unknown";
       reason = `출처를 확인하지 못했습니다.`;
     }
-    // VRAM 경고: 선택 모델 용량이 VRAM의 1.5배 초과면 대용량 경고(대체 후보 권장). 실측 정합: 3090 24GB에서 26.3GB는 36 미만이라 무경고(실제 실행됨), 8GB에서는 경고.
+    // 4: VRAM 초과(용량 > VRAM*1.5) 판정. 메시지는 확정형("실행이 어렵습니다"). 하위 양자화 목록/미확인은 alternatives 계산 후 확정.
     const gb = sizeToGB(size);
-    const vramWarning = (gb && profile?.vram && gb > profile.vram * 1.5)
-      ? `이 모델은 ${size}로 ${profile.vram}GB VRAM에서 매우 느리거나 실행되지 않을 수 있습니다. 대체 후보를 권합니다.`
-      : null;
-    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, renameHint, nodeSelection: m.file, reason };
+    const vramTooBig = !!(gb && profile?.vram && gb > profile.vram * 1.5); // 실측 정합: 3090 24GB에서 26.3GB<36 무경고, 8GB 경고.
+    const vramWarning = vramTooBig ? `이 GPU(${profile.vram}GB)에서 ${b}(${size})은 실행이 어렵습니다.` : null;
+    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, vramTooBig, renameHint, nodeSelection: m.file, reason };
     (confidence === "unknown" ? unknowns : items).push(item);
   }
   // 대체 후보 / 제외(주 모델). files DB + note 제외 지시 기준. "추천" 아니라 "OOM 시 대체 후보".
@@ -119,10 +118,18 @@ export function buildModelPlan(report, env) {
     // 대체 후보(OOM 시)는 GPU 의존 판정 → profile 없으면 미출력(불변①: 입력 없인 확정 판정 금지)
     if (profile && !isTurbo && quantStance(f.quant, profile) !== "avoid") alternatives.push({ filename: f.filename, quant: f.quant, size: f.size, folder: `models/${f.folder}`, downloadUrl: hfUrl(f.repo, f.repo_path), reason: `OOM(메모리 부족) 발생 시 대체 후보입니다 (${f.quant}${f.size ? `, ${f.size}` : ""}).` });
   }
-  // 결함2: 저VRAM 경고가 뜬 주 모델은 대체 후보로 승격(같은 kind 안에서만 — Note RAW 강제 준수). 받기 행 본체를 대체로 교체, 원 참조값은 하위 표기.
-  if (selectedMain?.vramWarning && alternatives.length && profile?.vram) {
-    const alt = alternatives[0]; // raw 계열 중 가장 작은 호환 후보(turbo 제외 유지)
-    selectedMain.promoted = { filename: alt.filename, size: alt.size, quant: alt.quant, downloadUrl: alt.downloadUrl, folder: selectedMain.folder, fullPath: selectedMain.fullPath, node: selectedMain.node, reason: `이 PC(${profile.vram}GB VRAM) 기준 권장`, originalFile: selectedMain.selectedFile, originalSize: selectedMain.size };
+  // 4 + 결함2: VRAM 초과 주 모델 — 확인된 하위 양자화(alternatives=카탈로그 등재+GPU 호환)가 있으면 promoted로 교체(확정 대체 제시). 없으면 미확인 문구 + HF 검색.
+  if (selectedMain?.vramTooBig && profile?.vram) {
+    if (alternatives.length) {
+      const alt = alternatives[0]; // raw 계열 중 가장 작은 호환 후보(turbo 제외 유지)
+      selectedMain.promoted = { filename: alt.filename, size: alt.size, quant: alt.quant, downloadUrl: alt.downloadUrl, folder: selectedMain.folder, fullPath: selectedMain.fullPath, node: selectedMain.node, reason: `이 GPU(${profile.vram}GB)에서 실행 가능한 확인된 하위 양자화`, originalFile: selectedMain.selectedFile, originalSize: selectedMain.size };
+      selectedMain.vramWarning = null; // promoted가 확정 대체를 보여줌(경고 중복 제거)
+    } else {
+      selectedMain.vramWarning = `이 GPU(${profile.vram}GB)에서 ${selectedMain.selectedFile}(${selectedMain.size})은 실행이 어렵습니다. 확인된 하위 양자화를 찾지 못했습니다.`;
+      selectedMain.noConfirmedAlt = true;
+    }
   }
+  // 4: 주 모델 외 VRAM 초과 모델도 확인된 대체가 없으면 미확인 표기(HF 검색).
+  for (const it of items) if (it.vramTooBig && !it.promoted && it !== selectedMain) it.noConfirmedAlt = true;
   return { family: rec.family, label: rec.label, needs: rec.needs, items, alternatives, exclusions, unknowns, authorLinks: rec.authorLinks || [] };
 }
