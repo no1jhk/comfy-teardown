@@ -1494,18 +1494,22 @@ export default function Teardown() {
         {/* 2(판단근거 흡수): 별도 리스트 폐지 → 각 행 1층 접이. 등급·근거·출처만(링크 텍스트, 버튼 중복 0). evidenceBg 계승. */}
         {r.kind === "model" && r.planItem?.reason && (
           <details style={{ marginTop: 8 }}>
-            <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.faint, listStyle: "none", display: "inline-block", padding: "2px 0" }}>▸ 근거</summary>
+            <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.faint, listStyle: "none", display: "inline-block", padding: "2px 0", outline: "none" }}>▸ 근거</summary>
             <div style={{ background: C.evidenceBg, borderRadius: 10, padding: "12px 14px", marginTop: 8, fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.65 }}>
               <div>등급 <span style={{ color: C.text, fontWeight: 600 }}>{r.planItem.badge}</span></div>
               <div style={{ marginTop: 5 }}>{r.planItem.reason}</div>
               {r.planItem.sourceRepo && <div style={{ marginTop: 5, overflowWrap: "anywhere" }}>출처 <span style={{ fontFamily: MONO, color: C.text }}>{r.planItem.sourceRepo}</span></div>}
+              {/* 2: 직링크 전문 + 폴백 사유(구 판단근거 항목 복원, 누락 0). */}
+              {(() => { const dlu = r.planItem.promoted?.downloadUrl || r.planItem.downloadUrl; return dlu
+                ? <div style={{ marginTop: 5, overflowWrap: "anywhere" }}>직링크 <span style={{ fontFamily: MONO, color: C.text }}>{dlu}</span></div>
+                : <div style={{ marginTop: 5, color: C.faint }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>; })()}
             </div>
           </details>
         )}
         {/* clone 인라인 뷰(보조 동선). 행 1층 접이(내부 추가 접힘 0). install.bat 다운로드가 주 동선. */}
         {r.kind === "install" && r.clones?.length > 0 && (
           <details style={{ marginTop: 8 }}>
-            <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.faint, listStyle: "none", display: "inline-block", padding: "2px 0" }}>▸ clone 명령 보기</summary>
+            <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.faint, listStyle: "none", display: "inline-block", padding: "2px 0", outline: "none" }}>▸ clone 명령 보기</summary>
             <div style={{ background: C.evidenceBg, borderRadius: 10, padding: "12px 14px", marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
               {r.clones.map((c, ci) => (
                 <div key={ci} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "10px 12px" }}>
