@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-07-11 (긴급: Vercel 빌드 파손 복구)
+**한 일** — 원격 main 빌드 실패로 사이트 다운. Node Reference 닫힘부 stray `}` 제거. 커밋 5ec1a68.
+- **원인**: 43309e9(2026-07-05)에서 2196행 paddingLeft 44 div 닫힘이 `</div>}`로 stray `}` 포함. esbuild가 "The character } is not valid inside a JSX element" 에러를 출력하고도 **exit 0·"✓ built"로 넘어가** 잠복. 세션 내내 `tail`로만 확인해 이 에러를 놓침(내 프로세스 결함).
+- **수리**: 2196 `</div>}` → `</div>`. 구조 균형 복원(고급 블록·STEP2 IIFE·content box·section·outer IIFE 전수 대응 확인).
+- **재발 방지**: CLAUDE.md 커밋 규칙 2a 추가 — 커밋 직전 빌드 전문 에러 부재로 판정(exit code·tail 금지).
+- 검증: build 전문 에러 0 · sk-ant- 0 · 회귀·e2e 14/14.
+**다음 할 일** — 화면 검수 후 push(사이트 복구).
+
 ## 2026-07-11 (3차 후속 통합 · 수정 9건)
 **한 일** — 화면 검수 기반 9건. 항목별 단계 커밋(402dd02·48bc045·0c8057e·891aea2·7ef019b·e9219fd·e06aa73·c35ac4d).
 - **1 Summary 개요 카드 통일 (402dd02)**: C.metricBg 토큰 신설(#28222E 하드코딩 제거). 개요 카드를 MetricBox 두 카드와 동일 토큰(배경·border 0·radius 16·세로 26px).
