@@ -35,7 +35,7 @@ import modelSizes from "./data/model_sizes.json";
 
 // comfy.org 공식 톤: 배경 #201926 플럼 / 텍스트는 순백 아닌 밝은 회색 / 노랑은 포인트만
 const C = {
-  bg: "#201926", bgDeep: "#1A1420", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248",
+  bg: "#201926", bgDeep: "#1A1420", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248", evidenceBg: "#372E43",
   quiet: "#241D2E",
   divider: "rgba(255,255,255,0.09)",
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#423E47",
@@ -1847,7 +1847,7 @@ export default function Teardown() {
 
             <details id="rx-detail" className="td-fade" style={{ marginTop: 4 }} open={rxDetailOpen} onToggle={(e) => setRxDetailOpen(e.currentTarget.open)}>
               <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 600, color: C.dim, padding: "10px 0", listStyle: "none" }}>▸ 판단 근거 보기 (GPU·로그·한계 고지·출처 신뢰도는 이 안에)</summary>
-            {rxTodos.length > 0 && (<div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginTop: 12 }}>
+            {rxTodos.length > 0 && (<div style={{ background: C.evidenceBg, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginTop: 12 }}>
               {rxTodos.map((t, i) => {
                 const done = rxChecked.has(t.key);
                 let left = null, right = null;
@@ -2067,7 +2067,7 @@ export default function Teardown() {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              <SectionTitle>노드별 참조 값</SectionTitle>
+              <SectionTitle>Node Reference</SectionTitle>
               <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
                 <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
@@ -2407,10 +2407,11 @@ export default function Teardown() {
                               const have = haveModels.has(m.file);
                               const qwHit = qwMap[m.file.toLowerCase()];
                               return (<React.Fragment key={k}>
-                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "13px 0", alignItems: "center", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : qwHit ? 0.5 : 1 }}>
+                              {/* 6: dim은 "이미 있음(have)" 전용. GPU 비호환(qwHit)은 dim 대신 정상 명도 + ⚠ 빨강 강조(판단근거의 "⚠ 이 GPU 비호환"과 동일 레벨). */}
+                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "13px 0", alignItems: "center", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : 1 }}>
                                 <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontFamily: MONO, fontSize: 14, color: qwHit ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
-                                  {qwHit && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>이 GPU는 변환 경로 필요 · GGUF 권장</span>}
+                                  <div style={{ fontFamily: MONO, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
+                                  {qwHit && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red }}>⚠ 이 GPU는 변환 경로 필요 · GGUF 권장</span>}
                                   {src && !qwHit && <span style={{ fontFamily: SANS, fontSize: 13, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
                                   {m.rename && <div style={{ fontSize: 13, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>⤷ {m.rename}</div>}
                                   {al && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>다른 이름: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div>}
@@ -2477,9 +2478,9 @@ export default function Teardown() {
                           {step.integrity && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 13, color: C.redMuted, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
-                              <div style={{ fontSize: 13, lineHeight: 1.6 }}>· 받은 파일 용량을 위 표의 “정상 용량”과 비교. 수 KB/MB로 비정상적으로 작으면 삭제 후 재다운로드</div>
-                              <div style={{ fontSize: 13, lineHeight: 1.6, marginTop: 4 }}>· 대용량 다운로드 중 ComfyUI·PC 재부팅 금지. 중단되면 빈 파일이 됨</div>
-                              <div style={{ fontSize: 13, lineHeight: 1.6, marginTop: 4 }}>· .safetensors가 비정상적으로 작으면 <span style={{ fontFamily: MONO }}>JSONDecodeError</span> 발생</div>
+                              <div style={{ fontSize: 13, lineHeight: 1.55 }}>· 받은 파일 용량을 위 표의 “정상 용량”과 비교. 수 KB/MB로 비정상적으로 작으면 삭제 후 재다운로드</div>
+                              <div style={{ fontSize: 13, lineHeight: 1.55 }}>· 대용량 다운로드 중 ComfyUI·PC 재부팅 금지. 중단되면 빈 파일이 됨</div>
+                              <div style={{ fontSize: 13, lineHeight: 1.55 }}>· .safetensors가 비정상적으로 작으면 <span style={{ fontFamily: MONO }}>JSONDecodeError</span> 발생</div>
                             </div>
                           )}
                         </div>
@@ -2689,8 +2690,10 @@ export default function Teardown() {
                           <span>확인 필요 {unconfirmed.length}개</span>
                         </button>
                         {open.unc && (
-                          <div className="td-fade" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 8 }}>
-                            {unconfirmed.map((m, i) => renderCard(m, confirmed.length + i))}
+                          <div className="td-fade" style={{ background: C.evidenceBg, borderRadius: 12, padding: 14, marginTop: 8 }}>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
+                              {unconfirmed.map((m, i) => renderCard(m, confirmed.length + i))}
+                            </div>
                           </div>
                         )}
                       </div>
