@@ -92,6 +92,9 @@
 ## IP 분리 (중요)
 - 개인 프로젝트. GitHub `no1jhk`에 개인 자산으로 관리. 회사 자원·계정과 섞지 않음.
 
+## 권한 정책 (.claude/settings.json)
+- push·rm·sudo·curl은 deny(사용자 터미널 전용). 빌드·테스트(node·npm)·git add/commit/diff/log/status·읽기(grep·rg·ls·cat·sed -n)·mkdir·cp는 allow. deny 명령을 만나면 그 작업만 보류 보고하고 다음 작업 계속.
+
 ## 로드맵 (현재 v1.0)
 - v1.1: AI 진단(분석 결과+에러 → LLM). 백엔드 프록시로 API 키·CORS 처리.
 - v2: 동작 환경 스냅샷(lockfile) 저장·불러오기

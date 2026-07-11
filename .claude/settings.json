@@ -3,21 +3,42 @@
     "allow": [
       "Edit",
       "Write",
+      "Bash(npm run build*)",
       "Bash(npm run build:*)",
+      "Bash(npm run dev*)",
+      "Bash(npm run smoke*)",
+      "Bash(npm test*)",
+      "Bash(node *)",
       "Bash(node test/*)",
+      "Bash(git add *)",
       "Bash(git add:*)",
+      "Bash(git commit *)",
       "Bash(git commit:*)",
-      "Bash(git log:*)",
+      "Bash(git diff *)",
       "Bash(git diff:*)",
-      "Bash(shasum:*)",
-      "Bash(ls:*)"
+      "Bash(git log *)",
+      "Bash(git log:*)",
+      "Bash(git status)",
+      "Bash(grep *)",
+      "Bash(rg *)",
+      "Bash(ls *)",
+      "Bash(ls:*)",
+      "Bash(cat *)",
+      "Bash(sed -n *)",
+      "Bash(mkdir *)",
+      "Bash(cp *)",
+      "Bash(shasum:*)"
     ],
     "deny": [
+      "Bash(git push*)",
       "Bash(git push:*)",
       "Bash(git reset --hard:*)",
       "Bash(git clean:*)",
+      "Bash(rm *)",
       "Bash(rm:*)",
-      "Bash(rm -rf:*)"
+      "Bash(rm -rf:*)",
+      "Bash(sudo *)",
+      "Bash(curl *)"
     ]
   }
 }
