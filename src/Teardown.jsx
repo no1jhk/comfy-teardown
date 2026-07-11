@@ -45,7 +45,7 @@ const C = {
   btnSand: "#D9D8B8",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
-const SOLUTION_STROKE = `3px solid ${C.point}`; // 7: 솔루션 라운드박스 테두리(실험 · 사용자 실물 판정 예정). 제거·조정은 이 한 곳.
+const SOLUTION_STROKE = `3px solid ${C.btnSand}`; // 솔루션 라운드박스 테두리 3px. 색은 스크립트 버튼과 동일 sand 토큰(C.btnSand) 참조 → 토큰 변경 시 동시 반영. 제거·조정은 이 한 곳.
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
@@ -1138,7 +1138,8 @@ export default function Teardown() {
   const linkifyNote = (text) => text.split(/(https?:\/\/[^\s]+)/g).map((p, k) =>
     /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.memo, overflowWrap: "anywhere", textDecoration: "underline" }}>{p}</a> : p);
   // 미확인 모델 파일명 웹 검색 URL (구글, 파일명+download)
-  const searchUrl = (name) => "https://huggingface.co/models?search=" + encodeURIComponent(name.replace(/\.[^.]+$/, ""));
+  // 4: HF 자체 검색은 카드·app.py만 인덱싱(저장소 파일명 미검색) → 빈 결과. 구글 site: 쿼리로 교체(파일명 따옴표·URL 인코딩). google이 HF 파일 목록 페이지를 인덱싱하므로 파일명이 실제로 걸린다.
+  const searchUrl = (name) => "https://www.google.com/search?q=" + encodeURIComponent(`site:huggingface.co "${name.replace(/\.[^.]+$/, "")}"`);
   // UX2: 판정 박스 → Diagnose 바로가기. 에러 로그 아코디언 열고 스크롤+포커스.
   const scrollToDiagnose = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, errAcc: true })); requestAnimationFrame(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }); };
   // 디아그노시스 앵커(5): 실행 행 부속 링크 → "자세한 진단" 토글 자동 펼침 + 로그 입력(#diagnose-section)으로 스크롤. 독립 섹션 없음(현행 위치 유지).
@@ -1504,7 +1505,7 @@ export default function Teardown() {
               {/* 2: 직링크 전문 + 폴백 사유(구 판단근거 항목 복원, 누락 0). */}
               {(() => { const dlu = r.planItem.promoted?.downloadUrl || r.planItem.downloadUrl; return dlu
                 ? <div style={{ marginTop: 5, overflowWrap: "anywhere" }}>직링크 <span style={{ fontFamily: MONO, color: C.text }}>{dlu}</span></div>
-                : <div style={{ marginTop: 5, color: C.faint }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>; })()}
+                : <div style={{ marginTop: 5, color: C.faint }}>직접 다운로드 링크가 확인되지 않아 웹 검색으로 연결됩니다.</div>; })()}
             </div>
           </details>
         )}
@@ -1527,7 +1528,21 @@ export default function Teardown() {
           {r.alternatives.map((a, ai) => <div key={"a" + ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>대체 후보: <span style={{ fontFamily: MONO, color: C.text }}>{a.filename}</span>{a.size ? ` · ${a.size}` : ""} · {a.reason}</div>)}
           {r.exclusions.map((e, ei) => <div key={"e" + ei} style={{ fontFamily: SANS, fontSize: 13.5, color: C.faint, lineHeight: 1.5 }}>받지 말 것: <span style={{ fontFamily: MONO }}>{e.filename}</span> ({e.quant}) · {e.reason}</div>)}
         </div>}
-        {r.kind === "authorlinks" && (() => { const seen = new Map(); for (const al of r.links) if (!seen.has(al.url)) seen.set(al.url, al); const uniq = [...seen.values()]; return (
+        {r.kind === "authorlinks" && (() => { const seen = new Map(); for (const al of r.links) if (!seen.has(al.url)) seen.set(al.url, al); const uniq = [...seen.values()]; // 파인딩 l: 동일 URL 병합
+          // 3: 2개 이상이면 3열 표(안내 텍스트·출처 노드·링크). 일괄 받기 표와 동일 토큰(헤더 faint·행 borderTop). 1개면 현행 한 줄.
+          if (uniq.length >= 2) return (
+            <div style={{ marginTop: 8, borderTop: `1px solid ${C.line}` }}>
+              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) auto", gap: 12, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
+                {["안내", "출처 노드", "링크"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
+              </div>
+              {uniq.map((al, ai) => (
+                <div key={ai} style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) auto", gap: 12, padding: "12px 0", alignItems: "center", borderTop: ai > 0 ? `1px solid ${C.divider}` : "none" }}>
+                  <span style={{ fontFamily: SANS, fontSize: 13.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.5 }}>{al.linkLabel || al.label || "제작자 안내"}{al.strength ? <span style={{ color: C.memoBright }}> · 강도 {al.strength}</span> : null}</span>
+                  <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, overflowWrap: "anywhere" }}>{al.label && al.label !== al.linkLabel ? al.label : (al.folder ? <span style={{ fontFamily: MONO }}>{al.folder}</span> : "")}</span>
+                  <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12, flexShrink: 0 }}>링크 ↗</a>
+                </div>))}
+            </div>);
+          return (
           <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 9 }}>{uniq.map((al, ai) => (
             <div key={ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
@@ -1553,7 +1568,7 @@ export default function Teardown() {
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
             : <a className="td-hf td-outline-w" href={rawUrl} target="_blank" rel="noopener noreferrer">링크 ↗</a>; }
-          return q ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a> : null; })()}
+          return q ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a> : null; })()}
       </div>
       </div>
     </React.Fragment>
@@ -1923,24 +1938,18 @@ export default function Teardown() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, margin: "0 0 28px", flexWrap: "wrap" }}>
                 <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>Summary</h2>
               </div>
-              {/* 1: 개요 박스 해체 → 전 항목을 MetricBox 카드로 단일 그리드(auto-fit · gap 10 상하좌우 동일). 값 미추출 항목은 미노출(날조 금지). */}
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 20px" }}>
+              {/* 1(확정): Summary는 카드만(문장형 줄 0). 입력·출력 영문화. 샘플러·CFG·배치·파이프라인·비활성은 자세한 진단(Node Reference)으로 이동. 값 미추출 미노출(날조 금지). */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 24px" }}>
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
                 <MetricBox value={report.customPackTotal} label="커스텀 pack" unit="개" />
-                {(() => { const ss = report.structSummary; if (!ss) return null; const kp = ss.keyParams || {}; const io = ss.io || { inputs: [], outputs: [] }; const byp = ss.groups.filter((g) => g.bypassed).length; return (<>
-                  {io.inputs.length > 0 && <MetricBox value={io.inputs.join(" · ")} label="입력" />}
-                  {io.outputs.length > 0 && <MetricBox value={io.outputs.join(" · ")} label="출력" />}
+                {(() => { const ss = report.structSummary; if (!ss) return null; const kp = ss.keyParams || {}; const io = ss.io || { inputs: [], outputs: [] }; const byp = ss.groups.filter((g) => g.bypassed).length; const en = (x) => ({ "이미지": "Image", "오디오": "Audio", "영상": "Video", "텍스트": "Text" }[x] || x); return (<>
+                  {io.inputs.length > 0 && <MetricBox value={io.inputs.map(en).join(" · ")} label="입력" />}
+                  {io.outputs.length > 0 && <MetricBox value={io.outputs.map(en).join(" · ")} label="출력" />}
                   {kp.resolution != null && <MetricBox value={kp.resolution} label="해상도" />}
                   {kp.steps != null && <MetricBox value={kp.steps} label="스텝" />}
-                  {kp.sampler != null && <MetricBox value={kp.sampler} label="샘플러" />}
-                  {kp.cfg != null && <MetricBox value={kp.cfg} label="CFG" />}
-                  {kp.batch != null && <MetricBox value={kp.batch} label="배치" />}
                   {ss.groups.length > 0 && <MetricBox value={ss.groups.length} label="그룹" unit={`개${byp ? ` (${byp} bypass)` : ""}`} />}
                 </>); })()}
               </div>
-              {/* 1: 파이프라인·비활성은 카드 아님 → 그리드 아래 dim 1줄로 분리. */}
-              {report.structSummary?.pipeline && <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.55, overflowWrap: "anywhere", marginBottom: report.structSummary.inactive.length ? 6 : 24 }}>파이프라인 <span style={{ color: C.text }}>{report.structSummary.pipeline}</span></div>}
-              {report.structSummary && report.structSummary.inactive.length > 0 && <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, overflowWrap: "anywhere", marginBottom: 24 }}>비활성 노드 {report.structSummary.inactive.length}개: {[...new Set(report.structSummary.inactive.map((n) => n.group ? `${n.type}(${n.group})` : n.type))].slice(0, 8).join(" · ")}{report.structSummary.inactive.length > 8 ? " 외" : ""}</div>}
               {report.authorNotes?.length > 0 && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${C.divider}` }}>
                   <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -1995,6 +2004,13 @@ export default function Teardown() {
                 <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
                 </div>
+
+              {/* 1(Summary 이동분): 샘플러·CFG·배치(핵심 파라미터) + 비활성 노드(노드명+소속 그룹)를 여기(자세한 진단)로. Summary는 카드만. */}
+              {report.structSummary && (() => { const kp = report.structSummary.keyParams || {}; const inact = report.structSummary.inactive || []; const params = [kp.sampler != null ? `샘플러 ${kp.sampler}` : null, kp.cfg != null ? `CFG ${kp.cfg}` : null, kp.batch != null ? `배치 ${kp.batch}` : null].filter(Boolean); if (!params.length && !inact.length) return null; return (
+                <div style={{ padding: "4px 0 18px", display: "flex", flexDirection: "column", gap: 6 }}>
+                  {params.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>핵심 파라미터 <span style={{ color: C.text, fontFamily: MONO }}>{params.join(" · ")}</span></div>}
+                  {inact.length > 0 && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, lineHeight: 1.6, overflowWrap: "anywhere" }}>비활성 노드 {inact.length}개: {[...new Set(inact.map((n) => n.group ? `${n.type}(${n.group})` : n.type))].slice(0, 8).join(" · ")}{inact.length > 8 ? " 외" : ""}</div>}
+                </div>); })()}
 
               {/* STEP 1. 커스텀 노드 설치 — 2(정정): 번호 섹션 헤더에만 +/- 토글(Install Script 번호 행과 동일), 기본 닫힘. 내부 노드 토글 0. */}
               {hasNodeIssues && (
@@ -2360,7 +2376,7 @@ export default function Teardown() {
                                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>찾는 중…</span>
                                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
                                         <>
-                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
+                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a>
                                           {(mr?.error || (mr?.result && !mr.result.found)) && <div style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>직접 링크를 찾지 못했습니다</div>}
                                         </>
                                       ) : (
@@ -2589,7 +2605,7 @@ export default function Teardown() {
                       ) : !isWeight ? null : mr?.loading ? (
                         <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 14 }}>찾는 중…</span>
                       ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
-                        <a className="td-hf-sm td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>HuggingFace 검색 ↗</a>
+                        <a className="td-hf-sm td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer" style={{ marginTop: 14 }}>웹에서 검색 ↗</a>
                       ) : (
                         <button className="td-hf-sm" onClick={() => researchUnknownModel(m.file)} style={{ marginTop: 14 }}>다운로드 링크 찾기</button>
                       )}

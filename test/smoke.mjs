@@ -80,13 +80,14 @@ async function bundleEntry(entry, tmpName) {
   process.on("uncaughtException", onErr); process.on("unhandledRejection", onErr);
   w.addEventListener("error", (e) => { caught = e.error || new Error(e.message); });
 
-  // 최소 유효 ComfyUI 워크플로우(자립적 — fixture는 gitignore라 커밋 안 됨).
+  // 최소 유효 ComfyUI 워크플로우(자립적 — fixture는 gitignore라 커밋 안 됨). MarkdownNote 3링크로 제작자 링크 표(3) 렌더도 함께 검증.
   const WF = JSON.stringify({
-    last_node_id: 3, last_link_id: 1, version: 0.4, groups: [], links: [[1, 1, 0, 2, 0, "LATENT"]],
+    last_node_id: 4, last_link_id: 1, version: 0.4, groups: [], links: [[1, 1, 0, 2, 0, "LATENT"]],
     nodes: [
       { id: 1, type: "CheckpointLoaderSimple", pos: [0, 0], size: [300, 100], flags: {}, order: 0, mode: 0, widgets_values: ["model.safetensors"], inputs: [], outputs: [{ name: "MODEL", type: "MODEL", links: [] }] },
       { id: 2, type: "KSampler", pos: [400, 0], size: [300, 300], flags: {}, order: 1, mode: 0, widgets_values: [123, "randomize", 20, 8, "euler", "normal", 1], inputs: [], outputs: [] },
       { id: 3, type: "SaveImage", pos: [800, 0], size: [300, 300], flags: {}, order: 2, mode: 0, widgets_values: [], inputs: [], outputs: [] },
+      { id: 4, type: "MarkdownNote", pos: [0, 400], size: [400, 200], flags: {}, order: 3, mode: 0, widgets_values: ["## VAE\n[vae_a.safetensors](https://huggingface.co/org/repoA/blob/main/vae.safetensors)\n## Text Encoder\n[clip_b.safetensors](https://huggingface.co/org/repoB/blob/main/clip.safetensors)\n## Extra\n[extension guide](https://github.com/org/ext)"] },
     ],
   });
 
@@ -103,11 +104,20 @@ async function bundleEntry(entry, tmpName) {
       Object.defineProperty(input, "files", { value: [file], configurable: true });
       input.dispatchEvent(new w.Event("change", { bubbles: true })); // onFile → FileReader → run(async)
       await new Promise((r) => setTimeout(r, 250)); // FileReader onload + React 재렌더 대기
-      const afterLen = w.document.getElementById("root").innerHTML.length;
+      const afterHtml = w.document.getElementById("root").innerHTML;
+      const afterLen = afterHtml.length;
       // 판정: run()에서 예외(제거된 setState 잔존 호출 등)면 jsdomError 포착. 성공이면 report 세팅 → 결과 존이 렌더돼 root가 유의미하게 커진다(랜딩엔 진단 결과 없음).
       if (caught) { console.log(`  ❌ 파일 투입 크래시: ${(caught.name || "Error")}: ${caught.message || caught}`); fail++; }
       else if (afterLen <= beforeLen + 2000) { console.log(`  ❌ 파일 투입 후 결과 화면 미진입(root ${beforeLen}→${afterLen}자, run/analyze 실패 추정)`); fail++; }
-      else console.log(`  ✅ 파일 투입 → analyze → 결과 상태 진입, 예외 0 (root ${beforeLen}→${afterLen}자)`);
+      else {
+        console.log(`  ✅ 파일 투입 → analyze → 결과 상태 진입, 예외 0 (root ${beforeLen}→${afterLen}자)`);
+        // 3: 제작자 링크 3개 → 3열 표(출처 노드 헤더) 렌더
+        if (/출처 노드/.test(afterHtml)) console.log("  ✅ 제작자 링크 3개 → 3열 표 렌더(출처 노드 헤더)");
+        else { console.log("  ❌ 제작자 링크 3열 표(출처 노드 헤더) 미렌더"); fail++; }
+        // 4: 검색 버튼 URL = 구글 site: 웹 검색(HF models?search 아님)
+        if (/google\.com\/search/.test(afterHtml) && !/huggingface\.co\/models\?search/.test(afterHtml)) console.log("  ✅ 검색 버튼 = 구글 site: 웹 검색(HF models?search 0)");
+        else { console.log("  ❌ 검색 버튼 URL이 웹 검색 아님(google site: 미검출 또는 HF models?search 잔존)"); fail++; }
+      }
     }
   } catch (e) { console.log(`  ❌ 파일 투입 시뮬 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
