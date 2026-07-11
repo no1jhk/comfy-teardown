@@ -6,6 +6,24 @@
 
 ---
 
+## 2026-07-11 (정보 설계 라운드 · 1차: 선행 3 + 본체 일부)
+**한 일** — "가진 정보를 옳은 자리에 옳은 밀도로" 재배치. 10개 항목 중 8개 완료(커밋 34ce047·073f3ad·e73b498·0015ea3).
+- **0-1 노트 폴더 다단 경로**: parseNoteModelEntries에 href resolve/main/{dir} 2차 폴백 추가. 다단 경로·multi-line·수식어 무시는 기존 동작 확인. Boogu fixture를 실 노트 구조(수식어·Place in 2단 div·중간 문단·href 폴더)로 갱신. boogu → models/diffusion_models/boogu(2단), bat 대상 {입력}\diffusion_models\boogu. ae·qwen 무회귀.
+- **0-3 카피 dedupe**: altListText로 "GGUF 또는 bf16 또는 bf16" 중복 제거(3개 조립 지점 통일).
+- **5 스크립트 조건화**: 일괄 받기 스크립트는 직링크 확정 받기 3개 이상일 때만 + "위 받기 N개를 한 번에" 부속.
+- **6 버전 2단화**: 1단(정적) analyze.savedVersion = cnr_id comfy-core 최고 ver("comfy-core X 기준 저장" + 노드명 + frontend). 2단(로그) coreCheck 유지. PiD → comfy-core 0.22.0.
+- **4 양자화 확정형**: vramWarning 확정형("이 GPU(NGB)에서 {파일}({용량})은 실행이 어렵습니다"). 확인된 하위 양자화(카탈로그+GPU 호환) 있으면 promoted 교체(용량·직링크·권장), 없으면 미확인 + 저용량 HF 검색. krea2 8GB → fp8_scaled 13.1GB 직링크.
+- **3 Error Node Fix**: "노드별 참조 값" 개명(이미 자세한 진단 안). 다운로드 열·인라인 링크 제거 → 참조 표만(버튼 0).
+- **0-2 ※ 레벨 통일**: 일괄 받기 영역 두 ※ 동일 레벨(14·C.dim·연속 줄).
+- **7(규칙)**: CLAUDE.md 시각 체크리스트 6번 "토글 안에 토글 금지" 추가.
+
+**미결 이월(다음 집중 라운드)** — 테스트된 렌더 구간(대조·노트·경로) 대규모 재구성이라 예산 한계에서 무리 금지, 화면 검수 동반 필요:
+- **1 Summary 재설계**: 그룹 현황표(groups bbox+mode) · 파이프라인 한 줄(links 그래프 입력→출력) · 핵심 파라미터(KSampler·EmptyLatent 위젯) · 입출력 요약(결함 a 재사용) · 비활성 흡수. 전부 JSON 정적 추출, 추출 실패는 미표기. → analyze에 groupStatus·pipeline·keyParams·ioSummary 신설 + Summary 렌더 + fixture별 기대값 등록.
+- **2 판단근거 → 행 내 흡수**: 별도 리스트 폐지, 각 행 "근거" 1층 접이(등급·GPU 규칙·출처·한계) + 하단 "판단 기준 안내" 소형 접이. 다운로드 중복 금지.
+- **7 평탄화(전수)**: detailOpen 안 rn1/rn2·Findings BlockHead 등 중첩 토글을 한 층으로. 규칙(#6)은 추가됨.
+
+**다음 할 일**: 화면 검수 후 push. 미결 3건은 집중 라운드로.
+
 ## 2026-07-11 (파인딩 t: 드라이브 셀렉트 변경 미반영)
 **한 일** — 폴더 버튼 조립 후 드라이브 셀렉트를 바꿔도 입력란·스니펫·bat이 옛 드라이브(C:) 유지하던 결함 수리.
 - **원인**: 드라이브 셀렉트 onChange가 scanDrive만 바꾸고 조립 산출값(env.modelRoot)은 재계산 안 함.
