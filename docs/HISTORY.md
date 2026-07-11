@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-11 (bat 버튼 복귀 + A/B 색 실물 비교 임시 배치)
+**한 일** — 언더라인 텍스트 링크(위계 미달)를 line 버튼으로 복귀 + 색 분리 재설계. 커밋 6823048.
+- install.bat·download.bat를 기존 다운로드 버튼(td-hf)과 동일 line 형식(크기·radius 999·타이포)으로. 라벨 영문·화살표 없음.
+- 컬러 토큰 2종: `C.btnSand`(#D9D8B8 A안·탈채도 노랑 → install), `C.btnLime`(#C8E86A B안·연두 → download). td-hf 미러 클래스 `.td-hf-sand`/`.td-hf-lime`(border·text 동일 색, line 유지). 토큰 1곳 수정으로 전체 반영.
+- **A/B 실물 비교용 임시 배치. 확정 시 단일 토큰 통일 예정**(주석 명기). BAT_LINK 언더라인 토큰 제거.
+- 자가 검수: (3)dim 행(opacity 0.55)은 버튼 없음(다운로드 `!dim` 게이트)·install은 primary(opacity 1) → SAND와 dim 인접 없음. (4)✓·완비는 회색(C.green=#C1BFBA), LIME은 초록이라 색 구분 + download.bat는 미보유 3개+ 시만 노출이라 "완비"(0 미보유)와 상호배타.
+- 검증: build 에러 0 · smoke 3부 · e2e 15/15 · 회귀.
+**판단 필요** — SAND(#D9D8B8) 무채도라 dim처럼 읽힐 여지, LIME(#C8E86A) 초록이라 성공 시맨틱 인접. 실물 A/B 판정 후 단일 색 확정 요청.
+**다음 할 일** — 사용자 실물 비교 → 확정 색 단일 토큰 통일 → 화면 검수 후 push.
+
 ## 2026-07-11 (긴급: run() setRxUserToggled 잔존 호출 복구 + 스모크 파일 투입 확장)
 **한 일** — 파일 투입 즉시 사망 복구. 커밋 356f5db.
 - **원인**: 891aea2(5·처방 다시 보기 제거)에서 rxUserToggled 상태는 지웠으나 `run()`(파일 로드 핸들러) 내 `setRxUserToggled(null)` 호출 1건 잔존. 파일 투입 → onFile → FileReader → run → "setRxUserToggled is not defined". 랜딩 렌더는 정상이라 build·직전 스모크(랜딩만) 미검출.
