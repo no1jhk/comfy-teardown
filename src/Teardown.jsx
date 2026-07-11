@@ -1622,7 +1622,7 @@ export default function Teardown() {
         @media (prefers-reduced-motion:reduce){.td-fade{animation:none}.td-btn:hover{transform:none}}
       `}</style>
       {/* 소형1: 닫힘 상태에서 라이트존(입력+간이 진단)이 짧으면 경계선이 화면 중턱에 뜨는 문제 → min-height 스페이서로 경계를 뷰포트 하단 100px에 고정(position:fixed 금지, 스크롤 자연). 열림·긴 결과는 자연 흐름(무회귀). */}
-      <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "32px 20px", boxSizing: "border-box", position: "relative", zIndex: 1, flexShrink: 0, minHeight: report && !detailOpen ? "calc(100vh - 100px)" : undefined }}>
+      <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "32px 20px", boxSizing: "border-box", position: "relative", zIndex: 1, flexShrink: 0, minHeight: report && !detailOpen ? "calc(100vh - 150px)" : undefined }}>
         {/* 헤더. 로고 */}
         <img src={LOGO} alt="Comfy Teardown" style={{ height: 50, width: "auto", display: "block", marginBottom: 16 }} />
         <p style={{ color: C.dim, fontSize: 16, margin: "0 0 28px", lineHeight: 1.6 }}>실행에 문제 있는 JSON 파일을 첨부하면, 모든 노드를 분석해서 문제점을 진단하고 해결법을 제시합니다.</p>
