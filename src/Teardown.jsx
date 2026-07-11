@@ -2638,14 +2638,16 @@ export default function Teardown() {
               <div style={{ fontSize: 13, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>참조 모델·자산 전체(VRAM·출처 포함). 실제 받기는 위 Solution '받아야 할 모델' 표에서.</div>
               <div style={{ marginTop: 16 }}>{(
                 report.models.length === 0 ? <Empty text="참조된 모델 파일을 찾지 못했습니다." /> : (() => {
+                  // 6: 분류 기준 = 행동 가능 여부(직링크 보유). 직링크 있으면 등급 불문 펼침(다운로드 가능한데 가려지는 모순 제거). 링크 없는 진짜 미확정(검색 폴백)만 접기.
                   const confirmed = [];
                   const unconfirmed = [];
                   for (const m of report.models) {
                     const eff = m.compat || liveCompat[m.file] || learnedModel(m.file);
-                    if (eff) confirmed.push(m);
+                    const dlUrl = directDownloadUrl(eff, m.file, modelResearch[m.file], m.noteUrl);
+                    if (dlUrl) confirmed.push(m);
                     else unconfirmed.push(m);
                   }
-                  const renderCard = (m, i) => {
+                  const renderCard = (m, i, bg = C.surface) => {
                     const live = liveCompat[m.file];
                     const eff = m.compat || live || learnedModel(m.file);
                     const src = eff?.source;
@@ -2653,7 +2655,7 @@ export default function Teardown() {
                     const dlUrl = directDownloadUrl(eff, m.file, mr, m.noteUrl);
                     const isWeight = WEIGHT_EXTS.some((e) => m.file.toLowerCase().endsWith(e));
                     return (
-                    <div key={i} style={{ minHeight: 150, background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
+                    <div key={i} style={{ minHeight: 150, background: bg, border: `1px solid ${C.line}`, borderRadius: 16, padding: 20, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", textAlign: "center" }}>
                       <span style={{ fontFamily: MONO, fontSize: 18, color: C.text, overflowWrap: "anywhere", lineHeight: 1.35 }}>{m.file}</span>
                       {(() => { const pit = planByFile.get(m.file.replace(/\\/g, "/").split("/").pop().toLowerCase()); const folder = pit?.folder || m.folder; return (<>
                         <span style={{ fontFamily: SANS, fontSize: 14, color: folder === "확인 필요" ? C.faint : C.point, opacity: 1, marginTop: 8, lineHeight: 1.4 }}>{folder}{pit && pit.badge ? ` [${pit.badge}]` : ""}</span>
@@ -2694,10 +2696,9 @@ export default function Teardown() {
                           <span>확인 필요 {unconfirmed.length}개</span>
                         </button>
                         {open.unc && (
-                          <div className="td-fade" style={{ background: C.evidenceBg, borderRadius: 12, padding: 14, marginTop: 8 }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
-                              {unconfirmed.map((m, i) => renderCard(m, confirmed.length + i))}
-                            </div>
+                          <div className="td-fade" style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginTop: 8 }}>
+                            {/* 5: 래퍼 큰 박스 제거. 개별 라운드박스 각각 배경을 evidenceBg 토큰으로(기존 개별 박스 구조 유지). */}
+                            {unconfirmed.map((m, i) => renderCard(m, confirmed.length + i, C.evidenceBg))}
                           </div>
                         )}
                       </div>
