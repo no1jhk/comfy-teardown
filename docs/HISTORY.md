@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-11 (3차 후속 통합 · 수정 9건)
+**한 일** — 화면 검수 기반 9건. 항목별 단계 커밋(402dd02·48bc045·0c8057e·891aea2·7ef019b·e9219fd·e06aa73·c35ac4d).
+- **1 Summary 개요 카드 통일 (402dd02)**: C.metricBg 토큰 신설(#28222E 하드코딩 제거). 개요 카드를 MetricBox 두 카드와 동일 토큰(배경·border 0·radius 16·세로 26px).
+- **7 bat 링크 텍스트화 (402dd02)**: install.bat·download.bat를 comfy.org 텍스트 링크 문법(언더라인 영문·노랑·화살표 제거). BAT_LINK 모듈 토큰, 두 곳 동일(사용자 결정).
+- **2 근거 접이 정보 복원 (48bc045)**: 직링크 전문 + 폴백 사유("직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다") 복원. 구 판단근거 항목 전수 대조 누락 0.
+- **4 근거 접이 토글 단일화 (48bc045)**: 근거·clone 접이 summary 텍스트 토글 동일 + outline none. 박스 테두리 없음(evidenceBg 배경만).
+- **3 일괄 스크립트 미보유 기준 (0c8057e)**: buildDownloadScript heldSet 인자·dlEligible !heldSet 필터 → 카운트·노출(3개 이상)·bat 내용물 모두 미보유만. 대조 전이면 전량.
+- **5 처방 다시 보기 제거 (891aea2)**: revisit 접기 토글(유물) 삭제, Solution 상시 노출. 죽은 rxShow·rxUserToggled 제거.
+- **8 대체 후보 방향 수리 (7ef019b)**: alternatives를 선택 메인 대비 크기 방향으로. 더 작으면 OOM 대비, 더 크면 "상위 품질(VRAM 여유 시)", 동급·미상은 미노출. 24GB에서 더 큰 raw_bf16을 OOM 대체로 오노출하던 결함 수리. e2e 케이스 14 추가.
+- **9 푸터 조건 노출 (e9219fd)**: 저작권 푸터 detailOpen 게이트(자세한 진단 펼침 시에만).
+- **6 Node Reference 구조 정정 (e06aa73)**: 섹션 +/- 토글 제거(상시 노출). STEP 2 모델 맞추기 각 노드 블록을 기본 접힘 1층 접이(헤더=summary, 슬롯 표=내용). 토글 안 토글 0. STEP 1은 정적 유지.
+- **polish (c35ac4d)**: summary 마커 전역 제거(flex summary 이질 방지) + 주석 em dash 정리.
+**어떻게** — 소유 판정은 reconcile.heldSet 재사용. 대체 후보 방향은 sizeToGB 비교. 노드 접이는 헤더 div→summary 변환.
+**판단 필요** — 4의 "ae 행 이질 스타일": 캡처 기반 지시라 정확한 요소 미특정. 근거·clone 토글 동일화 + outline·마커 전역 제거로 대응. 특정 요소 잔존 시 캡처 필요.
+**다음 할 일** — 화면 검수 후 push. 빌드·회귀·e2e 14/14 전부 통과.
+
 ## 2026-07-11 (후속: clone 인라인 뷰 복원)
 **한 일** — 3차 구조 1에서 제거됐던 인라인 clone 스크립트 뷰를 설치 행 접이로 재편(사용자 승인). 커밋 9c16b82.
 - install 행에 "clone 명령 보기" 1층 접이(내부 추가 접힘 0). 각 팩 `git clone` 전문 + 복사 버튼, evidenceBg. install.bat 다운로드는 주 동선 유지, 인라인은 수동 실행용 보조.
