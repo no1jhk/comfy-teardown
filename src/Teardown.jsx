@@ -1570,6 +1570,7 @@ export default function Teardown() {
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@500;600;700&family=Noto+Sans+KR:wght@400;500;600;700&display=swap');        .td-drop{transition:border-color .18s,background .18s}
         .td-btn{transition:transform .12s,opacity .18s}
         .td-btn:hover{transform:translateY(-1px)} .td-btn:active{transform:translateY(0)}
+        summary::-webkit-details-marker{display:none}summary::marker{content:""}
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-havelink{background:transparent;border:none;color:${C.faint};transition:color .15s;cursor:pointer}.td-havelink:hover{color:${C.text}}
         .td-divtoggle{color:${C.faint};transition:color .15s}.td-divtoggle:hover{color:${C.dim}}
@@ -1852,7 +1853,7 @@ export default function Teardown() {
             </div>
             )}
 
-            {/* 당장 할 일 — 액션 테이블(동사 선행). 근거는 각 행 "근거" 접이. 총론은 아래 판단 기준 안내. 5: 처방 다시 보기 토글 제거 → 상시 노출. */}
+            {/* 당장 할 일. 액션 테이블(동사 선행). 근거는 각 행 "근거" 접이. 총론은 아래 판단 기준 안내. 5: 처방 다시 보기 토글 제거 → 상시 노출. */}
             {rxTodos.length > 0 && (
               <div style={{ background: C.surface, border: SOLUTION_STROKE, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
                 {rxGroups.primary.map((r, ri) => renderActionRow(r, ri === 0, false, "fill"))}
