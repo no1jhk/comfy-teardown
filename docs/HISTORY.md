@@ -6,13 +6,32 @@
 
 ---
 
-## 2026-07-12 (야간: 권한 정책 + 소형 3건 · IA 재편은 보류)
+## 2026-07-12 (야간: 권한 정책 + 소형 3건 · IA 재편 B안 확정·실행 스펙 승계)
 **한 일**
 - **0 권한 정책**(커밋 74172e8·c964e25): `.claude/settings.json` permissions 병합·보강. allow 33개(build·dev·smoke·npm test·node·git *·cd·echo·head·tail·wc·grep·rg·ls·cat·sed -n·mkdir·cp·Edit·Write 등), deny 9개(git push*·rm*·sudo*·curl*·git reset --hard·clean). deny 우선 → push 차단 유지. CLAUDE.md "권한 정책" 섹션 1줄 추가.
 - **1-1·1-2**: 33af66c에서 이미 완료(인트로 핵심 파라미터 삭제·비활성 #3 섹션 승격 / 링크 표 헤더 중앙정렬) — 재확인.
 - **1-3**(커밋 7644a23): 자세한 진단 경계 하단 오프셋 calc(100vh - 100px) → 150px. 조건·동작 무변.
-**보류(판단 필요) — IA 재편 대수술**: 실행 안 함. 이유 (a) Node Reference(~220줄)+Install Script(~180줄) 재편 = 400줄+ 대수술이라 화면 검수 없는 야간 blind 실행은 크로스링크·구조 파손 위험(선례: 대규모 렌더 재구성은 dev 캡처 동반 필요). (b) 중심 모호성 — "한 번에 받기 표"의 데이터 출처와, 모델 다운로드 버튼이 라이트존 Solution(당장 할 일·상시 노출)과 detail 받기 표 중 어디에 사는가(솔루션은 clone 접이 유지로 존치 명시됨). 이 관계 확정 전 대수술은 재작업 위험.
-**다음 할 일**: IA 재편은 화면 검수 동반 전용 세션에서 항목별(노드 상세 → 모델 상세 → 이동·헤더·앵커) 진행. 착수 전 "받기 표 = 라이트존 Solution 모델 행 이설인가 vs 신규 참조 표인가" 1건 확정 요청.
+**IA 재편 대수술 — B안 확정, 다음 세션 착수(컨텍스트 소진으로 승계)**. 사용자 승인대로 새 세션에서 CLAUDE.md·이 스펙 승계로 즉시 실행. 착수 전 앱은 정상(build 0·smoke·e2e green).
+
+### IA 재편 실행 스펙 (승인·확정본)
+- **확정 B안**: 라이트존 Solution(당장 할 일 액션 테이블 1832~1915)은 **행·버튼 전부 무변**(행동 체크리스트 정체성). "버튼은 받기 표에만" 규칙은 **detail 내부 한정** — 3 모델 상세의 받기 표(plan 기반·download.bat 중심)에만 다운로드 버튼, 슬롯 표는 참조 전용·버튼 0.
+- **재편 범위**: detailOpen 블록(1934~) 내부만. Solution·Diagnose 무변.
+- **최종 순서(전부 번호+우측 +/- 토글+기본 닫힘, 토글 안 토글 0)**:
+  1 Summary(무변, 1936~) · 2 노드 상세 · 3 모델 상세 · 4 비활성 노드 · 5 Findings(2467~ 무변) · (최하단 Diagnose 2683~ 무변)
+- **이동 전후 대조표**:
+  - 커스텀 노드 설치(현 Node Reference STEP1, ~2009-2053 unmapped/broken map) → **2 노드 상세** 상단
+  - clone 스크립트·방법 A/B(현 Install Script 섹션 2218~, rx.map 스텝) → **2 노드 상세** 하단
+  - GPU 점검·양자화 안내(현 분산: 개별 행 근거 접이) → **3 모델 상세** 최상단 1회(행 접이 비호환 표기는 유지)
+  - 한 번에 받기 표(신규, plan.items의 confirmed·workflow_author 직링크 기반 + download.bat 버튼) → **3 모델 상세** 중단(버튼 여기만)
+  - 모델 맞추기 슬롯 표(현 Node Reference STEP2, ~2056-2120) → **3 모델 상세** 하단(참조 전용·버튼 0·현행 유지)
+  - 비활성 노드(현 Node Reference #3, ~2203-2214) → **4 비활성 노드** 독립 섹션
+- **섹션명 소멸**: "Node Reference"·"Install Script" 문자열 0.
+- **토글 규칙 판단(다음 세션 확인)**: 노드 상세/모델 상세는 단일 섹션 토글. 내부 Install Script 스텝 아코디언(step별 sopen 토글)은 토글 안 토글 금지에 걸리므로 **평탄화(스텝 내용 flat 노출)** 권장. 슬롯표는 원래 무토글이라 그대로.
+- **통합 충돌 규칙**: clone 명령 목록은 노드 상세 1회(Solution 1번 행 "clone 명령 보기" 접이는 행동 동선용 별도 유지·중복 아님). GPU 점검 문구 모델 상세 최상단 1회. 스크립트 버튼 sand 단일 토큰 유지.
+- **크로스링크·앵커 전수 착지 확인 필수**: `#diagnose-section`(에러 로그 진단, 실행 행 "에러 로그 진단" 링크·openDiagnose), `#rx-detail`(판단 기준 안내), Solution 행 crosslink("N번 행의 clone…" fill), `#rx-held-anchor`. 재편 후 위치로 정확히 착지.
+- **구현 규칙**: 분리 커밋 [2 노드 상세][3 모델 상세][4 이동+헤더·앵커]. 각 커밋 build 0 + 스모크 3부 + e2e + 크로스링크 전수. 삭제 식별자 잔존 호출 grep 0(rx·sopen·nref* 등). deny(push·rm) 금지.
+- **검증 도구**: `test/smoke.mjs` part C(파일 투입→analyze→detailOpen 펼침 렌더)가 섹션 헤더 문자열로 재편 확인 가능. 재편 후 "Node Reference"·"Install Script" 부재 + "노드 상세"·"모델 상세"·"비활성 노드" 존재 assert 추가 권장.
+**다음 할 일**: 위 스펙대로 [2][3][4] 항목별 커밋. 착수 시 Install Script 평탄화 방식만 재확인.
 
 ## 2026-07-12 (소형 2건: Node Reference 인트로 정리 + 링크 표 헤더 중앙정렬)
 **한 일** — 커밋 33af66c.
