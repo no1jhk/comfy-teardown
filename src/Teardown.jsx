@@ -2156,9 +2156,149 @@ export default function Teardown() {
             </div>);
           })()}
 
+          {/* ══ 3 모델 상세 — GPU 점검·양자화 안내(1회) + 한 번에 받기 표(plan 기반·버튼 여기만) + 모델 맞추기 슬롯 표(참조·버튼 0). 단일 섹션 토글·기본 닫힘, 내부 평탄(소제목+구분선). ══ */}
+          {(() => {
+            const quantStep = rx.find((s) => s.key === "quant");
+            const dlEligible = (plan?.items || []).filter((it) => { const url = (it.promoted?.downloadUrl || it.downloadUrl) || ""; return (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test(url) && !/\/tree\//.test(url); });
+            if (!quantStep && dlEligible.length === 0 && recipesEnriched.length === 0) return null;
+            return (
+            <div style={{ marginTop: 29, paddingBottom: 48 }}>
+              <DetailSectionHead title="모델 상세" open={open.md} onToggle={() => toggle("md")} />
+              {open.md && (<div className="td-fade">
+
+                {/* GPU 점검·양자화 안내 — 1회. 슬롯 표의 행별 비호환 표기(quantBad)는 별도 유지. */}
+                {quantStep && (
+                <DetailSub title="GPU 점검·양자화 안내" first>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+                    {quantStep.items.map((it, k) => (
+                      <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.surfaceHi, borderRadius: 10, padding: "12px 14px" }}>
+                        <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 3 }} />
+                        <div style={{ minWidth: 0, flex: 1 }}>
+                          <div style={{ fontFamily: MONO, fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.file}</div>
+                          <div style={{ fontSize: 14, fontWeight: 400, color: C.dim, lineHeight: 1.5, overflowWrap: "anywhere", marginTop: 4 }}>{it.desc}</div>
+                          {it.gguf && (
+                            <div style={{ marginTop: 10, background: C.bg, border: `1px solid ${C.point}55`, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
+                              <div style={{ fontWeight: 700, color: C.point, marginBottom: 6, fontSize: 14 }}>GGUF 대체 세트 (권장 · 이 GPU에서 안정 동작)</div>
+                              <div>{it.gguf.note}</div>
+                              {(it.gguf.components || []).map((c, ci) => (
+                                <div key={ci} style={{ marginTop: ci > 0 ? 15 : 9, paddingTop: ci > 0 ? 15 : 0, borderTop: ci > 0 ? `1px solid ${C.line}` : "none" }}>
+                                  <div style={{ fontWeight: 650, color: C.text, fontSize: 13 }}>{c.role} · <span style={{ fontFamily: MONO, color: C.point }}>{c.folder}</span></div>
+                                  {c.files.map((f, fi) => (
+                                    <div key={fi} style={{ marginTop: 3, paddingLeft: 12, overflowWrap: "anywhere" }}>· <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point }}>{f.name}</a>{f.size ? <span style={{ color: C.faint }}> ({f.size})</span> : ""}{f.note ? <span style={{ color: C.faint }}>. {f.note}</span> : ""}</div>
+                                  ))}
+                                </div>
+                              ))}
+                              {it.gguf.node && <div style={{ marginTop: 15, paddingTop: 15, borderTop: `1px solid ${C.line}` }}>필요 노드: <a href={it.gguf.node.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.node.name}</a></div>}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSub>
+                )}
+
+                {/* 한 번에 받기 — 출처 확인된 직링크(confirmed·workflow_author)만. 다운로드 버튼은 이 표에만(슬롯 표는 참조). */}
+                {dlEligible.length > 0 && (
+                <DetailSub title="한 번에 받기" first={!quantStep}>
+                  <div style={{ fontSize: 14, color: C.dim, marginBottom: 14, lineHeight: 1.6 }}>출처가 확인된 파일입니다. 각 파일을 받아 지정 폴더에 넣거나, 아래 스크립트로 한 번에 받으세요.</div>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                    <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 한 번에 받기</button>
+                  </div>
+                  <div style={{ borderTop: `1px solid ${C.divider}` }}>
+                    <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.7fr) 110px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>
+                      {["받을 파일", "넣을 폴더", "용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "center" : "left" }}>{h}</span>)}
+                    </div>
+                    {dlEligible.map((it, k) => {
+                      const p = it.promoted;
+                      const file = p?.filename || it.selectedFile;
+                      const folder = (p ? (p.fullPath || p.folder) : (it.fullPath || it.folder)) || "확인 필요";
+                      const size = p?.size || it.size;
+                      const rawUrl = p?.downloadUrl || it.downloadUrl;
+                      const dlUrl = rawUrl.replace("/blob/", "/resolve/");
+                      return (
+                      <div key={k} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.7fr) 110px", gap: 14, padding: "13px 0", alignItems: "center", borderTop: k > 0 ? `1px solid ${C.divider}` : "none" }}>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontFamily: MONO, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{file}</div>
+                          {p && <div style={{ fontSize: 13, color: C.faint, marginTop: 3, lineHeight: 1.4, overflowWrap: "anywhere" }}>원 지정값: <span style={{ fontFamily: MONO }}>{p.originalFile}</span></div>}
+                          {it.sourceRepo && <div style={{ fontSize: 13, color: C.faint, marginTop: 3, overflowWrap: "anywhere" }}>출처 <span style={{ fontFamily: MONO }}>{it.sourceRepo}</span></div>}
+                        </div>
+                        <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 13, color: folder === "확인 필요" ? C.red : C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{folder}</div>
+                        <div style={{ minWidth: 0 }}>{size ? <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{size}</span> : <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>확인 필요</span>}</div>
+                        <div style={{ display: "flex", justifyContent: "center" }}><a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a></div>
+                      </div>);
+                    })}
+                  </div>
+                  <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, marginTop: 12 }}>※ 받은 뒤 파일 용량을 위 표와 비교하세요. 수 KB/MB로 작으면 깨진 것이니 삭제 후 다시 받으세요.</div>
+                </DetailSub>
+                )}
+
+                {/* 모델 맞추기 (참조) — 워크플로우가 기록한 슬롯·현재 값·폴더. 참조 전용(버튼 0). 행별 GPU 비호환 표기는 여기 유지. */}
+                {recipesEnriched.length > 0 && (
+                <DetailSub title="모델 맞추기 (참조)" first={!quantStep && dlEligible.length === 0}>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+                    {recipesEnriched.map((r, ri) => (
+                      <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                          <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
+                          <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
+                          {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet, display: "inline-flex", alignItems: "center", gap: 5 }}>{r.tabColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: r.tabColor, flexShrink: 0 }} />}[탭: {r.tab}]</span>}
+                          {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[서브그래프]</span>}
+                          {isAdmin && r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>⚠ offset 보정됨</span>}
+                        </div>
+                        <div style={{ borderTop: `1px solid ${C.line}` }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
+                            {["#", "슬롯", "현재 값", "폴더"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
+                          </div>
+                          {r.slots.map((s, si) => (
+                            <div key={si}>
+                              <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "12px 0", alignItems: "center", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
+                                <span style={{ fontFamily: MONO, fontSize: 14, color: C.faint }}>{si + 1}</span>
+                                <span style={{ fontFamily: MONO, fontSize: 14, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
+                                <div style={{ minWidth: 0 }}>
+                                  <div style={{ fontFamily: MONO, fontSize: 14, color: s.quantBad ? C.amber : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
+                                  {s.quantBad && <div style={{ fontFamily: SANS, fontSize: 13, color: C.amber, marginTop: 4, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장합니다.</div>}
+                                  {s.quantUnknown && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
+                                  {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
+                                    <div key={ai} style={{ fontFamily: SANS, fontSize: 13, color: C.point, marginTop: 3, lineHeight: 1.5, paddingLeft: 10 }}>
+                                      대체 파일: <span style={{ fontFamily: MONO }}>{a.name}</span> · {a.folder}
+                                      {a.note && <span style={{ color: C.faint, fontSize: 13 }}> ({a.note})</span>}
+                                    </div>
+                                  ))}
+                                  {s.quantBad && s.ggufAlt?.pending && (
+                                    <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 3, paddingLeft: 10 }}>대체 GGUF: 확인 필요</div>
+                                  )}
+                                  {hasRedInput && s.missing === true && <div style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginTop: 4 }}>🔴 실제 누락</div>}
+                                  {hasRedInput && s.missing === false && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 4 }}>있음(추정)</div>}
+                                  {s.authorRecommend && (
+                                    <div style={{ marginTop: 4, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>
+                                      제작자 권장: <span style={{ fontFamily: MONO, color: C.point }}>{s.authorRecommend.name}</span> · <span style={{ color: C.point }}>{s.authorRecommend.directory}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                  {(() => { const pit = planByFile.get(s.value.replace(/\\/g, "/").split("/").pop().toLowerCase()); const folder = pit ? (pit.promoted ? (pit.promoted.fullPath || pit.promoted.folder) : (pit.fullPath || pit.folder)) : s.folder; return (<>
+                                    <div style={{ fontFamily: MONO, fontSize: 14, color: folder === "확인 필요" ? C.red : C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{folder}</div>
+                                    {pit ? <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{pit.confidence}</span> : (s.src && s.src !== "rule" && s.src !== "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{s.src}</span>)}
+                                    {!pit && s.src === "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.red }}>폴더 확인 필요</span>}
+                                  </>); })()}
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSub>
+                )}
+
+              </div>)}
+            </div>);
+          })()}
+
           {/* 빨간 노드 교정. redNodeRecipe 엔진 출력 */}
-          {(recipesEnriched.length > 0 || hasNodeIssues || report.structSummary?.inactive?.length > 0) && (() => {
-            const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
+          {report.structSummary?.inactive?.length > 0 && (() => {
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
               {/* 6: 섹션 +/- 토글 제거 → 상시 노출. 내부 노드 블록이 개별 1층 접이(토글 안 토글 금지). */}
@@ -2170,147 +2310,9 @@ export default function Teardown() {
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
                 </div>
 
-              {/* STEP 1(커스텀 노드 설치)은 2 노드 상세로 이관. 이 블록은 STEP 2(모델 맞추기 슬롯 표)만 잔존 — C2에서 3 모델 상세로 이동 예정. */}
-
-              {/* STEP 2. 모델 맞추기 */}
-              {recipesEnriched.length > 0 && (() => { const num = 1; return (
+              {/* STEP 1·2(커스텀 노드 설치·모델 맞추기)는 2 노드 상세·3 모델 상세로 이관. 이 블록은 비활성 노드만 잔존 — C3에서 4 비활성 노드 독립 섹션으로 승격·이 Node Reference 래퍼 소멸 예정. */}
+              {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; const num = 1; return (
                 <div style={{ paddingTop: 20, paddingBottom: 20 }}>
-                  <div onClick={() => toggle("nref2")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
-                    <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>모델 맞추기</div>
-                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("nref2"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.nref2 ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}</button>
-                  </div>
-                  {open.nref2 && (
-                  <div style={{ paddingLeft: 44, marginTop: 16 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-                {recipesEnriched.map((r, ri) => (
-                  <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
-                    {/* 2(정정): 노드/로더별 토글 제거 → 평탄 노출. 번호 섹션 헤더 토글이 1층(토글 안 토글 금지). 정적 헤더 div. */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-                      <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
-                      <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
-                      {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet, display: "inline-flex", alignItems: "center", gap: 5 }}>{r.tabColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: r.tabColor, flexShrink: 0 }} />}[탭: {r.tab}]</span>}
-                      {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[서브그래프]</span>}
-                      {isAdmin && r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>⚠ offset 보정됨</span>}
-                    </div>
-                    {/* 슬롯 표 */}
-                    <div style={{ borderTop: `1px solid ${C.line}` }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
-                        {["#", "슬롯", "현재 값", "폴더"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
-                      </div>
-                      {r.slots.map((s, si) => (
-                        <div key={si}>
-                          <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "12px 0", alignItems: "center", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
-                            <span style={{ fontFamily: MONO, fontSize: 14, color: C.faint }}>{si + 1}</span>
-                            <span style={{ fontFamily: MONO, fontSize: 14, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
-                            <div style={{ minWidth: 0 }}>
-                              <div style={{ fontFamily: MONO, fontSize: 14, color: s.quantBad ? C.amber : C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{s.value}</div>
-                              {s.quantBad && <div style={{ fontFamily: SANS, fontSize: 13, color: C.amber, marginTop: 4, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장합니다.</div>}
-                              {s.quantUnknown && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
-                              {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
-                                <div key={ai} style={{ fontFamily: SANS, fontSize: 13, color: C.point, marginTop: 3, lineHeight: 1.5, paddingLeft: 10 }}>
-                                  대체 파일: <span style={{ fontFamily: MONO }}>{a.name}</span> · {a.folder}
-                                  {a.note && <span style={{ color: C.faint, fontSize: 13 }}> ({a.note})</span>}
-                                </div>
-                              ))}
-                              {s.quantBad && s.ggufAlt?.pending && (
-                                <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 3, paddingLeft: 10 }}>대체 GGUF: 확인 필요</div>
-                              )}
-                              {hasRedInput && s.missing === true && <div style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginTop: 4 }}>🔴 실제 누락</div>}
-                              {hasRedInput && s.missing === false && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 4 }}>있음(추정)</div>}
-                              {s.authorRecommend && (
-                                <div style={{ marginTop: 4, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>
-                                  제작자 권장: <span style={{ fontFamily: MONO, color: C.point }}>{s.authorRecommend.name}</span> · <span style={{ color: C.point }}>{s.authorRecommend.directory}</span>
-                                </div>
-                              )}
-                            </div>
-                            <div style={{ minWidth: 0 }}>
-                              {(() => { const pit = planByFile.get(s.value.replace(/\\/g, "/").split("/").pop().toLowerCase()); const folder = pit ? (pit.promoted ? (pit.promoted.fullPath || pit.promoted.folder) : (pit.fullPath || pit.folder)) : s.folder; return (<>
-                                <div style={{ fontFamily: MONO, fontSize: 14, color: folder === "확인 필요" ? C.red : C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{folder}</div>
-                                {pit ? <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{pit.confidence}</span> : (s.src && s.src !== "rule" && s.src !== "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{s.src}</span>)}
-                                {!pit && s.src === "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.red }}>폴더 확인 필요</span>}
-                              </>); })()}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {/* 고급: 이미 받은 것 빼고 보기. 비표시(재설계 후 복원 예정) */}
-              {false && <div style={{ marginTop: 24 }}>
-                <div onClick={() => toggle("adv")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", padding: "10px 0" }}>
-                  <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.dim }}>{open.adv ? "▾" : "▸"} 이미 받은 것 빼고 보기</span>
-                  <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>(고급 · 선택)</span>
-                </div>
-                {open.adv && (<>
-                  {/* 폴더 스캔 명령 생성기 */}
-                  {usedFolders.length > 0 && (
-                    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px", marginTop: 8, marginBottom: 14 }}>
-                      <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 4 }}>폴더 스캔 명령 만들기</div>
-                      <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.5, marginBottom: 10 }}>모델 루트 경로를 넣으면, 이 워크플로우가 쓰는 폴더만 스캔하는 명령을 만들어 줍니다. 결과를 아래 칸에 붙여넣으세요.</div>
-                      <input value={scanRoot} onChange={(e) => setScanRoot(e.target.value)} spellCheck={false}
-                        placeholder={"Windows 예: N:\\ComfyUI_models   ·   Mac 예: ~/ComfyUI/models"}
-                        style={{ width: "100%", boxSizing: "border-box", background: C.bg, color: C.text,
-                          border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 12px", fontFamily: MONO, fontSize: 13, outline: "none", marginBottom: 10 }} />
-                      {(() => {
-                        const root = scanRoot.trim();
-                        const subs = usedFolders.map(f => f.replace(/^models\//, ""));
-                        const winRoot = root ? root.replace(/\/+$/, "").replace(/\\+$/, "") : "<모델루트>";
-                        const macRoot = root ? root.replace(/\/+$/, "").replace(/\\+$/, "") : "<모델루트>";
-                        const winCmd = "dir /b " + subs.map(s => `"${winRoot}\\${s.replace(/\//g, "\\")}"`).join(" ");
-                        const macCmd = "ls " + subs.map(s => `"${macRoot}/${s}"`).join(" ");
-                        return (
-                          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                            {[{ label: "Windows", cmd: winCmd, key: "scanwin" }, { label: "Mac / Linux", cmd: macCmd, key: "scanmac" }].map(({ label, cmd, key }) => (
-                              <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                                <span style={{ fontSize: 13, color: C.faint, flexShrink: 0, minWidth: 70 }}>{label}:</span>
-                                <code style={{ fontFamily: MONO, fontSize: 13, color: root ? C.text : C.faint, flex: 1, overflowWrap: "anywhere", lineHeight: 1.5 }}>{cmd}</code>
-                                <button className="td-copy" onClick={() => copy(cmd, key)} title="복사"
-                                  style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                  {copiedKey === key ? <Check size={13} /> : <Copy size={13} />}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        );
-                      })()}
-                    </div>
-                  )}
-                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>이미 가진 파일 제외</div>
-                      <textarea value={missingText} onChange={(e) => setMissingText(e.target.value)} spellCheck={false}
-                        placeholder={"받을 필요 없는(이미 가진) 파일명을\n한 줄에 하나씩. 모르면 비워두세요."}
-                        style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
-                          border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 13, lineHeight: 1.6, outline: "none" }} />
-                    </div>
-                    <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 12, padding: "14px 18px" }}>
-                      <div style={{ fontSize: 13, fontWeight: 650, color: C.dim, marginBottom: 6 }}>내 폴더에 있는 것</div>
-                      <textarea value={dirText} onChange={(e) => setDirText(e.target.value)} spellCheck={false}
-                        placeholder={"위 명령 결과를 붙여넣기.\n비워도 됩니다."}
-                        style={{ width: "100%", minHeight: 56, resize: "vertical", boxSizing: "border-box", background: C.bg, color: C.text,
-                          border: `1px solid ${C.line}`, borderRadius: 8, padding: "10px 12px", fontFamily: MONO, fontSize: 13, lineHeight: 1.6, outline: "none" }} />
-                    </div>
-                  </div>
-                  {hasRedInput && (
-                    <div style={{ fontSize: 13, fontWeight: 700, color: missingCount > 0 ? C.red : C.green, marginTop: 12, lineHeight: 1.5 }}>
-                      {missingCount > 0
-                        ? `🔴 표시된 ${missingCount}개가 실제로 없는 것입니다`
-                        : haveFromDir ? "폴더 목록의 파일이 모든 슬롯과 매칭됩니다. 다 있는 상태" : "붙여넣은 파일명과 매칭되는 슬롯이 없습니다. 파일명을 확인하세요"}
-                    </div>
-                  )}
-                </>)}
-              </div>}
-                  </div>
-                  )}
-                </div>); })()}
-
-              {/* 소형1: 비활성 노드 = 3번 섹션(1·2와 동일 문법: 번호 헤더 + +/- 토글 + 기본 닫힘). 번호는 앞 섹션 렌더 수에 따라 동적. 내용 = 노드명(소속 그룹). */}
-              {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; const num = (recipesEnriched.length > 0 ? 1 : 0) + 1; return (
-                <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: recipesEnriched.length > 0 ? `1px solid ${C.divider}` : "none" }}>
                   <div onClick={() => toggle("nref3")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
                     <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>비활성 노드</div>
@@ -2323,253 +2325,7 @@ export default function Teardown() {
             </div>);
           })()}
 
-          {/* Install Script — install/env 스텝은 2 노드 상세로 이관. 여기는 quant/models만 잔존(C2에서 3 모델 상세로 이동·이 섹션 소멸 예정). */}
-          {rx.some((s) => s.key !== "install" && s.key !== "env") && (
-            <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              <SectionTitle>Install Script</SectionTitle>
-              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
-                {rx.filter((s) => s.key !== "install" && s.key !== "env").map((step, i) => {
-                  const sk = `s${i}`;
-                  const sopen = !!open[sk]; // s0는 기본 펼침(useState 초기값)
-                  return (
-                  <div key={step.key} style={{ paddingTop: 20, paddingBottom: sopen ? 55 : 20, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
-                    {/* 번호(동그라미) + 제목 + 펼침 토글. 수직 중앙정렬 */}
-                    <div onClick={() => toggle(sk)} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-                      <div style={{ width: 30, height: 30, borderRadius: 15, background: step.severity === "high" ? C.red : C.point, color: step.severity === "high" ? "#fff" : INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{i + 1}</div>
-                      <div style={{ fontSize: 23, fontWeight: 650, color: step.severity === "high" ? C.red : C.text, lineHeight: 1.2, flex: 1 }}>{step.title}</div>
-                      <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle(sk); }} aria-label="펼치기/접기"
-                        style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
-                        {sopen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
-                      </button>
-                    </div>
-                    {sopen && <div style={{ paddingLeft: 44, marginTop: 8 }}>
-                      {step.key !== "install" && <div style={{ fontSize: 18, color: C.dim, lineHeight: 1.5 }}>{step.desc}</div>}
-                      {step.key === "install" && step.command ? (
-                        <div style={{ marginTop: 14 }}>
-                          <div style={{ fontSize: 18, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요. 해당 폴더에서 git clone (또는 Manager의 Git URL 설치).</div>
-
-                          {/* custom_nodes 경로 안내. OS/설치유형별 */}
-                          <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
-                          <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>내 설치 유형에 맞는 경로를 탐색기/터미널 주소창에 붙여넣으세요.</div>
-                          <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 12px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
-                            {[
-                              { os: "Windows", label: "Desktop 앱", path: "%LOCALAPPDATA%\\Comfy-Desktop\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\custom_nodes" },
-                              { os: "Windows", label: "Portable/일반", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
-                              { os: "macOS/Linux", label: "일반 설치", path: "~/ComfyUI/custom_nodes" },
-                            ].map((p, pi) => (
-                              <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
-                                <span style={{ fontSize: 13, color: C.faint, flexShrink: 0, minWidth: 110 }}>{p.os} · {p.label}:</span>
-                                <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, overflowWrap: "anywhere", flex: 1, minWidth: 0 }}>{p.path}</code>
-                                <button className="td-copy" onClick={() => copy(p.path, `cn-${p.os}-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                                  {copiedKey === `cn-${p.os}-${p.label}` ? <Check size={13} /> : <Copy size={13} />}
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                          <div style={{ marginTop: 8, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>※ macOS/Linux Desktop 앱은 설치 경로가 다를 수 있습니다. 앱 설정에서 ComfyUI 경로를 확인하세요.</div>
-
-                          {/* 방법 A. 직접 */}
-                          <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginTop: 30, marginBottom: 12 }}>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 A. 직접</div>
-                            <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>custom_nodes 폴더에서 우클릭해 Git Bash Here(또는 터미널)를 열고, 아래 명령을 붙여넣으세요:</div>
-                            <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
-                              <button className="td-copy" onClick={() => copy(step.command, step.key)} title="전체 복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                                {copiedKey === step.key ? <Check size={16} /> : <Copy size={16} />}</button>
-                              <pre style={{ margin: 0, fontFamily: MONO, fontSize: 13, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 32 }}>{step.command}</pre>
-                            </div>
-                            {step.warn && <div style={{ marginTop: 7, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ {step.warn}</div>}
-                          </div>
-
-                          {/* 방법 B. 자동 스크립트 */}
-                          <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px" }}>
-                            <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
-                            <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
-                            <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
-                              {/* 3: 스크립트 받기 버튼 전 화면 단일 클래스(td-hf-sand)·↓ 아이콘. OS별 선택이라 파일명 라벨은 유지(f1854a1 승인), 색·형식·아이콘만 Solution과 통일. */}
-                              <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> install.bat (Windows)</button>
-                              <button className="td-hf-sand" onClick={() => downloadText("install.sh", buildInstallScript(report, "sh", env))}><Download size={15} /> install.sh (Mac/Linux)</button>
-                              {plan && plan.items.some((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test(it.downloadUrl || "") && !/\/tree\//.test(it.downloadUrl || "")) && (
-                                <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 받기.bat</button>
-                              )}
-                            </div>
-                            {!env.customNodesPath && <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>로그에서 custom_nodes 경로를 찾지 못했습니다. 스크립트 안의 경로를 직접 입력해 주세요. (로그를 붙여넣으면 경로를 채워 드립니다.)</div>}
-                            <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>※ 초보자는 이 방법 권장. 반드시 custom_nodes 폴더 안에서 실행하세요.</div>
-                            <div style={{ marginTop: 20, fontSize: 13, color: C.dim, lineHeight: 1.65, borderTop: `1px solid ${C.divider}`, paddingTop: 10 }}>
-                              <div style={{ fontWeight: 650, color: C.text, marginBottom: 4 }}>설치 확인하는 법</div>
-                              <div>· 실행하면 터미널에 "Cloning into …" 또는 "Successfully installed" 메시지가 뜹니다. 에러 시 빨간 글씨가 나옵니다.</div>
-                              <div>· 가장 확실한 확인: ComfyUI를 완전히 재시작한 뒤 워크플로우를 다시 로드해서 빨간 노드가 사라졌는지 보세요. 빨간 노드가 없어졌으면 설치 성공.</div>
-                              <div>· 설치했는데도 빨간 노드가 남아 있으면, custom_nodes 폴더 안에 해당 노드 폴더가 실제로 생겼는지 확인하세요.</div>
-                            </div>
-                          </div>
-
-                          {isAdmin && step.installNotes && (
-                            <div style={{ marginTop: 12, background: "rgba(239,83,80,0.06)", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 16px" }}>
-                              <div style={{ fontSize: 13, fontWeight: 650, color: C.red, marginBottom: 6 }}>설치 후 주의</div>
-                              {step.installNotes.map((n, ni) => (
-                                <div key={ni} style={{ fontSize: 13, color: C.redMuted, lineHeight: 1.6, marginTop: ni > 0 ? 6 : 0 }}>
-                                  <span style={{ fontFamily: MONO, fontWeight: 600, color: C.text }}>{n.file}</span>. {n.desc}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      ) : (<>
-                      {step.command && (
-                        <div style={{ marginTop: 12 }}>
-                          <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
-                            <button className="td-copy" onClick={() => copy(step.command, step.key)} title="전체 복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                              {copiedKey === step.key ? <Check size={16} /> : <Copy size={16} />}</button>
-                            <pre style={{ margin: 0, fontFamily: MONO, fontSize: 13, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 32 }}>{step.command}</pre>
-                          </div>
-                          {step.warn && <div style={{ marginTop: 7, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ {step.warn}</div>}
-                        </div>
-                      )}
-                      </>)}
-                      {step.models && (
-                        <div style={{ marginTop: 19 }}>
-                          {(() => {
-                            const need = step.models.filter((m) => !haveModels.has(m.file)).length;
-                            const haveN = step.models.length - need;
-                            return need === 0
-                              ? <div style={{ fontSize: 13, fontWeight: 700, color: C.green, background: "rgba(193,191,186,0.08)", border: `1px solid ${C.green}55`, borderRadius: 10, padding: "12px 16px", marginBottom: 10 }}>✓ 필요한 모델이 다 있습니다 (받아야 할 후보 없음). PC 폴더에서 한 번 더 확인하세요.</div>
-                              : <div style={{ fontSize: 13, color: C.dim, marginBottom: 10, lineHeight: 1.5 }}>받아야 할 후보 <b style={{ color: C.point }}>{need}개</b>{haveN ? ` · 이미 있음 ${haveN}개` : ""} · <span style={{ color: C.faint }}>이미 받아 둔 파일은 '이미 있으면 체크 ✓'를 눌러 표시해 두세요. 도구는 PC 안을 확인하지 않습니다.</span></div>;
-                          })()}
-                          {(() => {
-                            // 양자화 비호환 모델 lookup (파일명 → warning+gguf)
-                            const qwMap = {};
-                            for (const w of quantWarnings(report.models, env.gpu)) qwMap[w.file.toLowerCase()] = w;
-                            return (
-                          <div style={{ borderTop: `1px solid ${C.divider}` }}>
-                            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>
-                              {["받을 파일", "어느 폴더에 둘지", "정상 용량", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.03em", textAlign: h === "다운로드" ? "center" : "left" }}>{h}</span>)}
-                            </div>
-                            {step.models.map((m, k) => {
-                              const live = liveCompat[m.file];
-                              const eff = m.compat || live || learnedModel(m.file);
-                              const src = eff?.source;
-                              const mr = modelResearch[m.file];
-                              const dlUrl = directDownloadUrl(eff, m.file, mr, m.noteUrl);
-                              const ks = knownModelSize(m.file);
-                              const sz = eff?.size_gb ? fmtSize(eff.size_gb) : eff?.size_label || (ks ? fmtSize(ks) : null);
-                              const dest = (env.modelRoot && rewritePath(m.file, env.modelRoot)) || m.folder;
-                              const al = modelAliasInfo(m.file);
-                              const have = haveModels.has(m.file);
-                              const qwHit = qwMap[m.file.toLowerCase()];
-                              return (<React.Fragment key={k}>
-                              {/* 6: dim은 "이미 있음(have)" 전용. GPU 비호환(qwHit)은 dim 대신 정상 명도 + ⚠ 빨강 강조(판단근거의 "⚠ 이 GPU 비호환"과 동일 레벨). */}
-                              <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "13px 0", alignItems: "center", borderTop: k > 0 ? `1px solid ${C.divider}` : "none", opacity: have ? 0.45 : 1 }}>
-                                <div style={{ minWidth: 0 }}>
-                                  <div style={{ fontFamily: MONO, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>{m.file}</div>
-                                  {qwHit && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red }}>⚠ 이 GPU는 변환 경로 필요 · GGUF 권장</span>}
-                                  {src && !qwHit && <span style={{ fontFamily: SANS, fontSize: 13, color: src === "curated" ? C.point : src === "learned" ? C.amber : C.green, opacity: src === "curated" ? 1 : 0.7 }}>{src === "curated" ? "큐레이션" : src === "manager_live" ? "Manager(실시간)" : src === "learned" ? "내 적립(미확정)" : "Manager"}</span>}
-                                  {m.rename && <div style={{ fontSize: 13, color: C.amber, marginTop: 4, lineHeight: 1.4 }}>⤷ {m.rename}</div>}
-                                  {al && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>다른 이름: <span style={{ fontFamily: MONO, color: C.point }}>{al.others.join(", ")}</span></div>}
-                                  {!qwHit && !gpuGeneration(env.gpu) && detectQuant(m.file) && <div style={{ fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.4 }}>이 형식({detectQuant(m.file)})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
-                                </div>
-                                <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 13, color: qwHit ? C.faint : C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{dest}</div>
-                                <div style={{ minWidth: 0 }}>
-                                  {sz ? (
-                                    <>
-                                      <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: qwHit ? C.faint : C.text }}>{sz}</div>
-                                      {!qwHit && <div style={{ fontSize: 13, color: C.faint, marginTop: 3, lineHeight: 1.4 }}>받은 뒤 이 용량과 비교. 수 KB/MB로 작으면 깨진 것이니 삭제 후 재다운</div>}
-                                    </>
-                                  ) : <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>확인 필요</span>}
-                                </div>
-                                <div style={{ display: "flex", flexDirection: "column", gap: 6, alignItems: "center" }}>
-                                  {have ? (
-                                    <button className="td-copy" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.green, background: "transparent", border: "none", padding: "4px 6px", cursor: "pointer", whiteSpace: "nowrap" }}>있음 ✓ (취소)</button>
-                                  ) : qwHit?.gguf ? (
-                                    <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>원본 (이 GPU 비권장)</span>
-                                  ) : (
-                                    <>
-                                      {dlUrl ? (
-                                        <>
-                                          <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
-                                          {isAdmin && !eff && mr?.result?.found && <button onClick={() => learnModelLink(m.file, mr.result)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.amber, background: "transparent", border: `1px solid ${C.amber}`, borderRadius: 999, padding: "3px 9px", cursor: "pointer", whiteSpace: "nowrap" }}>이거 맞았어</button>}
-                                          {isAdmin && eff?.source === "learned" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>✓ 적립됨</span>}
-                                        </>
-                                      ) : mr?.loading ? (
-                                        <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim }}>찾는 중…</span>
-                                      ) : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? (
-                                        <>
-                                          <a className="td-hf td-outline-w" href={searchUrl(m.file)} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a>
-                                          {(mr?.error || (mr?.result && !mr.result.found)) && <div style={{ fontSize: 13, color: C.faint, marginTop: 4 }}>직접 링크를 찾지 못했습니다</div>}
-                                        </>
-                                      ) : (
-                                        <button className="td-hf" onClick={() => researchUnknownModel(m.file)}>찾기</button>
-                                      )}
-                                      <button className="td-havelink" onClick={() => toggleHave(m.file)} style={{ fontFamily: SANS, fontSize: 13, padding: "4px 6px", whiteSpace: "nowrap" }}>이미 있으면 체크 ✓</button>
-                                    </>
-                                  )}
-                                </div>
-                              </div>
-                              {/* GGUF 대체 행. 비호환 모델 바로 아래 */}
-                              {qwHit?.gguf && (qwHit.gguf.components || []).map((comp) => comp.files.map((gf, gi) => (
-                                <div key={`gguf-${k}-${comp.role}-${gi}`} style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.9fr) 110px", gap: 14, padding: "10px 0", alignItems: "center", background: "rgba(244,255,117,0.04)", borderTop: `1px solid ${C.divider}` }}>
-                                  <div style={{ minWidth: 0 }}>
-                                    <div style={{ fontFamily: MONO, fontSize: 14, color: C.point, overflowWrap: "anywhere", lineHeight: 1.4 }}>{gf.name}</div>
-                                    <span style={{ fontFamily: SANS, fontSize: 13, color: C.point }}>대신 받기 · {comp.role}</span>
-                                    {gf.note && <div style={{ fontSize: 13, color: C.dim, marginTop: 2 }}>{gf.note}</div>}
-                                  </div>
-                                  <div style={{ minWidth: 0, fontFamily: MONO, fontSize: 13, color: C.point, overflowWrap: "anywhere", lineHeight: 1.45 }}>{comp.folder}</div>
-                                  <div style={{ minWidth: 0 }}>
-                                    {gf.size ? <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text }}>{gf.size}</div> : <span style={{ fontSize: 13, color: C.faint }}>·</span>}
-                                  </div>
-                                  <div style={{ display: "flex", justifyContent: "flex-end" }}><a className="td-hf" href={gf.url} target="_blank" rel="noopener noreferrer">다운로드</a></div>
-                                </div>
-                              )))}
-                              </React.Fragment>);
-                            })}
-                          </div>);
-                          })()}
-                          <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 12 }}>※ 도구는 PC를 보지 못합니다. 이미 받아둔 모델은 “있음”으로 표시해 건너뛰세요. 표시 안 한 것이 <b style={{ color: C.text }}>받아야 할 후보</b>입니다.</div>
-                          <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 4 }}>※ 폴더 위치나 용량이 “확인 필요”로 나오면 워크플로우 제작자의 안내에서 확인하세요.</div>
-                          {step.integrity && (
-                            <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 13, color: C.redMuted, lineHeight: 1.6 }}>
-                              <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
-                              <div style={{ fontSize: 13, lineHeight: 1.55 }}>· 받은 파일 용량을 위 표의 “정상 용량”과 비교. 수 KB/MB로 비정상적으로 작으면 삭제 후 재다운로드</div>
-                              <div style={{ fontSize: 13, lineHeight: 1.55 }}>· 대용량 다운로드 중 ComfyUI·PC 재부팅 금지. 중단되면 빈 파일이 됨</div>
-                              <div style={{ fontSize: 13, lineHeight: 1.55 }}>· .safetensors가 비정상적으로 작으면 <span style={{ fontFamily: MONO }}>JSONDecodeError</span> 발생</div>
-                            </div>
-                          )}
-                        </div>
-                      )}
-                      {step.items && (
-                        <div style={{ marginTop: 11, display: "flex", flexDirection: "column", gap: 8 }}>
-                          {step.items.map((it, k) => (
-                            <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.surfaceHi, borderRadius: 10, padding: "12px 14px" }}>
-                              <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 3 }} />
-                              {it.file ? (
-                                <div style={{ minWidth: 0, flex: 1 }}>
-                                  <div style={{ fontSize: 20, fontWeight: 600, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.file}</div>
-                                  <div style={{ fontSize: 18, fontWeight: 400, color: C.dim, lineHeight: 1.5, overflowWrap: "anywhere", marginTop: 4 }}>{it.desc}</div>
-                                  {it.gguf && (
-                                    <div style={{ marginTop: 10, background: C.bg, border: `1px solid ${C.point}55`, borderRadius: 10, padding: "12px 14px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
-                                      <div style={{ fontWeight: 700, color: C.point, marginBottom: 6, fontSize: 14 }}>GGUF 대체 세트 (권장 · 이 GPU에서 안정 동작)</div>
-                                      <div>{it.gguf.note}</div>
-                                      {(it.gguf.components || []).map((c, ci) => (
-                                        <div key={ci} style={{ marginTop: ci > 0 ? 15 : 9, paddingTop: ci > 0 ? 15 : 0, borderTop: ci > 0 ? `1px solid ${C.line}` : "none" }}>
-                                          <div style={{ fontWeight: 650, color: C.text, fontSize: 13 }}>{c.role} · <span style={{ fontFamily: MONO, color: C.point }}>{c.folder}</span></div>
-                                          {c.files.map((f, fi) => (
-                                            <div key={fi} style={{ marginTop: 3, paddingLeft: 12, overflowWrap: "anywhere" }}>· <a href={f.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point }}>{f.name}</a>{f.size ? <span style={{ color: C.faint }}> ({f.size})</span> : ""}{f.note ? <span style={{ color: C.faint }}>. {f.note}</span> : ""}</div>
-                                          ))}
-                                        </div>
-                                      ))}
-                                      {it.gguf.node && <div style={{ marginTop: 15, paddingTop: 15, borderTop: `1px solid ${C.line}` }}>필요 노드: <a href={it.gguf.node.repo} target="_blank" rel="noopener noreferrer" style={{ color: C.point, overflowWrap: "anywhere" }}>{it.gguf.node.name}</a></div>}
-                                    </div>
-                                  )}
-                                </div>
-                              ) : (
-                                <span style={{ fontSize: 20, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.action}</span>
-                              )}</div>))}
-                        </div>
-                      )}
-                    </div>}
-                  </div>);
-                })}
-              </div>
-            </div>
-          )}
+          {/* Install Script 섹션 소멸(C2): install/env→2 노드 상세, quant→3 모델 상세 GPU 안내, models→3 모델 상세 받기 표. buildInstallScript/buildDownloadScript는 노드·모델 상세와 Solution에서 계속 사용. */}
 
           {/* Findings. 박스 없는 아코디언. 헤더는 BlockHead로 통일. */}
           <div style={{ marginTop: 29, paddingBottom: 48 }}>
