@@ -1990,6 +1990,37 @@ export default function Teardown() {
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
                 <MetricBox value={report.customPackTotal} label="커스텀 pack" unit="개" />
               </div>
+              {/* 1: Summary 카드 — 전부 JSON 정적 추출(그룹 현황·파이프라인·파라미터·입출력·비활성). 추출 실패 항목은 미표기. 8: 높이 +20px(패딩 32). */}
+              {report.structSummary && (() => { const ss = report.structSummary; if (!(ss.groups.length || ss.pipeline || ss.keyParams || ss.io || ss.inactive.length)) return null; const kp = ss.keyParams; return (
+                <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "32px 24px", marginBottom: 24 }}>
+                  {ss.pipeline && <div style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 6 }}>파이프라인</div>
+                    <div style={{ fontSize: 16, color: C.text, lineHeight: 1.5, overflowWrap: "anywhere" }}>{ss.pipeline}</div>
+                  </div>}
+                  {ss.io && <div style={{ marginBottom: 18, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>입력 <span style={{ color: C.text }}>{ss.io.inputs.join(" · ") || "확인 필요"}</span> · 출력 <span style={{ color: C.text }}>{ss.io.outputs.join(" · ") || "확인 필요"}</span></div>}
+                  {kp && <div style={{ marginBottom: 18 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 6 }}>핵심 파라미터</div>
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 20px", fontSize: 14, color: C.dim }}>
+                      {kp.resolution != null && <span>해상도 <span style={{ color: C.text, fontFamily: MONO }}>{kp.resolution}</span></span>}
+                      {kp.steps != null && <span>스텝 <span style={{ color: C.text, fontFamily: MONO }}>{kp.steps}</span></span>}
+                      {kp.sampler != null && <span>샘플러 <span style={{ color: C.text, fontFamily: MONO }}>{kp.sampler}</span></span>}
+                      {kp.cfg != null && <span>CFG <span style={{ color: C.text, fontFamily: MONO }}>{kp.cfg}</span></span>}
+                      {kp.batch != null && <span>배치 <span style={{ color: C.text, fontFamily: MONO }}>{kp.batch}</span></span>}
+                    </div>
+                  </div>}
+                  {ss.groups.length > 0 && <div style={{ marginBottom: ss.inactive.length ? 18 : 0 }}>
+                    <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 8 }}>그룹 현황</div>
+                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                      {ss.groups.map((g, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
+                        <span style={{ width: 7, height: 7, borderRadius: 999, background: g.bypassed ? C.faint : C.point, flexShrink: 0 }} />
+                        <span style={{ color: C.text, flex: 1, overflowWrap: "anywhere" }}>{g.title}</span>
+                        <span style={{ color: C.dim, fontFamily: MONO, fontSize: 13, flexShrink: 0 }}>노드 {g.nodeCount}개</span>
+                        <span style={{ color: g.bypassed ? C.faint : C.point, fontSize: 13, fontWeight: 700, minWidth: 50, textAlign: "right", flexShrink: 0 }}>{g.bypassed ? "bypass" : "활성"}</span>
+                      </div>)}
+                    </div>
+                  </div>}
+                  {ss.inactive.length > 0 && <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, overflowWrap: "anywhere" }}>비활성 노드 {ss.inactive.length}개: {[...new Set(ss.inactive.map((n) => n.group ? `${n.type}(${n.group})` : n.type))].slice(0, 8).join(" · ")}{ss.inactive.length > 8 ? " 외" : ""}</div>}
+                </div>); })()}
               {report.authorNotes?.length > 0 && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${C.divider}` }}>
                   <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>

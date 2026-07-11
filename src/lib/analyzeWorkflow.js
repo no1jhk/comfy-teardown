@@ -347,6 +347,58 @@ export function analyze(norm, mgrMap) {
   let savedCore = null, savedCoreNode = null;
   for (const n of norm.nodes) { if (/comfy-core/i.test(n.cnr_id || "") && n.ver) { if (!savedCore || compareVersion(n.ver, savedCore) > 0) { savedCore = n.ver; savedCoreNode = n.type; } } }
   const savedVersion = savedCore ? { core: savedCore, coreNode: savedCoreNode, frontend: norm.frontendVersion || null } : null;
+  // 1(Summary): 전부 JSON 정적 추출. 실패 항목은 null(미표기, 날조 금지).
+  const isMuted = (n) => n.mode === 2 || n.mode === 4;
+  // (1) 그룹 현황: 제목·노드 수·활성/bypass(전 노드 muted면 bypass)
+  const groupStatus = groupsG.map((g) => {
+    const title = g.title || "그룹";
+    const members = norm.nodes.filter((n) => groupOf(n) === title);
+    const active = members.filter((n) => !isMuted(n)).length;
+    return { title, nodeCount: members.length, bypassed: members.length > 0 && active === 0 };
+  }).filter((g) => g.nodeCount > 0);
+  // (4) 입출력 종류(활성 노드만). 미디어 입력 있으면 그것만, 없으면 텍스트(프롬프트).
+  const IO = [[/LoadImage|LoadImageOutput|ImageLoad/i, "in", "이미지"], [/LoadAudio/i, "in", "오디오"], [/LoadVideo|VHS_LoadVideo/i, "in", "영상"], [/CLIPTextEncode|TextInput|PrimitiveString/i, "in", "텍스트"], [/SaveImage|PreviewImage/i, "out", "이미지"], [/SaveAudio|PreviewAudio/i, "out", "오디오"], [/VideoCombine|SaveVideo|VHS_VideoCombine/i, "out", "영상"]];
+  const inSet = new Set(), outSet = new Set();
+  for (const n of norm.nodes) { if (isMuted(n)) continue; for (const [re, dir, kind] of IO) if (re.test(n.type || "")) (dir === "in" ? inSet : outSet).add(kind); }
+  const media = [...inSet].filter((k) => k !== "텍스트");
+  const inputs = media.length ? media : [...inSet];
+  const outputs = [...outSet];
+  const io = (inputs.length || outputs.length) ? { inputs, outputs } : null;
+  // (3) 핵심 파라미터: KSampler(위치 기반: [seed,control,steps,cfg,sampler,...]) + EmptyLatent류 해상도·배치. 있는 것만.
+  const kp = {};
+  for (const n of norm.nodes) {
+    const wv = Array.isArray(n.widgets) ? n.widgets : [];
+    if (n.type === "KSampler" && wv.length >= 5) {
+      if (kp.steps == null && typeof wv[2] === "number") kp.steps = wv[2];
+      if (kp.cfg == null && typeof wv[3] === "number") kp.cfg = wv[3];
+      if (kp.sampler == null && typeof wv[4] === "string") kp.sampler = wv[4];
+    } else if (/KSampler|SamplerCustom/i.test(n.type || "")) {
+      const strs = wv.filter((v) => typeof v === "string");
+      const s = strs.find((v) => /euler|dpm|lcm|ddim|uni_pc|heun|res_|ipndm/i.test(v));
+      if (s && kp.sampler == null) kp.sampler = s;
+      const st = wv.find((v) => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 150);
+      if (st != null && kp.steps == null) kp.steps = st;
+    }
+    if (/EmptyLatent|EmptySD3|EmptyHunyuan|EmptySDXL/i.test(n.type || "")) {
+      const dims = wv.filter((v) => typeof v === "number" && v >= 64 && v <= 8192);
+      if (dims.length >= 2 && kp.resolution == null) kp.resolution = `${dims[0]}x${dims[1]}`;
+      const batch = wv.find((v) => typeof v === "number" && Number.isInteger(v) && v >= 1 && v <= 64);
+      if (batch != null && kp.batch == null) kp.batch = batch;
+    }
+  }
+  const keyParams = Object.keys(kp).length ? kp : null;
+  // (2) 파이프라인 한 줄: 입력 → 감지된 핵심 단계 → 출력(정적 키워드). 2단계 미만이면 미표기.
+  // 단계 감지: 활성 노드 type + 그룹 제목(둘 다 정적 JSON). 그룹 제목에 stage 키워드가 있으면 그 단계 포함(예 PiD "Upscale" 그룹).
+  const hasStage = (re) => norm.nodes.some((n) => !isMuted(n) && re.test(n.type || "")) || groupStatus.some((g) => !g.bypassed && re.test(g.title || ""));
+  const stages = [];
+  if (inputs.length) stages.push(inputs.join("·") + " 입력");
+  if (hasStage(/Florence|WD14|Caption|Interrogat|JoyCaption|Tagger|캡션/i)) stages.push("캡션");
+  if (hasStage(/Upscale|ESRGAN|SeedVR2|RealESRGAN|업스케일/i)) stages.push("업스케일");
+  if (outputs.length) stages.push(outputs.join("·") + " 저장");
+  const pipeline = stages.length >= 2 ? stages.join(" → ") : null;
+  // (5) 비활성 노드(muted) + 소속 그룹
+  const inactiveNodes = muted.map((m) => { const n = norm.nodes.find((x) => x.id === m.id); return { type: m.type, group: n ? groupOf(n) : null }; });
+  const structSummary = { groups: groupStatus, io, keyParams, pipeline, inactive: inactiveNodes };
   const packs = Object.keys(packVers).map((id) => {
     const vers = [...packVers[id]].filter(Boolean).map(String);
     return { id, vers, repo: compatNodeRepo(id), nodeTypes: [...packNodes[id]],
@@ -383,6 +435,7 @@ export function analyze(norm, mgrMap) {
     bypassBreaks: detectBypassBreaks(norm),
     bypassGroupModels, // 소형1: basename → bypass 그룹 제목(다른 그룹용 = 접기1 분류)
     savedVersion, // 6: 정적 저장 버전 {core, coreNode, frontend}
+    structSummary, // 1: Summary 정적 추출 {groups, io, keyParams, pipeline, inactive}
     ignorable: [...new Set(norm.nodes.filter((n) => isIgnorableNode(n.type)).map((n) => n.type))],
     coreFeatures: scanCoreFeatures(norm.nodes),
     nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)
