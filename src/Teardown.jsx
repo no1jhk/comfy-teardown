@@ -2071,24 +2071,26 @@ export default function Teardown() {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              <SectionTitle>Node Reference</SectionTitle>
-              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
+              {/* 5(기본 접힘) + 3(평탄화): 섹션 1층 collapse(기본 닫힘), 내부는 정적(rn1/rn2 토글 제거). */}
+              <div onClick={() => toggle("noderef")} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+                <div style={{ flex: 1 }}><SectionTitle>Node Reference</SectionTitle></div>
+                <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("noderef"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.noderef ? <Minus size={28} strokeWidth={2.25} /> : <Plus size={28} strokeWidth={2.25} />}</button>
+              </div>
+              {open.noderef && (
+              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden", marginTop: 12 }}>
                 <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
                 </div>
 
               {/* STEP 1. 커스텀 노드 설치 (Solution 단계 스타일 아코디언, 기본 펼침) */}
-              {hasNodeIssues && (() => { const sopen = !!open.rn1; return (
-                <div style={{ paddingTop: 20, paddingBottom: sopen ? 55 : 20 }}>
-                  <div onClick={() => toggle("rn1")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+              {/* 3(평탄화): STEP 토글 제거 → 정적 헤더 + 내용 상시 표시(중첩 토글 0). */}
+              {hasNodeIssues && (
+                <div style={{ paddingTop: 20, paddingBottom: 20 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>1</div>
                     <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>커스텀 노드 설치</div>
-                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("rn1"); }} aria-label="펼치기/접기"
-                      style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
-                      {sopen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
-                    </button>
                   </div>
-                  {sopen && <div style={{ paddingLeft: 44, marginTop: 16 }}>
+                  <div style={{ paddingLeft: 44, marginTop: 16 }}>
                 <div style={{ marginBottom: 20 }}>
                   {[...report.unmapped.map((u) => ({ t: "u", u })), ...report.broken.map((b) => ({ t: "b", b }))].map((it, i) => {
                     const u = it.u, b = it.b;
@@ -2130,21 +2132,18 @@ export default function Teardown() {
                     </React.Fragment>);
                   })}
                 </div>
-                  </div>}
-                </div>); })()}
+                  </div>
+                </div>
+              )}
 
-              {/* STEP 2. 모델 맞추기 (Solution 단계 스타일 아코디언, 기본 펼침) */}
-              {recipesEnriched.length > 0 && (() => { const sopen = !!open.rn2; const num = hasNodeIssues ? 2 : 1; return (
-                <div style={{ paddingTop: 20, paddingBottom: sopen ? 55 : 20, borderTop: hasNodeIssues ? `1px solid ${C.divider}` : "none" }}>
-                  <div onClick={() => toggle("rn2")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+              {/* STEP 2. 모델 맞추기 — 3(평탄화): 토글 제거, 정적 헤더 + 내용 상시. */}
+              {recipesEnriched.length > 0 && (() => { const num = hasNodeIssues ? 2 : 1; return (
+                <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: hasNodeIssues ? `1px solid ${C.divider}` : "none" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
                     <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
                     <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>모델 맞추기</div>
-                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("rn2"); }} aria-label="펼치기/접기"
-                      style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
-                      {sopen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
-                    </button>
                   </div>
-                  {sopen && <div style={{ paddingLeft: 44, marginTop: 16 }}>
+                  <div style={{ paddingLeft: 44, marginTop: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {recipesEnriched.map((r, ri) => (
                   <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
@@ -2270,6 +2269,7 @@ export default function Teardown() {
                   </div>}
                 </div>); })()}
               </div>
+              )}
             </div>);
           })()}
 
