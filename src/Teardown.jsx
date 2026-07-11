@@ -1041,7 +1041,7 @@ export default function Teardown() {
 
   const run = useCallback((text, src, logText = "") => {
     setErr(null);
-    setUploadCount((c) => c + 1); setRxUserToggled(null); // UX3: 재방문(재업로드) 판정용 + 접힘 오버라이드 초기화
+    setUploadCount((c) => c + 1); // UX3: 재방문(재업로드) 판정용 (5: 처방 접힘 오버라이드 상태 제거됨)
     setRawJson(text); setRawSrc(src);
     setAiResult(null); setAiErr(null); setAiLoading(false);
     setLiveCompat({}); setModelResearch({}); // 새 분석 시 이전 상태 초기화
