@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-11 (정보 설계 라운드 · 3차: 구조 재구성 3건 + 수정 5건)
+**한 일** — 2차 이월 구조 3건 + 수정 5건 완료. 커밋 7812c15·2201691·22fd86f·acfd1ee.
+- **구조 1 판단근거 → 행 내 흡수 (acfd1ee)**: 별도 rxTodos per-model 리스트(111줄) 폐지. 각 모델 액션 행에 1층 "근거" 접이 신설(등급·근거·출처, evidenceBg, 링크 텍스트만 → 다운로드 버튼 중복 0). Solution 하단 "판단 기준 안내" 총론 접이 1개(등급 체계·GPU 규칙·로그·한계). clone 스크립트는 설치 행 install.bat 다운로드로 보존. 미사용 링크(스크립트 보기·설치 행 보기)·상태(toggleRx·rxChecked)·openRxDetail 정리. net -93줄, 동일 파일 두 섹션 중복 노출 0.
+- **구조 2 중첩 토글 평탄화 (22fd86f)**: Node Reference STEP 토글(rn1 커스텀 노드 설치·rn2 모델 맞추기) 정적 헤더로 평탄화(sopen·toggle 제거).
+- **구조 3 Node Reference 기본 접힘 (22fd86f)**: SectionTitle 클릭 헤더 + open.noderef 게이트(기본 닫힘).
+- **4 Summary 카드 정체성 (7812c15)**: 헤더 "워크플로우 개요". 높이 +20을 신설 카드 아닌 기존 두 MetricBox(전체 노드·커스텀 pack)에(패딩 26px). 신설 카드 패딩 원복. 출력 감지 SaveImage/Preview 계열 보강, 감지 실패 시 미표기(날조 금지).
+- **7 솔루션 스트록 (7812c15)**: SOLUTION_STROKE = 3px solid C.point 토큰화.
+- **5 파인딩스 확인필요 색 (2201691)**: 래퍼 큰 박스 제거, 개별 라운드박스 각각 evidenceBg.
+- **6 확인 필요 접기 기준 (2201691)**: 근거 등급 → 행동 가능 여부. 직링크 보유 항목은 등급 불문 펼침, 링크 없는 미확정(검색 폴백)만 접기(directDownloadUrl 유무 분기).
+**어떻게** — rxTodos 리스트 111줄은 node splice로 제거 후 총론 삽입. 근거는 planItem(badge·reason·sourceRepo) 재사용.
+**막힌 점** — install "스크립트 보기"·broken "설치 행 보기"가 제거된 rx-detail 리스트를 가리켜, 링크 정리 필요했음. install.bat 다운로드로 스크립트 접근 보존(판단 필요: 인라인 clone 뷰 유지 원하면 알림).
+**다음 할 일** — 화면 검수 후 push. 빌드·회귀·e2e 13/13 전부 통과. 검수 결함 시 fix-forward.
+
 ## 2026-07-11 (정보 설계 라운드 · 2차: Summary 재설계 + 스타일·시맨틱 확정)
 **한 일** — 10개 중 6개 완료(커밋 a0a59a5·d62867d), 구조 3건 3차 이월.
 - **1 Summary 재설계 + 8 높이**: analyze.structSummary(JSON 정적 추출) — 그룹 현황(제목·노드수·활성/bypass) · 파이프라인 한 줄(입력→감지 단계(노드type+그룹제목)→출력) · 핵심 파라미터(KSampler 위치기반·EmptyLatent 해상도) · 입출력 종류 · 비활성+그룹. 추출 실패는 미표기(날조 금지). Summary를 라운드박스 카드로(패딩 32=+20px). Boogu fixture에 EmptyLatent 1024·KSampler 4/lcm·LoadImage·SaveImage 추가. krea2 3그룹(Main 활성·SeedVR2/depth bypass)·PiD 이미지→업스케일→저장·Boogu 1024x1024·4·lcm. 회귀 등록.
