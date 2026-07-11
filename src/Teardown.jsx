@@ -41,14 +41,15 @@ const C = {
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#423E47",
   point: "#F4FF75",
   green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#816E48", memoBright: "#A88F5E",
+  // A/B 실물 비교용 임시 bat 버튼 색(확정 시 단일 토큰으로 통일 예정). 노랑(point)과 명도 동급 · 채도·색상축만 변경.
+  btnSand: "#D9D8B8", // A안 · 탈채도 노랑 → install.bat
+  btnLime: "#C8E86A", // B안 · 연두 시프트 → download.bat(모델 일괄 받기)
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const SOLUTION_STROKE = `3px solid ${C.point}`; // 7: 솔루션 라운드박스 테두리(실험 · 사용자 실물 판정 예정). 제거·조정은 이 한 곳.
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
-// 7(bat 링크): comfy.org 텍스트 링크 문법(View repository 스타일). 언더라인 영문·노랑·화살표 없음. install.bat·download.bat 두 곳 동일 토큰. (SANS·C 참조 → 반드시 그 아래 선언, TDZ 방지)
-const BAT_LINK = { background: "transparent", border: "none", color: C.point, fontFamily: SANS, fontSize: 14, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", padding: 0, whiteSpace: "nowrap" };
 const WEIGHT_EXTS = [".ckpt",".safetensors",".pt",".pth",".bin",".gguf",".onnx"];
 
 // 확정 다운로드 직링크만 반환. 검색 URL 떠넘기기 금지 → 못 구하면 null("확인 필요").
@@ -1543,8 +1544,9 @@ export default function Teardown() {
         {r.kind === "run" && r.diagLink && <div style={{ marginTop: 4 }}><a href="#diagnose-section" onClick={openDiagnose} style={{ fontFamily: SANS, fontSize: 14, color: C.text, opacity: 0.5, textDecoration: "underline", cursor: "pointer", lineHeight: 1.5 }}>에러가 났다면: 에러 로그를 붙여넣어 진단받기</a></div>}
       </div>
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        {r.kind === "install" && <button onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={BAT_LINK}>install.bat</button>}
-        {r.kind === "dlscript" && <button onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))} style={BAT_LINK}>download.bat</button>}
+        {/* bat 버튼 A/B 실물 비교용 임시 배치(확정 시 단일 토큰 통일 예정). 기존 다운로드 버튼(td-hf)과 동일 line 형식, 색만 SAND(A)·LIME(B)로 분리. 화살표 없음. */}
+        {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}>install.bat</button>}
+        {r.kind === "dlscript" && <button className="td-hf-lime" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}>download.bat</button>}
         {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
@@ -1580,6 +1582,11 @@ export default function Teardown() {
         .td-hf:hover{background:${C.point};color:${INK}}
         .td-hf-sm{display:inline-flex;align-items:center;justify-content:center;width:280px;max-width:100%;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:8px 0;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sm:hover{background:${C.point};color:${INK}}
+        /* bat 버튼 A/B 실물 비교용 임시 색(확정 시 단일 토큰으로 통일 예정). td-hf와 동일 형식(line·크기·radius·타이포), border·text 동일 색, 색만 토큰 분리. */
+        .td-hf-sand{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.btnSand};color:${C.btnSand};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
+        .td-hf-sand:hover{background:${C.btnSand};color:${INK}}
+        .td-hf-lime{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.btnLime};color:${C.btnLime};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
+        .td-hf-lime:hover{background:${C.btnLime};color:${INK}}
         /* 결과저장 등 아웃라인 pill. hover시 노랑으로 채움 (다른 버튼과 동일) */
         .td-outline{border:1px solid ${C.point};color:${C.point};background:transparent;transition:background .15s,color .15s,transform .12s}
         .td-outline:hover{background:${C.point};color:${INK};transform:translateY(-1px)}.td-outline:active{transform:translateY(0)}
