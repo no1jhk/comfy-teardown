@@ -2916,12 +2916,14 @@ export default function Teardown() {
           )}
 
           </div>)}
-          {/* 소형2: 푸터를 어두운 존 최하단 고정 흐름으로(marginTop auto, 빈 공간 부유 제거). 상단 여백 64→40 축소. */}
+          {/* 소형2: 푸터를 어두운 존 최하단 고정 흐름으로(marginTop auto). 9: 자세한 진단(detailOpen) 펼침 시에만 노출. */}
+          {detailOpen && (
           <div style={{ marginTop: "auto", paddingTop: 40, paddingBottom: 32, textAlign: "center" }}>
             <span style={{ fontFamily: MONO, fontSize: 13, color: C.faintDim, letterSpacing: "0.02em" }}>
               <span style={{ fontSize: "1.2em" }}>©</span> 2026 Comfy-Teardown · Built by Joon Hyung Kim
             </span>
           </div>
+          )}
             </div>
           </div>
         )}
