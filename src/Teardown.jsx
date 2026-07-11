@@ -1381,7 +1381,9 @@ export default function Teardown() {
       // UX4: 실행 위치를 설치 행에 직접(로그 추출 경로 or 자리표시자). 결함5 규칙 유지.
       const runLoc = env.customNodesPath ? `실행 위치: ${env.customNodesPath}` : "실행 위치: ComfyUI 설치 폴더의 custom_nodes (로그를 붙여넣으면 경로를 채워 드립니다)";
       const noRegMsg = noReg ? ` ${noReg}개는 Manager에 없는 팩이라 install.bat로 직접 설치해 주세요.` : "";
-      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install" });
+      // clone 인라인 뷰(보조 동선): 각 nodegroup의 git clone 전문. install.bat 다운로드가 주 동선.
+      const clones = inst.map((t) => { const g = t.g; const cloneUrl = g.clone_url || (g.repo ? (g.repo.startsWith("https://") ? g.repo.replace(/\/?$/, ".git") : `https://github.com/${g.repo}.git`) : null); return { name: (g.repo || g.clone_url || "").replace(/\.git$/, "").split("/").pop(), cloneUrl }; }).filter((c) => c.cloneUrl);
+      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install", clones });
     }
     // 확인 — 로그의 missing_node_type. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행 최종 연번은 rxGroups에서 해소).
     const wfTypes2 = new Set((report?.nodeTypes || []).map((t) => t.toLowerCase())), wfIds2 = new Set(report?.nodeIds || []);
@@ -1495,6 +1497,21 @@ export default function Teardown() {
               <div>등급 <span style={{ color: C.text, fontWeight: 600 }}>{r.planItem.badge}</span></div>
               <div style={{ marginTop: 5 }}>{r.planItem.reason}</div>
               {r.planItem.sourceRepo && <div style={{ marginTop: 5, overflowWrap: "anywhere" }}>출처 <span style={{ fontFamily: MONO, color: C.text }}>{r.planItem.sourceRepo}</span></div>}
+            </div>
+          </details>
+        )}
+        {/* clone 인라인 뷰(보조 동선). 행 1층 접이(내부 추가 접힘 0). install.bat 다운로드가 주 동선. */}
+        {r.kind === "install" && r.clones?.length > 0 && (
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.faint, listStyle: "none", display: "inline-block", padding: "2px 0" }}>▸ clone 명령 보기</summary>
+            <div style={{ background: C.evidenceBg, borderRadius: 10, padding: "12px 14px", marginTop: 8, display: "flex", flexDirection: "column", gap: 8 }}>
+              {r.clones.map((c, ci) => (
+                <div key={ci} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "10px 12px" }}>
+                  <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 13.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>git clone {c.cloneUrl}</code>
+                  <button onClick={() => copy(`git clone ${c.cloneUrl}`, `inst-${r.rid}-${ci}`)} title="명령 복사" style={{ background: "transparent", border: "none", color: C.text, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                    {copiedKey === `inst-${r.rid}-${ci}` ? <Check size={15} /> : <Copy size={15} />}</button>
+                </div>
+              ))}
             </div>
           </details>
         )}
