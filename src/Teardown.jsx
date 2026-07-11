@@ -44,11 +44,11 @@ const C = {
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const SOLUTION_STROKE = `3px solid ${C.point}`; // 7: 솔루션 라운드박스 테두리(실험 · 사용자 실물 판정 예정). 제거·조정은 이 한 곳.
-// 7(bat 링크): comfy.org 텍스트 링크 문법(View repository 스타일). 언더라인 영문·노랑·화살표 없음. install.bat·download.bat 두 곳 동일 토큰.
-const BAT_LINK = { background: "transparent", border: "none", color: C.point, fontFamily: SANS, fontSize: 14, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", padding: 0, whiteSpace: "nowrap" };
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
+// 7(bat 링크): comfy.org 텍스트 링크 문법(View repository 스타일). 언더라인 영문·노랑·화살표 없음. install.bat·download.bat 두 곳 동일 토큰. (SANS·C 참조 → 반드시 그 아래 선언, TDZ 방지)
+const BAT_LINK = { background: "transparent", border: "none", color: C.point, fontFamily: SANS, fontSize: 14, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", padding: 0, whiteSpace: "nowrap" };
 const WEIGHT_EXTS = [".ckpt",".safetensors",".pt",".pth",".bin",".gguf",".onnx"];
 
 // 확정 다운로드 직링크만 반환. 검색 URL 떠넘기기 금지 → 못 구하면 null("확인 필요").

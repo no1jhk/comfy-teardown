@@ -5,6 +5,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
 import { buildRecipes } from "../src/data/redNodeRecipe.js";
 import { normalize, analyze } from "../src/lib/analyzeWorkflow.js";
 import { recommend } from "../src/lib/modelRecommender.js";
@@ -258,7 +259,16 @@ console.log("\n" + "=".repeat(70) + "\n[14] 대체 후보 방향(24GB): 더 큰 
   if (ok) console.log(`  ✅ 메인 ${main?.size} · raw_bf16 상위 품질 · 동급 미노출 · OOM 오방향 0`);
 }
 
+// ── 케이스 15: 렌더 스모크(모듈 로드 TDZ 정적 스캔 + 메인 컴포넌트 렌더 예외 0). 별도 프로세스(react/esbuild 로드 격리). ──
+console.log("\n" + "=".repeat(70) + "\n[15] 렌더 스모크 (모듈 로드 TDZ + 컴포넌트 렌더 예외 0)");
+{
+  const r = spawnSync("node", [path.join(DIR, "smoke.mjs")], { encoding: "utf8" });
+  process.stdout.write(r.stdout || "");
+  if (r.stderr) process.stderr.write(r.stderr);
+  if (r.status !== 0) { console.log("  ❌ 렌더 스모크 실패(위 로그 참조)"); fail++; }
+}
+
 console.log("\n" + "=".repeat(70));
 console.log(`fixtures: krea2=${!!KREA2} pixel=${!!PIXEL} ltx=${!!LTX}`);
-console.log(fail === 0 ? "✅ e2e 14케이스 전부 통과" : `❌ e2e ${fail}건 실패`);
+console.log(fail === 0 ? "✅ e2e 15케이스 전부 통과" : `❌ e2e ${fail}건 실패`);
 process.exit(fail === 0 ? 0 : 1);
