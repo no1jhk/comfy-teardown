@@ -41,7 +41,7 @@ const C = {
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#423E47",
   point: "#F4FF75",
   green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#816E48", memoBright: "#A88F5E",
-  // 스크립트 받기 버튼 전 화면 단일 토큰(sand 잠정 확정 · 재조정 여지). 색 변경 시 이 한 곳 수정으로 전 화면(Solution·Install Script) 동시 반영.
+  // 스크립트 받기 버튼 전 화면 단일 토큰(sand 잠정 확정 · 재조정 여지). 색 변경 시 이 한 곳 수정으로 전 화면(Solution·노드/모델 상세) 동시 반영.
   btnSand: "#D9D8B8",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
@@ -463,7 +463,7 @@ function buildPrescription(r, envGpu) {
     key: "env",
     title: "환경 의존 설정 우회",
     desc: "설치가 막히면 대체값으로 바꾸세요.",
-    items: env.map((h) => ({ action: `${h.node} — attention을 flash_attn → sdpa 로 변경` })),
+    items: env.map((h) => ({ action: `${h.node}: attention을 flash_attn에서 sdpa로 변경` })),
   });
   // 끊어진 경로·입력 파일은 단독 처방으로 두지 않는다(대부분 "내 입력 파일을 다시 넣으면 됨").
   // 정보는 Findings "이식 위험 값"에 그대로 표시 — Solution 중복 step 제거.
@@ -1001,7 +1001,6 @@ export default function Teardown() {
   const [rxDetailOpen, setRxDetailOpen] = useState(false); // 처방전 "판단 근거" details 제어(액션 버튼이 펼쳐 스크롤)
   const [missingText, setMissingText] = useState(""); // 빨간 노드 교정: 사용자가 붙여넣은 누락 모델 파일명
   const [dirText, setDirText] = useState("");         // 빨간 노드 교정: PC 폴더 파일 목록(dir /b 결과)
-  const [scanRoot, setScanRoot] = useState("");      // dir 명령 생성기: 모델 루트 경로
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
   const [uploadCount, setUploadCount] = useState(0); // UX3: 파일 로드 횟수(재방문 판정)
   const [showTop, setShowTop] = useState(false); // UX6: 스크롤 1뷰포트 초과 시 Top 버튼
@@ -1235,12 +1234,6 @@ export default function Teardown() {
   }, [recipes, missingSet, haveFromDir, hasRedInput]);
 
   // recipes → 이 워크플로가 참조하는 폴더 unique 집합 (dir 명령 생성용)
-  const usedFolders = React.useMemo(() => {
-    const set = new Set();
-    for (const r of recipes) for (const s of r.slots) if (s.folder && s.folder !== "확인 필요") set.add(s.folder);
-    return [...set].sort();
-  }, [recipes]);
-
   // 로그 기반 설치 확인 — env 로그 박스 + 에러 로그 박스 양쪽에서 추출·병합.
   // 실PC 패배 원인: 콘솔 로그를 파싱하는 env 박스는 접힌 아코디언에 숨어, 사용자는 눈에 띄는 에러 로그 박스에 붙여넣지만 그건 설치 인식을 안 했음. 어디에 붙여도 인식되게 병합.
   const logEnv = React.useMemo(() => {
@@ -1623,7 +1616,7 @@ export default function Teardown() {
         .td-hf:hover{background:${C.point};color:${INK}}
         .td-hf-sm{display:inline-flex;align-items:center;justify-content:center;width:280px;max-width:100%;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:8px 0;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sm:hover{background:${C.point};color:${INK}}
-        /* 스크립트 받기 버튼 단일 클래스(전 화면 Solution·Install Script 공통). td-hf 형식 + sand 토큰 + ↓ 아이콘. 색 변경은 C.btnSand 한 곳. gap 7 = 처방전 저장 버튼 일치. */
+        /* 스크립트 받기 버튼 단일 클래스(전 화면 Solution·노드/모델 상세 공통). td-hf 형식 + sand 토큰 + ↓ 아이콘. 색 변경은 C.btnSand 한 곳. gap 7 = 처방전 저장 버튼 일치. */
         .td-hf-sand{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${C.btnSand};color:${C.btnSand};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sand:hover{background:${C.btnSand};color:${INK}}
         /* 결과저장 등 아웃라인 pill. hover시 노랑으로 채움 (다른 버튼과 동일) */
@@ -1962,7 +1955,7 @@ export default function Teardown() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, margin: "0 0 28px", flexWrap: "wrap" }}>
                 <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>Summary</h2>
               </div>
-              {/* 1(확정): Summary는 카드만(문장형 줄 0). 입력·출력 영문화. 샘플러·CFG·배치·파이프라인·비활성은 자세한 진단(Node Reference)으로 이동. 값 미추출 미노출(날조 금지). */}
+              {/* 1(확정): Summary는 카드만(문장형 줄 0). 입력·출력 영문화. 샘플러·CFG·배치·파이프라인·비활성은 자세한 진단(노드/모델 상세)으로 이동. 값 미추출 미노출(날조 금지). */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 24px" }}>
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
                 <MetricBox value={report.customPackTotal} label="커스텀 pack" unit="개" />
@@ -2297,35 +2290,15 @@ export default function Teardown() {
             </div>);
           })()}
 
-          {/* 빨간 노드 교정. redNodeRecipe 엔진 출력 */}
-          {report.structSummary?.inactive?.length > 0 && (() => {
-            return (
+          {/* ══ 4 비활성 노드 — bypass·음소거된 노드 목록. 단일 섹션 토글·기본 닫힘(2 노드 상세·3 모델 상세와 동일 헤더). 구 참조 섹션 래퍼 소멸. ══ */}
+          {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              {/* 6: 섹션 +/- 토글 제거 → 상시 노출. 내부 노드 블록이 개별 1층 접이(토글 안 토글 금지). */}
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <div style={{ flex: 1 }}><SectionTitle>Node Reference</SectionTitle></div>
-              </div>
-              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden", marginTop: 12 }}>
-                <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
-                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
-                </div>
-
-              {/* STEP 1·2(커스텀 노드 설치·모델 맞추기)는 2 노드 상세·3 모델 상세로 이관. 이 블록은 비활성 노드만 잔존 — C3에서 4 비활성 노드 독립 섹션으로 승격·이 Node Reference 래퍼 소멸 예정. */}
-              {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; const num = 1; return (
-                <div style={{ paddingTop: 20, paddingBottom: 20 }}>
-                  <div onClick={() => toggle("nref3")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
-                    <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>비활성 노드</div>
-                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("nref3"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.nref3 ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}</button>
-                  </div>
-                  {open.nref3 && (
-                  <div style={{ paddingLeft: 44, marginTop: 16, fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.7, overflowWrap: "anywhere" }}>{[...new Set(inact.map((n) => n.group ? `${n.type} (${n.group})` : n.type))].join(" · ")}</div>)}
-                </div>); })()}
-              </div>
-            </div>);
-          })()}
-
-          {/* Install Script 섹션 소멸(C2): install/env→2 노드 상세, quant→3 모델 상세 GPU 안내, models→3 모델 상세 받기 표. buildInstallScript/buildDownloadScript는 노드·모델 상세와 Solution에서 계속 사용. */}
+              <DetailSectionHead title="비활성 노드" open={open.inact} onToggle={() => toggle("inact")} />
+              {open.inact && (<div className="td-fade">
+                <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 12 }}>현재 꺼져 있어(우회·음소거) 실행되지 않는 노드입니다. 의도한 설정인지 확인해 주세요.</div>
+                <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, lineHeight: 1.7, overflowWrap: "anywhere" }}>{[...new Set(inact.map((n) => n.group ? `${n.type} (${n.group})` : n.type))].join(" · ")}</div>
+              </div>)}
+            </div>); })()}
 
           {/* Findings. 박스 없는 아코디언. 헤더는 BlockHead로 통일. */}
           <div style={{ marginTop: 29, paddingBottom: 48 }}>
