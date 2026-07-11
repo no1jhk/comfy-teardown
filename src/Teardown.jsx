@@ -1998,12 +1998,10 @@ export default function Teardown() {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              {/* 5(기본 접힘) + 3(평탄화): 섹션 1층 collapse(기본 닫힘), 내부는 정적(rn1/rn2 토글 제거). */}
-              <div onClick={() => toggle("noderef")} style={{ display: "flex", alignItems: "center", gap: 12, cursor: "pointer" }}>
+              {/* 6: 섹션 +/- 토글 제거 → 상시 노출. 내부 노드 블록이 개별 1층 접이(토글 안 토글 금지). */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1 }}><SectionTitle>Node Reference</SectionTitle></div>
-                <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("noderef"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.noderef ? <Minus size={28} strokeWidth={2.25} /> : <Plus size={28} strokeWidth={2.25} />}</button>
               </div>
-              {open.noderef && (
               <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden", marginTop: 12 }}>
                 <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
@@ -2073,15 +2071,16 @@ export default function Teardown() {
                   <div style={{ paddingLeft: 44, marginTop: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {recipesEnriched.map((r, ri) => (
-                  <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
-                    {/* 카드 헤더 */}
-                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                  <details key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
+                    {/* 6: 노드 블록 = 기본 접힘 1층 접이. 헤더가 summary(토글), 슬롯 표가 내용. 내부 추가 접힘 0. */}
+                    <summary style={{ cursor: "pointer", listStyle: "none", outline: "none", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
+                      <span style={{ fontFamily: SANS, fontSize: 14, color: C.faint, flexShrink: 0 }}>▸</span>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
                       {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet, display: "inline-flex", alignItems: "center", gap: 5 }}>{r.tabColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: r.tabColor, flexShrink: 0 }} />}[탭: {r.tab}]</span>}
                       {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[서브그래프]</span>}
                       {isAdmin && r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>⚠ offset 보정됨</span>}
-                    </div>
+                    </summary>
                     {/* 슬롯 표 */}
                     <div style={{ borderTop: `1px solid ${C.line}` }}>
                       <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
@@ -2124,7 +2123,7 @@ export default function Teardown() {
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </details>
                 ))}
               </div>
 
@@ -2196,7 +2195,6 @@ export default function Teardown() {
                   </div>}
                 </div>); })()}
               </div>
-              )}
             </div>);
           })()}
 
