@@ -1533,7 +1533,7 @@ export default function Teardown() {
           if (uniq.length >= 2) return (
             <div style={{ marginTop: 8, borderTop: `1px solid ${C.line}` }}>
               <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) auto", gap: 12, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
-                {["안내", "출처 노드", "링크"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
+                {["안내", "출처 노드", "링크"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint, textAlign: h === "링크" ? "center" : "left" }}>{h}</span>)}
               </div>
               {uniq.map((al, ai) => (
                 <div key={ai} style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr) auto", gap: 12, padding: "12px 0", alignItems: "center", borderTop: ai > 0 ? `1px solid ${C.divider}` : "none" }}>
@@ -1992,7 +1992,7 @@ export default function Teardown() {
           )}
 
           {/* 빨간 노드 교정. redNodeRecipe 엔진 출력 */}
-          {(recipesEnriched.length > 0 || hasNodeIssues) && (() => {
+          {(recipesEnriched.length > 0 || hasNodeIssues || report.structSummary?.inactive?.length > 0) && (() => {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
@@ -2005,12 +2005,7 @@ export default function Teardown() {
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
                 </div>
 
-              {/* 1(Summary 이동분): 샘플러·CFG·배치(핵심 파라미터) + 비활성 노드(노드명+소속 그룹)를 여기(자세한 진단)로. Summary는 카드만. */}
-              {report.structSummary && (() => { const kp = report.structSummary.keyParams || {}; const inact = report.structSummary.inactive || []; const params = [kp.sampler != null ? `샘플러 ${kp.sampler}` : null, kp.cfg != null ? `CFG ${kp.cfg}` : null, kp.batch != null ? `배치 ${kp.batch}` : null].filter(Boolean); if (!params.length && !inact.length) return null; return (
-                <div style={{ padding: "4px 0 18px", display: "flex", flexDirection: "column", gap: 6 }}>
-                  {params.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>핵심 파라미터 <span style={{ color: C.text, fontFamily: MONO }}>{params.join(" · ")}</span></div>}
-                  {inact.length > 0 && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, lineHeight: 1.6, overflowWrap: "anywhere" }}>비활성 노드 {inact.length}개: {[...new Set(inact.map((n) => n.group ? `${n.type}(${n.group})` : n.type))].slice(0, 8).join(" · ")}{inact.length > 8 ? " 외" : ""}</div>}
-                </div>); })()}
+              {/* 소형1: 인트로 문장 줄 0. 핵심 파라미터는 각 노드 슬롯 표에 값 존재(중복)라 삭제. 비활성 노드는 아래 #3 섹션. */}
 
               {/* STEP 1. 커스텀 노드 설치 — 2(정정): 번호 섹션 헤더에만 +/- 토글(Install Script 번호 행과 동일), 기본 닫힘. 내부 노드 토글 0. */}
               {hasNodeIssues && (
@@ -2202,6 +2197,18 @@ export default function Teardown() {
               </div>}
                   </div>
                   )}
+                </div>); })()}
+
+              {/* 소형1: 비활성 노드 = 3번 섹션(1·2와 동일 문법: 번호 헤더 + +/- 토글 + 기본 닫힘). 번호는 앞 섹션 렌더 수에 따라 동적. 내용 = 노드명(소속 그룹). */}
+              {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; const num = (hasNodeIssues ? 1 : 0) + (recipesEnriched.length > 0 ? 1 : 0) + 1; return (
+                <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: (hasNodeIssues || recipesEnriched.length > 0) ? `1px solid ${C.divider}` : "none" }}>
+                  <div onClick={() => toggle("nref3")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+                    <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
+                    <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>비활성 노드</div>
+                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("nref3"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.nref3 ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}</button>
+                  </div>
+                  {open.nref3 && (
+                  <div style={{ paddingLeft: 44, marginTop: 16, fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.7, overflowWrap: "anywhere" }}>{[...new Set(inact.map((n) => n.group ? `${n.type} (${n.group})` : n.type))].join(" · ")}</div>)}
                 </div>); })()}
               </div>
             </div>);

@@ -82,12 +82,13 @@ async function bundleEntry(entry, tmpName) {
 
   // 최소 유효 ComfyUI 워크플로우(자립적 — fixture는 gitignore라 커밋 안 됨). MarkdownNote 3링크로 제작자 링크 표(3) 렌더도 함께 검증.
   const WF = JSON.stringify({
-    last_node_id: 4, last_link_id: 1, version: 0.4, groups: [], links: [[1, 1, 0, 2, 0, "LATENT"]],
+    last_node_id: 5, last_link_id: 1, version: 0.4, groups: [], links: [[1, 1, 0, 2, 0, "LATENT"]],
     nodes: [
       { id: 1, type: "CheckpointLoaderSimple", pos: [0, 0], size: [300, 100], flags: {}, order: 0, mode: 0, widgets_values: ["model.safetensors"], inputs: [], outputs: [{ name: "MODEL", type: "MODEL", links: [] }] },
       { id: 2, type: "KSampler", pos: [400, 0], size: [300, 300], flags: {}, order: 1, mode: 0, widgets_values: [123, "randomize", 20, 8, "euler", "normal", 1], inputs: [], outputs: [] },
       { id: 3, type: "SaveImage", pos: [800, 0], size: [300, 300], flags: {}, order: 2, mode: 0, widgets_values: [], inputs: [], outputs: [] },
       { id: 4, type: "MarkdownNote", pos: [0, 400], size: [400, 200], flags: {}, order: 3, mode: 0, widgets_values: ["## VAE\n[vae_a.safetensors](https://huggingface.co/org/repoA/blob/main/vae.safetensors)\n## Text Encoder\n[clip_b.safetensors](https://huggingface.co/org/repoB/blob/main/clip.safetensors)\n## Extra\n[extension guide](https://github.com/org/ext)"] },
+      { id: 5, type: "LoraLoaderModelOnly", pos: [400, 400], size: [300, 100], flags: {}, order: 4, mode: 4, widgets_values: ["lora.safetensors", 1.0], inputs: [], outputs: [] }, // mode 4 = 우회(비활성) → Node Reference #3 섹션 검증
     ],
   });
 
@@ -117,6 +118,12 @@ async function bundleEntry(entry, tmpName) {
         // 4: 검색 버튼 URL = 구글 site: 웹 검색(HF models?search 아님)
         if (/google\.com\/search/.test(afterHtml) && !/huggingface\.co\/models\?search/.test(afterHtml)) console.log("  ✅ 검색 버튼 = 구글 site: 웹 검색(HF models?search 0)");
         else { console.log("  ❌ 검색 버튼 URL이 웹 검색 아님(google site: 미검출 또는 HF models?search 잔존)"); fail++; }
+        // 소형1: 비활성 노드(mode 4) → Node Reference #3 섹션. Summary·Node Reference는 "자세한 진단"(detailOpen, 기본 닫힘) 안이라 먼저 연다.
+        const dt = [...w.document.querySelectorAll("span")].find((s) => s.textContent === "자세한 진단 보기");
+        if (dt) { dt.dispatchEvent(new w.Event("click", { bubbles: true })); await new Promise((r) => setTimeout(r, 200)); }
+        const detailHtml = w.document.getElementById("root").innerHTML;
+        if (/비활성 노드/.test(detailHtml)) console.log("  ✅ 자세한 진단 → 비활성 노드 3번 섹션 렌더");
+        else { console.log("  ❌ 비활성 노드 3번 섹션 미렌더(자세한 진단 펼친 뒤)"); fail++; }
       }
     }
   } catch (e) { console.log(`  ❌ 파일 투입 시뮬 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
