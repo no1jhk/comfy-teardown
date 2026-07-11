@@ -950,6 +950,30 @@ function MetricBox({ value, label, unit }) {
 }
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.faint, padding: "4px 0" }}>{text}</div>; }
 
+// 자세한 진단 안의 상위 섹션(노드 상세·모델 상세·비활성 노드) 공통 헤더 — SectionTitle 스케일(DISPLAY 32) + 우측 +/- 토글 + 기본 닫힘.
+// 3개 섹션이 동일 형태로 렌더되도록 단일 컴포넌트. 닫힘 시 하단 여백 0(다음 섹션과 붙지 않게 컨테이너 paddingBottom이 담당).
+function DetailSectionHead({ title, open, onToggle }) {
+  return (
+    <div onClick={onToggle} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, margin: open ? "0 0 28px" : 0, cursor: "pointer", flexWrap: "wrap" }}>
+      <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>{title}</h2>
+      <button className="td-acc" onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="펼치기/접기"
+        style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
+        {open ? <Minus size={28} strokeWidth={2.25} /> : <Plus size={28} strokeWidth={2.25} />}
+      </button>
+    </div>
+  );
+}
+
+// 상위 섹션 내부의 평탄 구획 — step 경계를 소제목(dim)+구분선으로 유지(접힘 없음). first면 구분선·상단여백 없음.
+function DetailSub({ title, first, children }) {
+  return (
+    <div style={{ marginTop: first ? 0 : 24, paddingTop: first ? 0 : 24, borderTop: first ? "none" : `1px solid ${C.divider}` }}>
+      {title && <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, letterSpacing: "0.02em", marginBottom: 16 }}>{title}</div>}
+      {children}
+    </div>
+  );
+}
+
 // P0: 국소 렌더 크래시가 전체 화면을 날리지 않도록 구역별 경계. 특정 구역이 터져도 나머지(구조·브리핑)는 유지.
 class SectionBoundary extends React.Component {
   constructor(p) { super(p); this.state = { err: null }; }
@@ -1991,6 +2015,147 @@ export default function Teardown() {
             </div>
           )}
 
+          {/* ══ 2 노드 상세 — 커스텀 노드 설치 + 설치 스크립트(방법 A/B) + 환경 우회. 단일 섹션 토글·기본 닫힘, 내부는 평탄(소제목+구분선, 접힘 없음). ══ */}
+          {(() => {
+            const installStep = rx.find((s) => s.key === "install");
+            const envStep = rx.find((s) => s.key === "env");
+            if (!hasNodeIssues && !installStep && !envStep) return null;
+            return (
+            <div style={{ marginTop: 29, paddingBottom: 48 }}>
+              <DetailSectionHead title="노드 상세" open={open.nd} onToggle={() => toggle("nd")} />
+              {open.nd && (<div className="td-fade">
+
+                {/* 커스텀 노드 설치 — 미매핑·깨진 노드 목록(설치 대상 파악용). */}
+                {hasNodeIssues && (
+                <DetailSub title="커스텀 노드 설치" first>
+                  <div style={{ marginBottom: 4 }}>
+                    {[...report.unmapped.map((u) => ({ t: "u", u })), ...report.broken.map((b) => ({ t: "b", b }))].map((it, i) => {
+                      const u = it.u, b = it.b;
+                      const ghUrl = it.t === "u" ? (u.clone_url ? u.clone_url.replace(/\.git$/, "") : (u.repo ? (u.repo.startsWith("https://") ? u.repo : `https://github.com/${u.repo}`) : null)) : null;
+                      return (
+                      <React.Fragment key={i}>
+                        {i > 0 && <div style={{ borderTop: `1px solid ${C.divider}` }} />}
+                        <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: i === 0 ? "0 0 16px" : "16px 0" }}>
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            {it.t === "u" ? (<>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                                <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.text }}>{u.type}</span>
+                                <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>워크플로우 {u.id}번 노드</span>
+                              </div>
+                              {(u.repo || u.clone_url) ? (() => {
+                                const repoEl = <span style={{ fontFamily: MONO, color: C.point }}>{(u.repo || u.clone_url || "").replace("https://github.com/", "").replace(/\.git$/, "")}</span>;
+                                return (<>
+                                <div style={{ marginTop: 8, fontSize: 14, color: C.text, lineHeight: 1.6 }}>
+                                  {u.repoSrc === "prefix" ? <>이 노드를 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>이 노드를 제공하는 확장 {repoEl} 가 설치돼 있는지 확인해 주세요.</>}
+                                </div>
+                                <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>
+                                  {u.repoSrc === "manager" ? "ComfyUI Manager에서 설치할 수 있습니다." : u.repoSrc === "prefix" ? "설치 전 저장소를 확인해 주세요." : "출처 확인된 저장소입니다."}
+                                </div>
+                                </>);
+                              })() : (
+                                <div style={{ marginTop: 8, fontSize: 14, color: C.faint, lineHeight: 1.6 }}>출처를 확인할 수 없습니다. ComfyUI Manager에서 노드 이름으로 검색해 주세요.</div>
+                              )}
+                              {isAdmin && u.install_note && <div style={{ marginTop: 4, fontSize: 14, color: C.faint, lineHeight: 1.6 }}>{u.install_note}</div>}
+                            </>) : (<>
+                              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                                <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.red }}>노드 #{b.id}</span>
+                                <span style={{ fontFamily: SANS, fontSize: 13, color: C.red }}>type을 못 읽음</span>
+                              </div>
+                              <div style={{ marginTop: 8, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>커스텀 노드 미설치 추정. ComfyUI에서 해당 빨간 노드 이름 확인 필요</div>
+                            </>)}
+                          </div>
+                          {ghUrl && <a className="td-hf td-outline-w" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
+                        </div>
+                      </React.Fragment>);
+                    })}
+                  </div>
+                </DetailSub>
+                )}
+
+                {/* 설치 스크립트 — custom_nodes 경로 안내 + 방법 A(직접 clone) + 방법 B(자동 스크립트). 모델 받기 버튼은 3 모델 상세로 이동(버튼은 받기 표에만). */}
+                {installStep && (
+                <DetailSub title="설치 스크립트 (방법 A · B)" first={!hasNodeIssues}>
+                  <div style={{ fontSize: 15, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요. 해당 폴더에서 git clone (또는 Manager의 Git URL 설치).</div>
+
+                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
+                  <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>내 설치 유형에 맞는 경로를 탐색기/터미널 주소창에 붙여넣으세요.</div>
+                  <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 12px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
+                    {[
+                      { os: "Windows", label: "Desktop 앱", path: "%LOCALAPPDATA%\\Comfy-Desktop\\ComfyUI-Installs\\ComfyUI\\ComfyUI\\custom_nodes" },
+                      { os: "Windows", label: "Portable/일반", path: "ComfyUI 설치폴더\\ComfyUI\\custom_nodes" },
+                      { os: "macOS/Linux", label: "일반 설치", path: "~/ComfyUI/custom_nodes" },
+                    ].map((p, pi) => (
+                      <div key={`${p.os}-${p.label}`} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: pi > 0 ? `1px solid ${C.divider}` : "none" }}>
+                        <span style={{ fontSize: 13, color: C.faint, flexShrink: 0, minWidth: 110 }}>{p.os} · {p.label}:</span>
+                        <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, overflowWrap: "anywhere", flex: 1, minWidth: 0 }}>{p.path}</code>
+                        <button className="td-copy" onClick={() => copy(p.path, `cn-${p.os}-${p.label}`)} title="복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                          {copiedKey === `cn-${p.os}-${p.label}` ? <Check size={13} /> : <Copy size={13} />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>※ macOS/Linux Desktop 앱은 설치 경로가 다를 수 있습니다. 앱 설정에서 ComfyUI 경로를 확인하세요.</div>
+
+                  <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginTop: 30, marginBottom: 12 }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 A. 직접</div>
+                    <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>custom_nodes 폴더에서 우클릭해 Git Bash Here(또는 터미널)를 열고, 아래 명령을 붙여넣으세요:</div>
+                    <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
+                      <button className="td-copy" onClick={() => copy(installStep.command, "nd-install")} title="전체 복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
+                        {copiedKey === "nd-install" ? <Check size={16} /> : <Copy size={16} />}</button>
+                      <pre style={{ margin: 0, fontFamily: MONO, fontSize: 13, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 32 }}>{installStep.command}</pre>
+                    </div>
+                    {installStep.warn && <div style={{ marginTop: 7, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ {installStep.warn}</div>}
+                  </div>
+
+                  <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px" }}>
+                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
+                    <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
+                      <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> install.bat (Windows)</button>
+                      <button className="td-hf-sand" onClick={() => downloadText("install.sh", buildInstallScript(report, "sh", env))}><Download size={15} /> install.sh (Mac/Linux)</button>
+                    </div>
+                    {!env.customNodesPath && <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>로그에서 custom_nodes 경로를 찾지 못했습니다. 스크립트 안의 경로를 직접 입력해 주세요. (로그를 붙여넣으면 경로를 채워 드립니다.)</div>}
+                    <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>※ 초보자는 이 방법 권장. 반드시 custom_nodes 폴더 안에서 실행하세요.</div>
+                    <div style={{ marginTop: 20, fontSize: 13, color: C.dim, lineHeight: 1.65, borderTop: `1px solid ${C.divider}`, paddingTop: 10 }}>
+                      <div style={{ fontWeight: 650, color: C.text, marginBottom: 4 }}>설치 확인하는 법</div>
+                      <div>· 실행하면 터미널에 "Cloning into …" 또는 "Successfully installed" 메시지가 뜹니다. 에러 시 빨간 글씨가 나옵니다.</div>
+                      <div>· 가장 확실한 확인: ComfyUI를 완전히 재시작한 뒤 워크플로우를 다시 로드해서 빨간 노드가 사라졌는지 보세요. 빨간 노드가 없어졌으면 설치 성공.</div>
+                      <div>· 설치했는데도 빨간 노드가 남아 있으면, custom_nodes 폴더 안에 해당 노드 폴더가 실제로 생겼는지 확인하세요.</div>
+                    </div>
+                  </div>
+
+                  {isAdmin && installStep.installNotes && (
+                    <div style={{ marginTop: 12, background: "rgba(239,83,80,0.06)", border: `1px solid ${C.red}33`, borderRadius: 10, padding: "12px 16px" }}>
+                      <div style={{ fontSize: 13, fontWeight: 650, color: C.red, marginBottom: 6 }}>설치 후 주의</div>
+                      {installStep.installNotes.map((n, ni) => (
+                        <div key={ni} style={{ fontSize: 13, color: C.redMuted, lineHeight: 1.6, marginTop: ni > 0 ? 6 : 0 }}>
+                          <span style={{ fontFamily: MONO, fontWeight: 600, color: C.text }}>{n.file}</span>. {n.desc}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </DetailSub>
+                )}
+
+                {/* 환경 의존 설정 우회 — flash_attn 등. 설치가 막히면 대체값으로. */}
+                {envStep && (
+                <DetailSub title="환경 의존 설정 우회" first={!hasNodeIssues && !installStep}>
+                  <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.5, marginBottom: 11 }}>{envStep.desc}</div>
+                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                    {envStep.items.map((it, k) => (
+                      <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.surfaceHi, borderRadius: 10, padding: "12px 14px" }}>
+                        <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 3 }} />
+                        <span style={{ fontSize: 15, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.action}</span>
+                      </div>
+                    ))}
+                  </div>
+                </DetailSub>
+                )}
+
+              </div>)}
+            </div>);
+          })()}
+
           {/* 빨간 노드 교정. redNodeRecipe 엔진 출력 */}
           {(recipesEnriched.length > 0 || hasNodeIssues || report.structSummary?.inactive?.length > 0) && (() => {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
@@ -2005,67 +2170,11 @@ export default function Teardown() {
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
                 </div>
 
-              {/* 소형1: 인트로 문장 줄 0. 핵심 파라미터는 각 노드 슬롯 표에 값 존재(중복)라 삭제. 비활성 노드는 아래 #3 섹션. */}
-
-              {/* STEP 1. 커스텀 노드 설치 — 2(정정): 번호 섹션 헤더에만 +/- 토글(Install Script 번호 행과 동일), 기본 닫힘. 내부 노드 토글 0. */}
-              {hasNodeIssues && (
-                <div style={{ paddingTop: 20, paddingBottom: 20 }}>
-                  <div onClick={() => toggle("nref1")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
-                    <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>1</div>
-                    <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>커스텀 노드 설치</div>
-                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("nref1"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.nref1 ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}</button>
-                  </div>
-                  {open.nref1 && (
-                  <div style={{ paddingLeft: 44, marginTop: 16 }}>
-                <div style={{ marginBottom: 20 }}>
-                  {[...report.unmapped.map((u) => ({ t: "u", u })), ...report.broken.map((b) => ({ t: "b", b }))].map((it, i) => {
-                    const u = it.u, b = it.b;
-                    const ghUrl = it.t === "u" ? (u.clone_url ? u.clone_url.replace(/\.git$/, "") : (u.repo ? (u.repo.startsWith("https://") ? u.repo : `https://github.com/${u.repo}`) : null)) : null;
-                    return (
-                    <React.Fragment key={i}>
-                      {i > 0 && <div style={{ borderTop: `1px solid ${C.divider}` }} />}
-                      <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: i === 0 ? "0 0 16px" : "16px 0" }}>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                          {it.t === "u" ? (<>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                              <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.text }}>{u.type}</span>
-                              <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>워크플로우 {u.id}번 노드</span>
-                            </div>
-                            {(u.repo || u.clone_url) ? (() => {
-                              const repoEl = <span style={{ fontFamily: MONO, color: C.point }}>{(u.repo || u.clone_url || "").replace("https://github.com/", "").replace(/\.git$/, "")}</span>;
-                              return (<>
-                              <div style={{ marginTop: 8, fontSize: 14, color: C.text, lineHeight: 1.6 }}>
-                                {u.repoSrc === "prefix" ? <>이 노드를 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>이 노드를 제공하는 확장 {repoEl} 가 설치돼 있는지 확인해 주세요.</>}
-                              </div>
-                              <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>
-                                {u.repoSrc === "manager" ? "ComfyUI Manager에서 설치할 수 있습니다." : u.repoSrc === "prefix" ? "설치 전 저장소를 확인해 주세요." : "출처 확인된 저장소입니다."}
-                              </div>
-                              </>);
-                            })() : (
-                              <div style={{ marginTop: 8, fontSize: 14, color: C.faint, lineHeight: 1.6 }}>출처를 확인할 수 없습니다. ComfyUI Manager에서 노드 이름으로 검색해 주세요.</div>
-                            )}
-                            {isAdmin && u.install_note && <div style={{ marginTop: 4, fontSize: 14, color: C.faint, lineHeight: 1.6 }}>{u.install_note}</div>}
-                          </>) : (<>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <span style={{ fontFamily: MONO, fontSize: 14, fontWeight: 700, color: C.red }}>노드 #{b.id}</span>
-                              <span style={{ fontFamily: SANS, fontSize: 13, color: C.red }}>type을 못 읽음</span>
-                            </div>
-                            <div style={{ marginTop: 8, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>커스텀 노드 미설치 추정. ComfyUI에서 해당 빨간 노드 이름 확인 필요</div>
-                          </>)}
-                        </div>
-                        {ghUrl && <a className="td-hf td-outline-w" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
-                      </div>
-                    </React.Fragment>);
-                  })}
-                </div>
-                  </div>
-                  )}
-                </div>
-              )}
+              {/* STEP 1(커스텀 노드 설치)은 2 노드 상세로 이관. 이 블록은 STEP 2(모델 맞추기 슬롯 표)만 잔존 — C2에서 3 모델 상세로 이동 예정. */}
 
               {/* STEP 2. 모델 맞추기 */}
-              {recipesEnriched.length > 0 && (() => { const num = hasNodeIssues ? 2 : 1; return (
-                <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: hasNodeIssues ? `1px solid ${C.divider}` : "none" }}>
+              {recipesEnriched.length > 0 && (() => { const num = 1; return (
+                <div style={{ paddingTop: 20, paddingBottom: 20 }}>
                   <div onClick={() => toggle("nref2")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
                     <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>모델 맞추기</div>
@@ -2200,8 +2309,8 @@ export default function Teardown() {
                 </div>); })()}
 
               {/* 소형1: 비활성 노드 = 3번 섹션(1·2와 동일 문법: 번호 헤더 + +/- 토글 + 기본 닫힘). 번호는 앞 섹션 렌더 수에 따라 동적. 내용 = 노드명(소속 그룹). */}
-              {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; const num = (hasNodeIssues ? 1 : 0) + (recipesEnriched.length > 0 ? 1 : 0) + 1; return (
-                <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: (hasNodeIssues || recipesEnriched.length > 0) ? `1px solid ${C.divider}` : "none" }}>
+              {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; const num = (recipesEnriched.length > 0 ? 1 : 0) + 1; return (
+                <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: recipesEnriched.length > 0 ? `1px solid ${C.divider}` : "none" }}>
                   <div onClick={() => toggle("nref3")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
                     <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>비활성 노드</div>
@@ -2214,12 +2323,12 @@ export default function Teardown() {
             </div>);
           })()}
 
-          {/* Solution. 위 Summary와의 구분선 제거(Summary 박스의 borderBottom을 없앰) */}
-          {rx.length > 0 && (
+          {/* Install Script — install/env 스텝은 2 노드 상세로 이관. 여기는 quant/models만 잔존(C2에서 3 모델 상세로 이동·이 섹션 소멸 예정). */}
+          {rx.some((s) => s.key !== "install" && s.key !== "env") && (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
               <SectionTitle>Install Script</SectionTitle>
               <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
-                {rx.map((step, i) => {
+                {rx.filter((s) => s.key !== "install" && s.key !== "env").map((step, i) => {
                   const sk = `s${i}`;
                   const sopen = !!open[sk]; // s0는 기본 펼침(useState 초기값)
                   return (
