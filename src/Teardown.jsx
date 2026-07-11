@@ -577,11 +577,12 @@ function buildInstallScript(report, os, env) {
 
 // 모델 받기 스크립트(Windows .bat). modelPlan의 confirmed·workflow_author + URL 직링크만.
 // unknown·검색 폴백은 미포함(날조 금지). HF blob→resolve로 직다운 변환. 폴더 mkdir + 배치.
-function buildDownloadScript(plan, env) {
+function buildDownloadScript(plan, env, heldSet) {
   // 파일 직링크만(트리/브라우즈 링크 제외 — 결함7: repo_filename 미확인은 트리 링크라 curl 불가).
+  // 3: heldSet(대조로 확인된 보유 파일) 제외 → 미보유만. heldSet 미제공(대조 전)이면 전량.
   const isFileUrl = (u) => /^https?:\/\//.test(u || "") && !/\/tree\//.test(u || "");
-  const items = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && isFileUrl(it.promoted?.downloadUrl || it.downloadUrl));
-  const L = ["@echo off", "chcp 65001 >nul", "REM Teardown 모델 받기 스크립트 (Windows). 확정·제작자 안내 출처만 포함(확인 필요·검색 폴백 제외)."];
+  const items = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && isFileUrl(it.promoted?.downloadUrl || it.downloadUrl) && !heldSet?.has(it.selectedFile));
+  const L = ["@echo off", "chcp 65001 >nul", "REM Teardown 모델 받기 스크립트 (Windows). 확정·제작자 안내 출처 중 미보유만 포함(확인 필요·검색 폴백·보유 파일 제외)."];
   L.push(`REM 생성: ${new Date().toISOString().slice(0, 10)}`);
   if (!(env?.basePath || env?.modelRoot)) L.push("REM 경로가 상대경로입니다. ComfyUI 루트(models 폴더의 상위)에서 실행하세요.");
   L.push("REM 대용량 파일은 브라우저 다운로드가 더 안정적일 수 있습니다.");
@@ -1412,9 +1413,10 @@ export default function Teardown() {
     if (plan && plan.family && plan.needs.includes("gpu")) rows.push({ rid: ++rid, verb: "안내", text: `이 워크플로우는 ${plan.label}로 보입니다. GPU를 입력하면 넣을 위치와 환경에 맞는 변형을 추천해 드립니다.`, kind: "gpuhint" });
     // 받기 — modelPlan.items(단일 진실 공급원). 근거 4단계 뱃지. 넣기=fullPath(절대) 또는 folder(상대), 용량·직링크·근거는 planItem에.
     for (const it of plan?.items || []) rows.push({ rid: ++rid, verb: "받기", text: it.workflowValue, folders: it.fullPath ? [it.fullPath] : (it.folder ? [it.folder] : []), badge: it.badge, selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
-    // 5: 일괄 받기 스크립트는 받기 항목(직링크 확정) 3개 이상일 때만. 1~2개면 각 행 개별 다운로드로 충분(미노출). 파인딩 m: 경로 입력 시 절대, 미입력 시 루트 실행.
-    const dlEligible = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || ""));
-    if (dlEligible.length >= 3) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: `위 받기 항목 ${dlEligible.length}개를 한 번에 내려받습니다. ` + ((env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다." : "경로 미입력이면 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요."), kind: "dlscript" });
+    // 3: 일괄 받기 스크립트 카운트·노출·bat 모두 미보유(heldSet 제외) 기준. 직링크 확정 미보유 3개 이상일 때만(1~2개는 각 행 개별 받기로 충분·미노출). 대조 전(heldSet 없음)이면 전량. 파인딩 m: 경로 입력 시 절대, 미입력 시 루트 실행.
+    const heldSet = reconcile?.heldSet;
+    const dlEligible = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !heldSet?.has(it.selectedFile));
+    if (dlEligible.length >= 3) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: `미보유 받기 항목 ${dlEligible.length}개를 한 번에 내려받습니다. ` + ((env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다." : "경로 미입력이면 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요."), kind: "dlscript" });
     // 대체 후보 / 제외(주 모델) — "OOM 시 대체 후보" 톤(추천 아님). 별도 1행.
     if ((plan?.alternatives?.length || 0) + (plan?.exclusions?.length || 0) > 0) rows.push({ rid: ++rid, verb: "참고", text: "메인 모델 대체·제외 안내", kind: "altexcl", alternatives: plan.alternatives, exclusions: plan.exclusions });
     // 확인 필요 — 출처 확인 못한 모델(unknowns)
@@ -1427,7 +1429,7 @@ export default function Teardown() {
     // o: 실행 행 완결화 — 재시작 안내 각주·에러 로그 링크를 이 행의 부속 줄로 편입(별도 각주·배너 링크 제거).
     rows.push({ rid: ++rid, verb: "실행", text: "큐를 실행해 주세요.", kind: "run", restartNote: "모든 항목을 마쳤다면 ComfyUI를 완전히 재시작한 뒤 워크플로우를 다시 열어 주세요. 빨간 노드가 남아 있지 않으면 정상입니다.", diagLink: true });
     return rows;
-  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck, report, env.modelRoot, env.basePath, env.customNodesPath]);
+  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck, report, env.modelRoot, env.basePath, env.customNodesPath, reconcile?.heldSet]);
 
   // UX2 솔루션 필터링 + 넘버링 최종 부여.
   // 주노출(실행 차단): 로그 거부값·깨진 노드·설치·디스크·버전 + 대조 미보유 받기. 이미 있음(dim ✓, 하단) / 참고·미확정(접기2). 판정 근거 없으면 전량 순서 노출(현행).
@@ -1544,7 +1546,7 @@ export default function Teardown() {
       </div>
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
         {r.kind === "install" && <button onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={BAT_LINK}>install.bat</button>}
-        {r.kind === "dlscript" && <button onClick={() => downloadText("download.bat", buildDownloadScript(plan, env))} style={BAT_LINK}>download.bat</button>}
+        {r.kind === "dlscript" && <button onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))} style={BAT_LINK}>download.bat</button>}
         {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
@@ -2272,7 +2274,7 @@ export default function Teardown() {
                                 style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
                                 <Download size={14} /> install.sh (Mac/Linux)</button>
                               {plan && plan.items.some((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test(it.downloadUrl || "") && !/\/tree\//.test(it.downloadUrl || "")) && (
-                                <button className="td-outline" onClick={() => downloadText("download_models.bat", buildDownloadScript(plan, env))}
+                                <button className="td-outline" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}
                                   style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
                                   <Download size={14} /> 모델 받기.bat</button>
                               )}
