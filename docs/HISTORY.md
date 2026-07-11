@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-07-11 (정정: Node Reference 토글 위치)
+**한 일** — 커밋 a795612. 전 라운드(17cd69e) task 2 오배치 정정.
+- **오류**: Node Reference 토글을 로더별(UNETLoader·CLIPLoader·VAELoader) 노드 블록에 붙임(지시문 애매성).
+- **정정**: 번호 섹션 헤더(1 커스텀 노드 설치·2 모델 맞추기)에만 +/- 토글(바로 아래 Install Script 번호 행과 동일 td-acc 패턴·Minus/Plus 26), 기본 닫힘(open.nref1·nref2). 로더별 details 전부 제거 → 섹션 펼침 시 노드 평탄 노출. 미사용 nr-plus/nr-minus CSS 제거.
+- 수용: 번호 헤더에만 토글(Install Script와 시각 동일), 내부 토글 0, 기본 닫힘. 검증 build 0·smoke 3부·e2e 15/15·회귀.
+**다음 할 일** — 화면 검수 후 push.
+
 ## 2026-07-11 (통합 4건: Summary 카드화 + Node Ref 토글 + 스크립트 버튼 sand 단일화)
 **한 일** — 커밋 17cd69e.
 - **0 색 확정(A/B 종료)**: 스크립트 받기 버튼 sand(#D9D8B8) 단일. C.btnLime·td-hf-lime 폐기, 두 Solution 버튼 sand + ↓ 아이콘(Download 15, 처방전 저장 일치). "sand 잠정 확정(재조정 여지)".
