@@ -2193,7 +2193,7 @@ export default function Teardown() {
                   )}
                 </>)}
               </div>}
-                  </div>}
+                  </div>
                 </div>); })()}
               </div>
             </div>);
