@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-07-11 (긴급: 런타임 TDZ 크래시 복구 + 렌더 스모크 신설)
+**한 일** — 빈 화면(마운트 전 사망) 복구. 커밋 9fd2b07.
+- **원인**: 이번 라운드 신설 토큰 `BAT_LINK`(48행)가 기초 상수 `SANS`(51행)를 선언 전 참조 → TDZ. 브라우저 "Cannot access 'SANS' before initialization" → 모듈 로드 즉시 크래시. vite build는 통과(런타임 에러라 정적 미검출) → build 에러 0으로는 못 잡음.
+- **수리**: `BAT_LINK`를 `SANS` 선언 아래로 이동. 최상위 const 8개 선언-전-참조 0.
+- **렌더 스모크 신설(test/smoke.mjs)**: ①TDZ 정적 스캔(모듈 최상위 const 선언 순서 검사) ②메인 컴포넌트 실제 렌더(renderToStaticMarkup) 예외 0. 핵심 발견 — esbuild `bundle`은 target 무관하게 const→var로 낮춰(스코프 호이스팅) TDZ가 소멸, 프로덕션 vite(rollup)는 const 유지라 브라우저서 터짐. 그래서 번들이 아니라 **정적 스캔**으로 실측. e2e [15] 편입, `npm run smoke` 추가.
+- **CLAUDE.md 2a**: 커밋 전 build 에러 0 **+** 렌더 스모크 필수.
+- **검증**: build 에러 0 · e2e 15/15 · dev 서버 기동+루트 200+vite 출력 순서 정상(SANS→BAT_LINK). 가드 유효성: TDZ 재현 시 스모크가 `BAT_LINK(L48)가 뒤의 SANS(L51) 참조`로 실패 확인.
+**다음 할 일** — 화면 검수 후 push(사이트 복구).
+
 ## 2026-07-11 (긴급: Vercel 빌드 파손 복구)
 **한 일** — 원격 main 빌드 실패로 사이트 다운. Node Reference 닫힘부 stray `}` 제거. 커밋 5ec1a68.
 - **원인**: 43309e9(2026-07-05)에서 2196행 paddingLeft 44 div 닫힘이 `</div>}`로 stray `}` 포함. esbuild가 "The character } is not valid inside a JSX element" 에러를 출력하고도 **exit 0·"✓ built"로 넘어가** 잠복. 세션 내내 `tail`로만 확인해 이 에러를 놓침(내 프로세스 결함).
