@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-07-11 (긴급: run() setRxUserToggled 잔존 호출 복구 + 스모크 파일 투입 확장)
+**한 일** — 파일 투입 즉시 사망 복구. 커밋 356f5db.
+- **원인**: 891aea2(5·처방 다시 보기 제거)에서 rxUserToggled 상태는 지웠으나 `run()`(파일 로드 핸들러) 내 `setRxUserToggled(null)` 호출 1건 잔존. 파일 투입 → onFile → FileReader → run → "setRxUserToggled is not defined". 랜딩 렌더는 정상이라 build·직전 스모크(랜딩만) 미검출.
+- **수리**: 잔존 호출 제거(1044행, setUploadCount는 유지). 제거 식별자(rxShow·rxUserToggled·rxChecked·toggleRx·openRxDetail·noderef) 잔존 참조 전수 grep 0. rxDetailOpen/setRxDetailOpen은 판단 기준 안내 details가 계속 써 유지.
+- **스모크 파트 C 신설**: jsdom 마운트 → 파일 input에 워크플로우 JSON 투입 → onFile→run→analyze 경로 예외 0 + 결과 화면 진입(root 24799→36184자) 실측. 핸들러 내 크래시는 renderToStaticMarkup(랜딩)으로 못 잡음 → 실제 상호작용 필요. jsdom devDep 추가(dev 전용·프로덕션 미출하).
+- **검증**: build 에러 0 · smoke 3부(TDZ 정적·랜딩 렌더·파일 투입) 통과 · e2e 15/15 · dev HTTP 200. 가드 유효성: 잔존 호출 재현 시 파트 C가 "결과 미진입"으로 실패 확인.
+**다음 할 일** — 화면 검수 후 push(사이트 복구).
+
 ## 2026-07-11 (긴급: 런타임 TDZ 크래시 복구 + 렌더 스모크 신설)
 **한 일** — 빈 화면(마운트 전 사망) 복구. 커밋 9fd2b07.
 - **원인**: 이번 라운드 신설 토큰 `BAT_LINK`(48행)가 기초 상수 `SANS`(51행)를 선언 전 참조 → TDZ. 브라우저 "Cannot access 'SANS' before initialization" → 모듈 로드 즉시 크래시. vite build는 통과(런타임 에러라 정적 미검출) → build 에러 0으로는 못 잡음.
