@@ -35,7 +35,7 @@ import modelSizes from "./data/model_sizes.json";
 
 // comfy.org 공식 톤: 배경 #201926 플럼 / 텍스트는 순백 아닌 밝은 회색 / 노랑은 포인트만
 const C = {
-  bg: "#201926", bgDeep: "#1A1420", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248", evidenceBg: "#372E43",
+  bg: "#201926", bgDeep: "#1A1420", surface: "#2A2333", surfaceHi: "#342C3F", line: "#3A3248", evidenceBg: "#372E43", metricBg: "#28222E",
   quiet: "#241D2E",
   divider: "rgba(255,255,255,0.09)",
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#423E47",
@@ -44,6 +44,8 @@ const C = {
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const SOLUTION_STROKE = `3px solid ${C.point}`; // 7: 솔루션 라운드박스 테두리(실험 · 사용자 실물 판정 예정). 제거·조정은 이 한 곳.
+// 7(bat 링크): comfy.org 텍스트 링크 문법(View repository 스타일). 언더라인 영문·노랑·화살표 없음. install.bat·download.bat 두 곳 동일 토큰.
+const BAT_LINK = { background: "transparent", border: "none", color: C.point, fontFamily: SANS, fontSize: 14, fontWeight: 700, textDecoration: "underline", textUnderlineOffset: 3, cursor: "pointer", padding: 0, whiteSpace: "nowrap" };
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
@@ -935,7 +937,7 @@ function NumBadge({ n, variant = "fill", muted = false, onClick, title, mt = 1 }
 
 function MetricBox({ value, label, unit }) {
   // comfy.org 공식 카드: 스트로크 없음 / 배경보다 살짝 밝은 플럼 / 위가 미세하게 더 밝은 그라데이션 (이미지에서 추출)
-  return (<div style={{ background: "#28222E", border: "none", borderRadius: 16, padding: "26px 18px" }}>
+  return (<div style={{ background: C.metricBg, border: "none", borderRadius: 16, padding: "26px 18px" }}>
     <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.3 }}>{label}</div>
     <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 3 }}>
       <span style={{ fontFamily: MONO, fontSize: 27, fontWeight: 700, color: C.point, lineHeight: 1 }}>{value}</span>
@@ -1537,8 +1539,8 @@ export default function Teardown() {
         {r.kind === "run" && r.diagLink && <div style={{ marginTop: 4 }}><a href="#diagnose-section" onClick={openDiagnose} style={{ fontFamily: SANS, fontSize: 14, color: C.text, opacity: 0.5, textDecoration: "underline", cursor: "pointer", lineHeight: 1.5 }}>에러가 났다면: 에러 로그를 붙여넣어 진단받기</a></div>}
       </div>
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        {r.kind === "install" && <button className="td-hf" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={{ border: "none", cursor: "pointer" }}>install.bat ↓</button>}
-        {r.kind === "dlscript" && <button className="td-hf" onClick={() => downloadText("download_models.bat", buildDownloadScript(plan, env))} style={{ border: "none", cursor: "pointer" }}>모델 받기.bat ↓</button>}
+        {r.kind === "install" && <button onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={BAT_LINK}>install.bat</button>}
+        {r.kind === "dlscript" && <button onClick={() => downloadText("download.bat", buildDownloadScript(plan, env))} style={BAT_LINK}>download.bat</button>}
         {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
@@ -1917,8 +1919,8 @@ export default function Teardown() {
               </div>
               {/* 1: Summary 카드 — 전부 JSON 정적 추출(그룹 현황·파이프라인·파라미터·입출력·비활성). 추출 실패 항목은 미표기. 8: 높이 +20px(패딩 32). */}
               {report.structSummary && (() => { const ss = report.structSummary; if (!(ss.groups.length || ss.pipeline || ss.keyParams || ss.io || ss.inactive.length)) return null; const kp = ss.keyParams; return (
-                <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "22px 24px", marginBottom: 24 }}>
-                  {/* 4: 카드 정체성 헤더(판정형 톤). 높이 +20은 위 MetricBox 두 카드에 적용(여긴 원복). */}
+                <div style={{ background: C.metricBg, border: "none", borderRadius: 16, padding: "26px 24px", marginBottom: 24 }}>
+                  {/* 1: 개요 카드 = MetricBox 두 카드와 동일 토큰(배경 metricBg·border 0·radius 16·세로 26). 카드 정체성 헤더. */}
                   <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.02em", marginBottom: 16 }}>워크플로우 개요</div>
                   {ss.pipeline && <div style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 6 }}>파이프라인</div>
