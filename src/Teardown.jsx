@@ -978,7 +978,6 @@ export default function Teardown() {
   const [scanRoot, setScanRoot] = useState("");      // dir 명령 생성기: 모델 루트 경로
   const [rawJson, setRawJson] = useState("");     // A안: 진단하기 버튼이 재실행할 원본 JSON
   const [uploadCount, setUploadCount] = useState(0); // UX3: 파일 로드 횟수(재방문 판정)
-  const [rxUserToggled, setRxUserToggled] = useState(null); // UX3: 처방 테이블 접힘 사용자 오버라이드(null=기본 따름)
   const [showTop, setShowTop] = useState(false); // UX6: 스크롤 1뷰포트 초과 시 Top 버튼
   useEffect(() => { const onScroll = () => setShowTop(window.scrollY > window.innerHeight); window.addEventListener("scroll", onScroll, { passive: true }); return () => window.removeEventListener("scroll", onScroll); }, []);
   const [rawSrc, setRawSrc] = useState("");
@@ -1364,7 +1363,6 @@ export default function Teardown() {
 
   // UX3 재방문: 재업로드(2회+) 또는 로그에 실행 오류 → 처방 테이블 접힘 기본(사용자가 이미 본 처방). 첫 방문·무오류는 펼침.
   const revisit = !!report && (uploadCount > 1 || !!summary?.hasLogError);
-  const rxShow = rxUserToggled === null ? !revisit : rxUserToggled;
 
   // 액션 테이블(당장 할 일) — rxTodos를 동사 선행 행으로. 표시층 전용(판정·데이터 불변).
   const actionRows = React.useMemo(() => {
@@ -1854,10 +1852,8 @@ export default function Teardown() {
             </div>
             )}
 
-            {/* 당장 할 일 — 액션 테이블(동사 선행). 근거는 각 행 "근거" 접이. 총론은 아래 판단 기준 안내. UX3: 재방문 시 접힘 기본. */}
-            {rxTodos.length > 0 && (<>
-              {revisit && <button onClick={() => setRxUserToggled(!rxShow)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, padding: "10px 2px", marginBottom: rxShow ? 8 : 16 }}>{rxShow ? "▾" : "▸"} 처방 다시 보기</button>}
-              {rxShow && (
+            {/* 당장 할 일 — 액션 테이블(동사 선행). 근거는 각 행 "근거" 접이. 총론은 아래 판단 기준 안내. 5: 처방 다시 보기 토글 제거 → 상시 노출. */}
+            {rxTodos.length > 0 && (
               <div style={{ background: C.surface, border: SOLUTION_STROKE, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
                 {rxGroups.primary.map((r, ri) => renderActionRow(r, ri === 0, false, "fill"))}
                 {rxGroups.heldDim.length > 0 && <div id="rx-held-anchor" style={{ scrollMarginTop: 90 }} />}
@@ -1874,8 +1870,7 @@ export default function Teardown() {
                   </details>
                 )}
               </div>
-              )}
-            </>)}
+            )}
 
             {/* 2(판단근거 흡수): 별도 per-model 리스트 폐지 → 각 행 "근거" 접이로 흡수. 여긴 총론(판단 기준)만. clone 스크립트는 설치 행 install.bat 다운로드로 보존. */}
             {rxTodos.length > 0 && (
