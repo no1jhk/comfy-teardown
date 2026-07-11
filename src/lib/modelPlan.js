@@ -110,13 +110,22 @@ export function buildModelPlan(report, env) {
   const alternatives = [], exclusions = [];
   const famFiles = (rec.family && catalog.families[rec.family]?.files) || [];
   const excludeTurbo = !!mainSlot?.exclude?.includes("turbo");
+  const mainGB = sizeToGB(selectedMain?.size);
   for (const f of famFiles) {
     if (f.role !== "main_model") continue;
     if (selectedMain && f.filename.toLowerCase() === selectedMain.selectedFile) continue;
     const isTurbo = f.variant === "turbo";
     if (excludeTurbo && isTurbo) { exclusions.push({ filename: f.filename, quant: f.quant, size: f.size, reason: "Note가 turbo 메인 모델을 쓰지 말라고 지시했습니다." }); continue; } // Note 기반 제외는 GPU 무관
-    // 대체 후보(OOM 시)는 GPU 의존 판정 → profile 없으면 미출력(불변①: 입력 없인 확정 판정 금지)
-    if (profile && !isTurbo && quantStance(f.quant, profile) !== "avoid") alternatives.push({ filename: f.filename, quant: f.quant, size: f.size, folder: `models/${f.folder}`, downloadUrl: hfUrl(f.repo, f.repo_path), reason: `OOM(메모리 부족) 발생 시 대체 후보입니다 (${f.quant}${f.size ? `, ${f.size}` : ""}).` });
+    // 8: 대체 후보는 선택 메인 대비 방향으로 판정(GPU 의존 → profile 없으면 미출력, 불변①).
+    // 더 작으면 OOM(메모리 부족) 대비, 더 크면 상위 품질(VRAM 여유 시·GPU에 맞을 때만). 동급 크기·크기 미상은 방향 불명 → 미노출(불명 판정 금지).
+    if (!profile || isTurbo || quantStance(f.quant, profile) === "avoid") continue;
+    const altGB = sizeToGB(f.size);
+    let reason = null;
+    if (mainGB != null && altGB != null) {
+      if (altGB < mainGB) reason = `OOM(메모리 부족) 대비 더 작은 양자화입니다 (${f.quant}${f.size ? `, ${f.size}` : ""}).`;
+      else if (altGB > mainGB && !(profile.vram && altGB > profile.vram * 1.5)) reason = `VRAM 여유가 있을 때 쓸 수 있는 상위 품질입니다 (${f.quant}${f.size ? `, ${f.size}` : ""}).`;
+    }
+    if (reason) alternatives.push({ filename: f.filename, quant: f.quant, size: f.size, folder: `models/${f.folder}`, downloadUrl: hfUrl(f.repo, f.repo_path), reason });
   }
   // 4 + 결함2: VRAM 초과 주 모델 — 확인된 하위 양자화(alternatives=카탈로그 등재+GPU 호환)가 있으면 promoted로 교체(확정 대체 제시). 없으면 미확인 문구 + HF 검색.
   if (selectedMain?.vramTooBig && profile?.vram) {
