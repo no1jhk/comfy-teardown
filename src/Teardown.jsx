@@ -41,9 +41,8 @@ const C = {
   text: "#C2BFB9", dim: "#A39BAE", faint: "#76707F", faintDim: "#423E47",
   point: "#F4FF75",
   green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#816E48", memoBright: "#A88F5E",
-  // A/B 실물 비교용 임시 bat 버튼 색(확정 시 단일 토큰으로 통일 예정). 노랑(point)과 명도 동급 · 채도·색상축만 변경.
-  btnSand: "#D9D8B8", // A안 · 탈채도 노랑 → install.bat
-  btnLime: "#C8E86A", // B안 · 연두 시프트 → download.bat(모델 일괄 받기)
+  // 스크립트 받기 버튼 전 화면 단일 토큰(sand 잠정 확정 · 재조정 여지). 색 변경 시 이 한 곳 수정으로 전 화면(Solution·Install Script) 동시 반영.
+  btnSand: "#D9D8B8",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const SOLUTION_STROKE = `3px solid ${C.point}`; // 7: 솔루션 라운드박스 테두리(실험 · 사용자 실물 판정 예정). 제거·조정은 이 한 곳.
@@ -938,11 +937,13 @@ function NumBadge({ n, variant = "fill", muted = false, onClick, title, mt = 1 }
 }
 
 function MetricBox({ value, label, unit }) {
-  // comfy.org 공식 카드: 스트로크 없음 / 배경보다 살짝 밝은 플럼 / 위가 미세하게 더 밝은 그라데이션 (이미지에서 추출)
+  // comfy.org 공식 카드: 스트로크 없음 / 배경보다 살짝 밝은 플럼. 값 길이에 따라 폰트 자동 축소(해상도·샘플러 등 긴 값 카드 넘침 방지, 짧은 수치는 27 유지).
+  const vs = String(value);
+  const vFont = vs.length > 8 ? 18 : vs.length > 5 ? 21 : 27;
   return (<div style={{ background: C.metricBg, border: "none", borderRadius: 16, padding: "26px 18px" }}>
     <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.3 }}>{label}</div>
-    <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 3 }}>
-      <span style={{ fontFamily: MONO, fontSize: 27, fontWeight: 700, color: C.point, lineHeight: 1 }}>{value}</span>
+    <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 3, flexWrap: "wrap" }}>
+      <span style={{ fontFamily: MONO, fontSize: vFont, fontWeight: 700, color: C.point, lineHeight: 1.1, overflowWrap: "anywhere" }}>{value}</span>
       {unit && <span style={{ fontSize: 13, color: C.dim }}>{unit}</span>}
     </div>
   </div>);
@@ -1546,8 +1547,8 @@ export default function Teardown() {
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
         {/* bat 버튼 A/B 실물 비교용 임시 배치(확정 시 단일 토큰 통일 예정). 기존 다운로드 버튼(td-hf)과 동일 line 형식, 색만 SAND(A)·LIME(B)로 분리. 화살표 없음. */}
         {/* 라벨은 행동 언어(사용자 확정), 파일명은 부속 dim 줄(r.file). 버튼 형식·A/B 색은 6823048 유지. */}
-        {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}>노드 한 번에 설치</button>}
-        {r.kind === "dlscript" && <button className="td-hf-lime" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}>모델 한 번에 받기</button>}
+        {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> 노드 한 번에 설치</button>}
+        {r.kind === "dlscript" && <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 한 번에 받기</button>}
         {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
@@ -1574,6 +1575,8 @@ export default function Teardown() {
         .td-btn{transition:transform .12s,opacity .18s}
         .td-btn:hover{transform:translateY(-1px)} .td-btn:active{transform:translateY(0)}
         summary::-webkit-details-marker{display:none}summary::marker{content:""}
+        /* 2: Node Reference 번호 블록 +/- 토글 — details 열림에 따라 Plus/Minus 스왑(상태 관리 없이 CSS로). 노드 블록 전용 클래스라 다른 details 무영향. */
+        details[open] > summary .nr-plus{display:none}details:not([open]) > summary .nr-minus{display:none}
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-havelink{background:transparent;border:none;color:${C.faint};transition:color .15s;cursor:pointer}.td-havelink:hover{color:${C.text}}
         .td-divtoggle{color:${C.faint};transition:color .15s}.td-divtoggle:hover{color:${C.dim}}
@@ -1583,11 +1586,9 @@ export default function Teardown() {
         .td-hf:hover{background:${C.point};color:${INK}}
         .td-hf-sm{display:inline-flex;align-items:center;justify-content:center;width:280px;max-width:100%;border:1px solid ${C.point};color:${C.point};background:transparent;border-radius:999px;padding:8px 0;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sm:hover{background:${C.point};color:${INK}}
-        /* bat 버튼 A/B 실물 비교용 임시 색(확정 시 단일 토큰으로 통일 예정). td-hf와 동일 형식(line·크기·radius·타이포), border·text 동일 색, 색만 토큰 분리. */
-        .td-hf-sand{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.btnSand};color:${C.btnSand};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
+        /* 스크립트 받기 버튼 단일 클래스(전 화면 Solution·Install Script 공통). td-hf 형식 + sand 토큰 + ↓ 아이콘. 색 변경은 C.btnSand 한 곳. gap 7 = 처방전 저장 버튼 일치. */
+        .td-hf-sand{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${C.btnSand};color:${C.btnSand};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sand:hover{background:${C.btnSand};color:${INK}}
-        .td-hf-lime{display:inline-flex;align-items:center;justify-content:center;gap:6px;border:1px solid ${C.btnLime};color:${C.btnLime};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
-        .td-hf-lime:hover{background:${C.btnLime};color:${INK}}
         /* 결과저장 등 아웃라인 pill. hover시 노랑으로 채움 (다른 버튼과 동일) */
         .td-outline{border:1px solid ${C.point};color:${C.point};background:transparent;transition:background .15s,color .15s,transform .12s}
         .td-outline:hover{background:${C.point};color:${INK};transform:translateY(-1px)}.td-outline:active{transform:translateY(0)}
@@ -1924,44 +1925,24 @@ export default function Teardown() {
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, margin: "0 0 28px", flexWrap: "wrap" }}>
                 <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>Summary</h2>
               </div>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 24px" }}>
+              {/* 1: 개요 박스 해체 → 전 항목을 MetricBox 카드로 단일 그리드(auto-fit · gap 10 상하좌우 동일). 값 미추출 항목은 미노출(날조 금지). */}
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit,minmax(124px,1fr))", gap: 10, margin: "0 0 20px" }}>
                 <MetricBox value={report.totalNodes} label="전체 노드" unit="개" />
                 <MetricBox value={report.customPackTotal} label="커스텀 pack" unit="개" />
+                {(() => { const ss = report.structSummary; if (!ss) return null; const kp = ss.keyParams || {}; const io = ss.io || { inputs: [], outputs: [] }; const byp = ss.groups.filter((g) => g.bypassed).length; return (<>
+                  {io.inputs.length > 0 && <MetricBox value={io.inputs.join(" · ")} label="입력" />}
+                  {io.outputs.length > 0 && <MetricBox value={io.outputs.join(" · ")} label="출력" />}
+                  {kp.resolution != null && <MetricBox value={kp.resolution} label="해상도" />}
+                  {kp.steps != null && <MetricBox value={kp.steps} label="스텝" />}
+                  {kp.sampler != null && <MetricBox value={kp.sampler} label="샘플러" />}
+                  {kp.cfg != null && <MetricBox value={kp.cfg} label="CFG" />}
+                  {kp.batch != null && <MetricBox value={kp.batch} label="배치" />}
+                  {ss.groups.length > 0 && <MetricBox value={ss.groups.length} label="그룹" unit={`개${byp ? ` (${byp} bypass)` : ""}`} />}
+                </>); })()}
               </div>
-              {/* 1: Summary 카드 — 전부 JSON 정적 추출(그룹 현황·파이프라인·파라미터·입출력·비활성). 추출 실패 항목은 미표기. 8: 높이 +20px(패딩 32). */}
-              {report.structSummary && (() => { const ss = report.structSummary; if (!(ss.groups.length || ss.pipeline || ss.keyParams || ss.io || ss.inactive.length)) return null; const kp = ss.keyParams; return (
-                <div style={{ background: C.metricBg, border: "none", borderRadius: 16, padding: "26px 24px", marginBottom: 24 }}>
-                  {/* 1: 개요 카드 = MetricBox 두 카드와 동일 토큰(배경 metricBg·border 0·radius 16·세로 26). 카드 정체성 헤더. */}
-                  <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.02em", marginBottom: 16 }}>워크플로우 개요</div>
-                  {ss.pipeline && <div style={{ marginBottom: 18 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 6 }}>파이프라인</div>
-                    <div style={{ fontSize: 16, color: C.text, lineHeight: 1.5, overflowWrap: "anywhere" }}>{ss.pipeline}</div>
-                  </div>}
-                  {/* 4: 감지된 종류만 표기. 실패 시 "확인 필요" 대신 그 항목 미표기(불명 표기 금지). */}
-                  {ss.io && (ss.io.inputs.length > 0 || ss.io.outputs.length > 0) && <div style={{ marginBottom: 18, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>{ss.io.inputs.length > 0 && <>입력 <span style={{ color: C.text }}>{ss.io.inputs.join(" · ")}</span></>}{ss.io.inputs.length > 0 && ss.io.outputs.length > 0 ? " · " : ""}{ss.io.outputs.length > 0 && <>출력 <span style={{ color: C.text }}>{ss.io.outputs.join(" · ")}</span></>}</div>}
-                  {kp && <div style={{ marginBottom: 18 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 6 }}>핵심 파라미터</div>
-                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 20px", fontSize: 14, color: C.dim }}>
-                      {kp.resolution != null && <span>해상도 <span style={{ color: C.text, fontFamily: MONO }}>{kp.resolution}</span></span>}
-                      {kp.steps != null && <span>스텝 <span style={{ color: C.text, fontFamily: MONO }}>{kp.steps}</span></span>}
-                      {kp.sampler != null && <span>샘플러 <span style={{ color: C.text, fontFamily: MONO }}>{kp.sampler}</span></span>}
-                      {kp.cfg != null && <span>CFG <span style={{ color: C.text, fontFamily: MONO }}>{kp.cfg}</span></span>}
-                      {kp.batch != null && <span>배치 <span style={{ color: C.text, fontFamily: MONO }}>{kp.batch}</span></span>}
-                    </div>
-                  </div>}
-                  {ss.groups.length > 0 && <div style={{ marginBottom: ss.inactive.length ? 18 : 0 }}>
-                    <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 8 }}>그룹 현황</div>
-                    <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                      {ss.groups.map((g, i) => <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 14 }}>
-                        <span style={{ width: 7, height: 7, borderRadius: 999, background: g.bypassed ? C.faint : C.point, flexShrink: 0 }} />
-                        <span style={{ color: C.text, flex: 1, overflowWrap: "anywhere" }}>{g.title}</span>
-                        <span style={{ color: C.dim, fontFamily: MONO, fontSize: 13, flexShrink: 0 }}>노드 {g.nodeCount}개</span>
-                        <span style={{ color: g.bypassed ? C.faint : C.point, fontSize: 13, fontWeight: 700, minWidth: 50, textAlign: "right", flexShrink: 0 }}>{g.bypassed ? "bypass" : "활성"}</span>
-                      </div>)}
-                    </div>
-                  </div>}
-                  {ss.inactive.length > 0 && <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, overflowWrap: "anywhere" }}>비활성 노드 {ss.inactive.length}개: {[...new Set(ss.inactive.map((n) => n.group ? `${n.type}(${n.group})` : n.type))].slice(0, 8).join(" · ")}{ss.inactive.length > 8 ? " 외" : ""}</div>}
-                </div>); })()}
+              {/* 1: 파이프라인·비활성은 카드 아님 → 그리드 아래 dim 1줄로 분리. */}
+              {report.structSummary?.pipeline && <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.55, overflowWrap: "anywhere", marginBottom: report.structSummary.inactive.length ? 6 : 24 }}>파이프라인 <span style={{ color: C.text }}>{report.structSummary.pipeline}</span></div>}
+              {report.structSummary && report.structSummary.inactive.length > 0 && <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, overflowWrap: "anywhere", marginBottom: 24 }}>비활성 노드 {report.structSummary.inactive.length}개: {[...new Set(report.structSummary.inactive.map((n) => n.group ? `${n.type}(${n.group})` : n.type))].slice(0, 8).join(" · ")}{report.structSummary.inactive.length > 8 ? " 외" : ""}</div>}
               {report.authorNotes?.length > 0 && (
                 <div style={{ marginTop: 24, paddingTop: 24, borderTop: `1px solid ${C.divider}` }}>
                   <div onClick={() => toggle("an")} style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
@@ -2084,7 +2065,8 @@ export default function Teardown() {
                   <details key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
                     {/* 6: 노드 블록 = 기본 접힘 1층 접이. 헤더가 summary(토글), 슬롯 표가 내용. 내부 추가 접힘 0. */}
                     <summary style={{ cursor: "pointer", listStyle: "none", outline: "none", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-                      <span style={{ fontFamily: SANS, fontSize: 14, color: C.faint, flexShrink: 0 }}>▸</span>
+                      <span className="nr-plus" style={{ color: C.point, display: "inline-flex", alignItems: "center", flexShrink: 0, lineHeight: 0 }}><Plus size={18} strokeWidth={2.25} /></span>
+                      <span className="nr-minus" style={{ color: C.point, display: "inline-flex", alignItems: "center", flexShrink: 0, lineHeight: 0 }}><Minus size={18} strokeWidth={2.25} /></span>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
                       {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet, display: "inline-flex", alignItems: "center", gap: 5 }}>{r.tabColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: r.tabColor, flexShrink: 0 }} />}[탭: {r.tab}]</span>}
@@ -2270,16 +2252,11 @@ export default function Teardown() {
                             <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
                             <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
                             <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
-                              <button className="td-outline" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
-                                <Download size={14} /> install.bat (Windows)</button>
-                              <button className="td-outline" onClick={() => downloadText("install.sh", buildInstallScript(report, "sh", env))}
-                                style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
-                                <Download size={14} /> install.sh (Mac/Linux)</button>
+                              {/* 3: 스크립트 받기 버튼 전 화면 단일 클래스(td-hf-sand)·↓ 아이콘. OS별 선택이라 파일명 라벨은 유지(f1854a1 승인), 색·형식·아이콘만 Solution과 통일. */}
+                              <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> install.bat (Windows)</button>
+                              <button className="td-hf-sand" onClick={() => downloadText("install.sh", buildInstallScript(report, "sh", env))}><Download size={15} /> install.sh (Mac/Linux)</button>
                               {plan && plan.items.some((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test(it.downloadUrl || "") && !/\/tree\//.test(it.downloadUrl || "")) && (
-                                <button className="td-outline" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}
-                                  style={{ display: "inline-flex", alignItems: "center", gap: 6, borderRadius: 8, padding: "7px 14px", fontSize: 13, fontFamily: SANS, fontWeight: 600, cursor: "pointer" }}>
-                                  <Download size={14} /> 모델 받기.bat</button>
+                                <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 받기.bat</button>
                               )}
                             </div>
                             {!env.customNodesPath && <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>로그에서 custom_nodes 경로를 찾지 못했습니다. 스크립트 안의 경로를 직접 입력해 주세요. (로그를 붙여넣으면 경로를 채워 드립니다.)</div>}

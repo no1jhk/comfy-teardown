@@ -55,6 +55,7 @@
 - 순번 배지(BlockHead num, Solution·Error Diagnosis 숫자)는 **완전 원형 노란 배경 · 제목과 세로중앙**. Solution=30px, BlockHead=28px. Error Diagnosis fixes도 Solution과 동일 구조(동그라미 숫자 30px + 텍스트 17.5 dim, gap 14).
 - 같은 역할의 요소는 같은 값. 새 블록 추가 시 옆 블록의 padding/margin을 그대로 복제.
 - 색은 `C` 객체만(하드코딩 금지), 폰트 최소 12px(푸터 예외), wordBreak:"break-all" 금지(토큰만 overflowWrap:"anywhere").
+- **스크립트 받기 버튼은 전 화면 단일 토큰**: install/download(Solution)·방법 A/B(Install Script) 전부 클래스 `.td-hf-sand` + 색 토큰 `C.btnSand`(잠정 sand) + ↓ 아이콘(`Download size 15`). 색 변경 시 `C.btnSand` 한 곳 수정으로 전 화면 동시 반영. 라벨은 주 동선=행동 언어, OS별 선택=파일명 유지.
 - 수정 후 항상 "같은 종류의 다른 블록도 같이 바꿔야 일관되는가" 자검.
 - 섹션 간 marginTop: **밝은 존 44 · 어두운 존 29**(Diagnose는 예외 별도).
 
