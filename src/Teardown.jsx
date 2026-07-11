@@ -2036,7 +2036,7 @@ export default function Teardown() {
             const missingCount = hasRedInput ? recipesEnriched.reduce((n, r) => n + r.slots.filter((s) => s.missing).length, 0) : 0;
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              <SectionTitle>Error Node Fix</SectionTitle>
+              <SectionTitle>노드별 참조 값</SectionTitle>
               <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
                 <div style={{ background: C.surfaceHi, margin: "-18px -34px 18px", padding: "16px 34px" }}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
@@ -2123,12 +2123,12 @@ export default function Teardown() {
                     </div>
                     {/* 슬롯 표 */}
                     <div style={{ borderTop: `1px solid ${C.line}` }}>
-                      <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr) 90px", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
-                        {["#", "슬롯", "현재 값", "폴더", "다운로드"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
+                      <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
+                        {["#", "슬롯", "현재 값", "폴더"].map((h) => <span key={h} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.faint }}>{h}</span>)}
                       </div>
                       {r.slots.map((s, si) => (
                         <div key={si}>
-                          <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr) 90px", gap: 10, padding: "12px 0", alignItems: "center", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
+                          <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "12px 0", alignItems: "center", borderTop: si > 0 ? `1px solid ${C.divider}` : "none", opacity: hasRedInput && s.missing === false ? 0.45 : 1 }}>
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.faint }}>{si + 1}</span>
                             <span style={{ fontFamily: MONO, fontSize: 14, color: C.dim, overflowWrap: "anywhere" }}>{s.slot}</span>
                             <div style={{ minWidth: 0 }}>
@@ -2138,7 +2138,6 @@ export default function Teardown() {
                               {s.quantBad && s.ggufAlt?.alternatives && s.ggufAlt.alternatives.map((a, ai) => (
                                 <div key={ai} style={{ fontFamily: SANS, fontSize: 13, color: C.point, marginTop: 3, lineHeight: 1.5, paddingLeft: 10 }}>
                                   대체 파일: <span style={{ fontFamily: MONO }}>{a.name}</span> · {a.folder}
-                                  {a.url && <> · <a href={a.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontWeight: 700, textDecoration: "underline" }}>다운로드</a></>}
                                   {a.note && <span style={{ color: C.faint, fontSize: 13 }}> ({a.note})</span>}
                                 </div>
                               ))}
@@ -2150,9 +2149,6 @@ export default function Teardown() {
                               {s.authorRecommend && (
                                 <div style={{ marginTop: 4, fontSize: 13, color: C.dim, lineHeight: 1.5 }}>
                                   제작자 권장: <span style={{ fontFamily: MONO, color: C.point }}>{s.authorRecommend.name}</span> · <span style={{ color: C.point }}>{s.authorRecommend.directory}</span>
-                                  {s.authorRecommend.url && s.authorRecommend.url !== "확인 필요" && (
-                                    <> · <a href={s.authorRecommend.url} target="_blank" rel="noopener noreferrer" style={{ color: C.point, fontSize: 13, textDecoration: "underline" }}>다운로드</a></>
-                                  )}
                                 </div>
                               )}
                             </div>
@@ -2162,13 +2158,6 @@ export default function Teardown() {
                                 {pit ? <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{pit.confidence}</span> : (s.src && s.src !== "rule" && s.src !== "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>{s.src}</span>)}
                                 {!pit && s.src === "none" && <span style={{ fontFamily: SANS, fontSize: 13, color: C.red }}>폴더 확인 필요</span>}
                               </>); })()}
-                            </div>
-                            <div>
-                              {s.url && s.url !== "확인 필요" ? (
-                                <a className="td-hf" href={s.url} target="_blank" rel="noopener noreferrer">다운로드</a>
-                              ) : (
-                                <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>확인 필요</span>
-                              )}
                             </div>
                           </div>
                         </div>
@@ -2453,7 +2442,7 @@ export default function Teardown() {
                           </div>);
                           })()}
                           <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 12 }}>※ 도구는 PC를 보지 못합니다. 이미 받아둔 모델은 “있음”으로 표시해 건너뛰세요. 표시 안 한 것이 <b style={{ color: C.text }}>받아야 할 후보</b>입니다.</div>
-                          <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, marginTop: 6 }}>※ 폴더 위치나 용량이 “확인 필요”로 나오면 워크플로우 제작자의 안내에서 확인하세요.</div>
+                          <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.6, marginTop: 4 }}>※ 폴더 위치나 용량이 “확인 필요”로 나오면 워크플로우 제작자의 안내에서 확인하세요.</div>
                           {step.integrity && (
                             <div style={{ marginTop: 12, background: "rgba(239,83,80,0.07)", border: `1px solid ${C.red}44`, borderRadius: 10, padding: "11px 16px", fontSize: 13, color: C.redMuted, lineHeight: 1.6 }}>
                               <div style={{ fontWeight: 650, color: C.red, marginBottom: 4 }}>무결성 확인</div>
