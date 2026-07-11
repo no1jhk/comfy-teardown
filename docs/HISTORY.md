@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-11 (통합 5건: Summary 확정 + 스트록 sand + 제작자 링크 표 + 웹 검색)
+**한 일** — 커밋 bb3d2b5.
+- **1 Summary 확정**: 입력·출력 카드 영문화(이미지→Image·오디오→Audio·영상→Video·텍스트→Text 렌더 매핑). 샘플러·CFG·배치 카드 + 파이프라인 줄 + 비활성 줄 제거 → 자세한 진단(Node Reference 인트로)에 dim 줄(핵심 파라미터·비활성 노드)로 이동. Summary는 카드만(문장형 0). 남는 카드: 전체 노드·커스텀 pack·입력·출력·해상도·스텝·그룹. 값 미추출 미노출.
+- **2 스트록 sand**: SOLUTION_STROKE 색 C.point→C.btnSand(3px 유지, 스크립트 버튼과 동일 sand 토큰).
+- **3 제작자 링크 표**: 참고 행 링크 2개+ 면 3열 표(안내=linkLabel·출처 노드=섹션 label dim·링크 버튼), 1개면 현행 한 줄. 동일 URL 병합(파인딩 l) 유지.
+- **4 웹 검색 교체**: searchUrl HF models?search(파일명 미인덱싱) → 구글 site:huggingface.co "파일명"(인코딩·따옴표). 라벨 "웹에서 검색", 폴백 카피 "웹 검색으로 연결". UI HF models?search 0.
+- **검증**: build 0 · smoke 3부(part C에 3링크 MarkdownNote 추가 → 3열 표 "출처 노드" 헤더·구글 site: URL 실측 통과) · e2e 15/15 · 회귀. io는 렌더 매핑이라 structSummary 데이터 무변 → fixture 기대값 갱신 불필요.
+**판단 필요** — Summary 이동분(핵심 파라미터·비활성)은 Node Reference 렌더 조건(recipesEnriched 또는 hasNodeIssues)에 의존. 모델·미씽노드 모두 없는 워크플로우에선 미노출(희귀). 실물 확인 요망.
+**다음 할 일** — 화면 검수 후 push.
+
 ## 2026-07-11 (정정: Node Reference 토글 위치)
 **한 일** — 커밋 a795612. 전 라운드(17cd69e) task 2 오배치 정정.
 - **오류**: Node Reference 토글을 로더별(UNETLoader·CLIPLoader·VAELoader) 노드 블록에 붙임(지시문 애매성).
