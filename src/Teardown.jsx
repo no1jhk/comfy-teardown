@@ -965,7 +965,6 @@ export default function Teardown() {
   const [drag, setDrag] = useState(false);
   const [copiedKey, setCopiedKey] = useState(null);
   const [open, setOpen] = useState({ fb: false, fa: false, f1: false, f2: false, rn1: true, rn2: true }); // 문제 블록 기본 닫힘 — Solution이 주인공, Findings는 필요시 펼침. rn1/rn2(Red Node STEP)는 기본 펼침
-  const [rxChecked, setRxChecked] = useState(() => new Set()); // 처방전 체크 토글 (로컬 state만, 저장 불필요)
   const [detailOpen, setDetailOpen] = useState(false);         // "자세한 진단 보기" 토글 (기본 닫힘)
   const isAdmin = new URLSearchParams(location.search).get("admin") === "1"; // 관리자 모드(적립 데이터 노출)
   const [errlog, setErrlog] = useState("");       // 에러 로그 텍스트 (A안: 상시 노출)
@@ -1029,7 +1028,6 @@ export default function Teardown() {
       ? { ...p, modelRootPartial: false }
       : { ...p, modelRoot: assembleModelPath(scanDrive, clean, scanOs), modelRootPartial: scanOs !== "win", modelRootAssembled: true });
   };
-  const toggleRx = (k) => setRxChecked((prev) => { const n = new Set(prev); n.has(k) ? n.delete(k) : n.add(k); return n; });
   const saveReport = () => {
     if (!report) return;
     const md = buildMarkdown({ ...report, errlog }, summary, rx, env);
@@ -1137,8 +1135,6 @@ export default function Teardown() {
     /^https?:\/\//.test(p) ? <a key={k} href={p} target="_blank" rel="noopener noreferrer" style={{ color: C.memo, overflowWrap: "anywhere", textDecoration: "underline" }}>{p}</a> : p);
   // 미확인 모델 파일명 웹 검색 URL (구글, 파일명+download)
   const searchUrl = (name) => "https://huggingface.co/models?search=" + encodeURIComponent(name.replace(/\.[^.]+$/, ""));
-  // 액션 버튼(스크립트 보기 등) → 닫힌 "판단 근거" details를 펼치고 해당 위치로 스크롤. 앵커만으론 details가 안 열려 무반응이던 결함 수정.
-  const openRxDetail = (e) => { if (e) e.preventDefault(); setRxDetailOpen(true); requestAnimationFrame(() => document.getElementById("rx-detail")?.scrollIntoView({ behavior: "smooth", block: "start" })); };
   // UX2: 판정 박스 → Diagnose 바로가기. 에러 로그 아코디언 열고 스크롤+포커스.
   const scrollToDiagnose = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, errAcc: true })); requestAnimationFrame(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }); };
   // 디아그노시스 앵커(5): 실행 행 부속 링크 → "자세한 진단" 토글 자동 펼침 + 로그 입력(#diagnose-section)으로 스크롤. 독립 섹션 없음(현행 위치 유지).
@@ -1491,6 +1487,17 @@ export default function Teardown() {
         {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
         {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>워크플로우 원 지정값(상위 VRAM용): <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
         {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.</div>}
+        {/* 2(판단근거 흡수): 별도 리스트 폐지 → 각 행 1층 접이. 등급·근거·출처만(링크 텍스트, 버튼 중복 0). evidenceBg 계승. */}
+        {r.kind === "model" && r.planItem?.reason && (
+          <details style={{ marginTop: 8 }}>
+            <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, color: C.faint, listStyle: "none", display: "inline-block", padding: "2px 0" }}>▸ 근거</summary>
+            <div style={{ background: C.evidenceBg, borderRadius: 10, padding: "12px 14px", marginTop: 8, fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.65 }}>
+              <div>등급 <span style={{ color: C.text, fontWeight: 600 }}>{r.planItem.badge}</span></div>
+              <div style={{ marginTop: 5 }}>{r.planItem.reason}</div>
+              {r.planItem.sourceRepo && <div style={{ marginTop: 5, overflowWrap: "anywhere" }}>출처 <span style={{ fontFamily: MONO, color: C.text }}>{r.planItem.sourceRepo}</span></div>}
+            </div>
+          </details>
+        )}
         {r.kind === "altexcl" && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 6 }}>
           {r.alternatives.map((a, ai) => <div key={"a" + ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>대체 후보: <span style={{ fontFamily: MONO, color: C.text }}>{a.filename}</span>{a.size ? ` · ${a.size}` : ""} · {a.reason}</div>)}
           {r.exclusions.map((e, ei) => <div key={"e" + ei} style={{ fontFamily: SANS, fontSize: 13.5, color: C.faint, lineHeight: 1.5 }}>받지 말 것: <span style={{ fontFamily: MONO }}>{e.filename}</span> ({e.quant}) · {e.reason}</div>)}
@@ -1513,9 +1520,8 @@ export default function Teardown() {
         {r.kind === "run" && r.diagLink && <div style={{ marginTop: 4 }}><a href="#diagnose-section" onClick={openDiagnose} style={{ fontFamily: SANS, fontSize: 14, color: C.text, opacity: 0.5, textDecoration: "underline", cursor: "pointer", lineHeight: 1.5 }}>에러가 났다면: 에러 로그를 붙여넣어 진단받기</a></div>}
       </div>
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-        {r.kind === "install" && <><button className="td-hf" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={{ border: "none", cursor: "pointer" }}>install.bat ↓</button><a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>스크립트 보기</a></>}
+        {r.kind === "install" && <button className="td-hf" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))} style={{ border: "none", cursor: "pointer" }}>install.bat ↓</button>}
         {r.kind === "dlscript" && <button className="td-hf" onClick={() => downloadText("download_models.bat", buildDownloadScript(plan, env))} style={{ border: "none", cursor: "pointer" }}>모델 받기.bat ↓</button>}
-        {r.kind === "broken" && r.crosslink && <a className="td-hf td-outline-w" href="#rx-detail" onClick={openRxDetail}>설치 행 보기</a>}
         {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
@@ -1823,7 +1829,7 @@ export default function Teardown() {
             </div>
             )}
 
-            {/* 당장 할 일 — 액션 테이블(동사 선행). 상세·근거는 아래 판단 근거 보기(details)로. UX3: 재방문 시 접힘 기본. */}
+            {/* 당장 할 일 — 액션 테이블(동사 선행). 근거는 각 행 "근거" 접이. 총론은 아래 판단 기준 안내. UX3: 재방문 시 접힘 기본. */}
             {rxTodos.length > 0 && (<>
               {revisit && <button onClick={() => setRxUserToggled(!rxShow)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, padding: "10px 2px", marginBottom: rxShow ? 8 : 16 }}>{rxShow ? "▾" : "▸"} 처방 다시 보기</button>}
               {rxShow && (
@@ -1846,117 +1852,18 @@ export default function Teardown() {
               )}
             </>)}
 
-            <details id="rx-detail" className="td-fade" style={{ marginTop: 4 }} open={rxDetailOpen} onToggle={(e) => setRxDetailOpen(e.currentTarget.open)}>
-              <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 600, color: C.dim, padding: "10px 0", listStyle: "none" }}>▸ 판단 근거 보기 (GPU·로그·한계 고지·출처 신뢰도는 이 안에)</summary>
-            {rxTodos.length > 0 && (<div style={{ background: C.evidenceBg, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginTop: 12 }}>
-              {rxTodos.map((t, i) => {
-                const done = rxChecked.has(t.key);
-                let left = null, right = null;
-                if (t.kind === "nodegroup") {
-                  const g = t.g;
-                  const repoFull = (g.repo || g.clone_url || "").replace("https://github.com/", "").replace(/\.git$/, "");
-                  const repoName = repoFull.split("/").pop() || repoFull;
-                  const cloneUrl = g.clone_url || (g.repo ? (g.repo.startsWith("https://") ? g.repo.replace(/\/?$/, ".git") : `https://github.com/${g.repo}.git`) : null);
-                  const ghUrl = g.clone_url ? g.clone_url.replace(/\.git$/, "") : (g.repo ? (g.repo.startsWith("https://") ? g.repo : `https://github.com/${g.repo}`) : null);
-                  const repoEl = <span style={{ fontFamily: MONO, color: C.point }}>{repoFull}</span>;
-                  const installed = packInstalled(g.repo || g.clone_url, logEnv.installedPacks);
-                  const loadFailed = packInstalled(g.repo || g.clone_url, logEnv.importFailed);
-                  const typeCounts = {}; for (const ty of g.types) typeCounts[ty] = (typeCounts[ty] || 0) + 1;
-                  const typesLabel = Object.entries(typeCounts).map(([n, c]) => c > 1 ? `${n} ${c}개` : n).join(" · ");
-                  left = installed ? (<>
-                    <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: C.faint, textDecoration: "line-through", lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                      <span style={{ fontFamily: MONO }}>{repoName}</span> 설치 확인됨</div>
-                    <div style={{ fontSize: 14, color: C.green, marginTop: 6, lineHeight: 1.5 }}>콘솔 로그에서 설치가 확인됐습니다. (해결 노드: {typesLabel})</div>
-                  </>) : loadFailed ? (<>
-                    <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: C.red, lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                      <span style={{ fontFamily: MONO }}>{repoName}</span> 로드 실패</div>
-                    <div style={{ fontSize: 14, color: C.red, marginTop: 6, lineHeight: 1.5 }}>설치됐지만 로드에 실패했습니다. 로그의 해당 에러를 확인하세요. (해결 노드: {typesLabel})</div>
-                  </>) : (<>
-                    <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                      <span style={{ fontFamily: MONO }}>{repoName}</span> 설치</div>
-                    <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>해결되는 노드 {g.types.length}개: {typesLabel}</div>
-                    <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8 }}>
-                      <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "10px 12px", boxSizing: "border-box" }}>
-                        <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.4 }}>git clone {cloneUrl}</code>
-                        <button onClick={() => copy(`git clone ${cloneUrl}`, `rx-${t.key}`)} title="명령 복사" style={{ background: "transparent", border: "none", color: C.text, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                          {copiedKey === `rx-${t.key}` ? <Check size={15} /> : <Copy size={15} />}</button>
-                      </div>
-                      {ghUrl && <a className="td-hf td-outline-w" href={ghUrl} target="_blank" rel="noopener noreferrer" style={{ flexShrink: 0 }}>GitHub ↗</a>}
-                    </div>
-                    <div style={{ fontSize: 14, color: C.text, marginTop: 8, lineHeight: 1.6 }}>
-                      {g.repoSrc === "prefix" ? <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장으로 {repoEl} 가 추정됩니다.</> : <>{g.types.length >= 2 ? "이 노드들을" : "이 노드를"} 제공하는 확장 {repoEl} 가 설치돼 있는지 확인해 주세요.</>}
-                    </div>
-                    <div style={{ fontSize: 14, color: C.text, lineHeight: 1.6 }}>
-                      {g.registry === false ? "Manager에 없는 팩입니다. 위 명령으로 직접 설치해 주세요." : g.repoSrc === "manager" ? "ComfyUI Manager에서 설치할 수 있습니다." : g.repoSrc === "prefix" ? "설치 전 저장소를 확인해 주세요." : "출처 확인된 저장소입니다."}
-                    </div>
-                    {(() => { const al = (plan?.authorLinks || []).find((a) => g.types.some((ty) => matchLabelToNode(a.label, ty))); return al ? <div style={{ fontSize: 14, color: C.memoBright, lineHeight: 1.6, marginTop: 4 }}>워크플로우 제작자 안내 링크: <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12, marginLeft: 4 }}>링크 ↗</a></div> : null; })()}
-                  </>);
-                  right = null;
-                } else if (t.kind === "node") {
-                  const u = t.u;
-                  left = (<>
-                    <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3 }}>
-                      <span style={{ fontFamily: MONO }}>{u.type}</span> 노드 설치{t.count > 1 && <span style={{ fontSize: 15, color: C.faint, fontWeight: 400 }}> · 해당 노드 {t.count}개</span>}</div>
-                    <div style={{ fontSize: 14, color: C.amber, marginTop: 8, lineHeight: 1.6 }}>출처를 확인할 수 없습니다. ComfyUI Manager에서 노드 이름으로 검색해 주세요.</div>
-                  </>);
-                  right = null;
-                } else if (t.kind === "input") {
-                  const h = t.h;
-                  // 결함a: 실제 입력 노드 class_type에서 파생(LoadAudio 하드코딩 제거). 확장자로 종류 보조.
-                  const ext = (h.value.split(".").pop() || "").toLowerCase();
-                  const kindLabel = /png|jpe?g|webp|bmp|gif|tiff?/.test(ext) ? "이미지" : /mp4|mov|webm|mkv|avi/.test(ext) ? "영상" : /wav|mp3|flac|ogg/.test(ext) ? "오디오" : "입력";
-                  left = (<>
-                    <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                      <span style={{ fontFamily: MONO }}>{h.value}</span> {kindLabel} 파일 준비</div>
-                    <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>ComfyUI의 input 폴더에 넣거나 <span style={{ fontFamily: MONO }}>{h.node || "입력"}</span> 노드에서 다시 선택. 이미 준비돼 있으면 건너뛰기</div>
-                  </>);
-                  right = null;
-                } else {
-                  const s = t.s;
-                  const alts = s.quantBad && s.ggufAlt?.alternatives?.length ? s.ggufAlt.alternatives : null;
-                  if (alts) {
-                    const a0 = alts[0];
-                    left = (<>
-                      <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                        <span style={{ fontFamily: MONO }}>{a0.name}</span> 다운로드 <span style={{ fontSize: 15, color: C.faint, fontWeight: 400 }}>(권장)</span></div>
-                      <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{a0.folder}</span> 폴더에 넣으세요</div>
-                      <div style={{ fontSize: 14, color: C.faint, marginTop: 6, lineHeight: 1.55 }}>
-                        원본 <span style={{ fontFamily: MONO }}>{s.value}</span>은 이 GPU에서 기본 미지원. 안정 실행엔 GGUF 권장
-                        {alts[1] && <><br />또는 <span style={{ fontFamily: MONO }}>{alts[1].name}</span>{alts[1].note ? ` (${alts[1].note})` : ""}</>}
-                      </div>
-                    </>);
-                    right = a0.url ? <a className="td-hf" href={a0.url} target="_blank" rel="noopener noreferrer">다운로드</a> : null;
-                  } else {
-                    const mr = modelResearch[s.value];
-                    const foundUrl = learnedModel(s.value)?.url || (s.url && s.url !== "확인 필요" ? s.url : null) || (mr?.result?.found && mr.result.url ? mr.result.url : null); // 조사 성공 시 mr.result.url을 다운로드로 노출(모델표·Findings의 directDownloadUrl과 통일)
-                    left = (<>
-                      <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, color: done ? C.faint : C.text, textDecoration: done ? "line-through" : "none", lineHeight: 1.3, overflowWrap: "anywhere" }}>
-                        <span style={{ fontFamily: MONO }}>{s.value}</span> {foundUrl ? "다운로드" : "준비"}
-                        {s.quantBad && <span style={{ fontFamily: SANS, fontSize: 13, fontWeight: 700, color: C.red, marginLeft: 8 }}>⚠ 이 GPU 비호환</span>}</div>
-                      <div style={{ fontSize: 14, color: C.dim, marginTop: 6 }}><span style={{ fontFamily: MONO }}>{s.folder}</span> 폴더에 넣으세요. 이미 있으면 건너뛰기</div>
-                      {(() => { const pit = planByFile.get(s.value.replace(/\\/g, "/").split("/").pop().toLowerCase()); return pit ? <div style={{ fontSize: 13, color: C.faint, marginTop: 8, lineHeight: 1.65 }}><div>· 근거 등급: {pit.confidence} ({pit.badge})</div><div>· {pit.reason}</div>{pit.downloadUrl && <div style={{ overflowWrap: "anywhere" }}>· 직링크: {pit.downloadUrl}</div>}</div> : null; })()}
-                      {!foundUrl && <div style={{ fontSize: 13, color: C.faint, marginTop: 6 }}>직접 다운로드 링크가 확인되지 않아 검색으로 연결됩니다.</div>}
-                      {s.quantBad && <div style={{ fontSize: 14, color: C.amber, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 이 GPU(Ampere)에서 기본 지원되지 않습니다. 최신 ComfyUI는 변환 경로로 실행될 수 있으나 느리거나 불안정할 수 있습니다. 안정 실행에는 GGUF 대체를 권장합니다.</div>}
-                      {s.quantUnknown && <div style={{ fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5 }}>이 형식({s.quantFmt})은 GPU에 따라 실행되지 않을 수 있습니다. 상단 '내 환경 정보'에 GPU를 입력하면 판정해 드립니다.</div>}
-                    </>);
-                    right = foundUrl ? <a className="td-hf" href={foundUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
-                      : mr?.loading ? <button className="td-hf" disabled style={{ opacity: 0.55 }}>찾는 중…</button>
-                      : (!AI_KEY || mr?.error || (mr?.result && !mr.result.found)) ? <a className="td-hf td-outline-w" href={searchUrl(s.value)} target="_blank" rel="noopener noreferrer">HuggingFace 검색 ↗</a>
-                      : <button className="td-hf" onClick={() => researchUnknownModel(s.value)}>찾기</button>;
-                  }
-                }
-                return (
-                <React.Fragment key={t.key}>
-                {i > 0 && <div style={{ borderTop: `1px solid ${C.divider}`, marginLeft: 20, marginRight: 20 }} />}
-                <div style={{ display: "flex", gap: 14, alignItems: "flex-start", padding: "22px 20px", opacity: done ? 0.5 : 1 }}>
-                  {/* 판단근거 구역 배지 = line-style(단일 NumBadge). 완료 시 muted(회색). 위계: 필(Solution) > 라인(근거·참고) > 라인 dim */}
-                  <NumBadge n={done ? null : i + 1} variant="line" muted={done} onClick={() => toggleRx(t.key)} title="완료 표시" />
-                  <div style={{ flex: 1, minWidth: 0 }}>{left}</div>
-                  {right && <div style={{ flexShrink: 0, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", justifyContent: "flex-end", alignSelf: "center" }}>{right}</div>}
-                </div></React.Fragment>);
-              })}
-            </div>)}
+            {/* 2(판단근거 흡수): 별도 per-model 리스트 폐지 → 각 행 "근거" 접이로 흡수. 여긴 총론(판단 기준)만. clone 스크립트는 설치 행 install.bat 다운로드로 보존. */}
+            {rxTodos.length > 0 && (
+            <details id="rx-detail" className="td-fade" style={{ marginTop: 8 }} open={rxDetailOpen} onToggle={(e) => setRxDetailOpen(e.currentTarget.open)}>
+              <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.faint, padding: "10px 0", listStyle: "none" }}>▸ 판단 기준 안내</summary>
+              <div style={{ background: C.evidenceBg, border: `1px solid ${C.divider}`, borderRadius: 12, padding: "16px 18px", marginTop: 8, fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.75 }}>
+                <div>· 등급은 확정(검증된 카탈로그에 실존) · 워크플로우 안내(제작자 제공) · 추정 후보 · 확인 필요 순입니다. 각 행의 "근거"에서 파일별 등급과 출처를 확인하실 수 있습니다.</div>
+                <div style={{ marginTop: 8 }}>· GPU와 VRAM을 입력하시면 그 기준으로 양자화 호환과 대체 후보를 판정합니다. 입력이 없으면 확정 판정을 하지 않습니다.</div>
+                <div style={{ marginTop: 8 }}>· 콘솔 로그를 붙여넣으시면 설치 상태와 본체 버전을 실제 로그와 대조합니다.</div>
+                <div style={{ marginTop: 8 }}>· 이 도구는 PC 안의 파일을 직접 보지 못합니다. 폴더 대조는 붙여넣으신 목록을 기준으로 합니다.</div>
+              </div>
             </details>
+            )}
 
             {/* o: 재시작 안내 각주 제거 → 실행 행 부속 줄로 편입. 하단 여백만 유지. */}
             <div style={{ marginBottom: 90 }} />
