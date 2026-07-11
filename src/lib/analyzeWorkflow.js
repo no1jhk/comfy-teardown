@@ -357,7 +357,16 @@ export function analyze(norm, mgrMap) {
     return { title, nodeCount: members.length, bypassed: members.length > 0 && active === 0 };
   }).filter((g) => g.nodeCount > 0);
   // (4) 입출력 종류(활성 노드만). 미디어 입력 있으면 그것만, 없으면 텍스트(프롬프트).
-  const IO = [[/LoadImage|LoadImageOutput|ImageLoad/i, "in", "이미지"], [/LoadAudio/i, "in", "오디오"], [/LoadVideo|VHS_LoadVideo/i, "in", "영상"], [/CLIPTextEncode|TextInput|PrimitiveString/i, "in", "텍스트"], [/SaveImage|PreviewImage/i, "out", "이미지"], [/SaveAudio|PreviewAudio/i, "out", "오디오"], [/VideoCombine|SaveVideo|VHS_VideoCombine/i, "out", "영상"]];
+  // 4: Save·Preview 계열 감지 보강(웹소켓·애니메이션·VHS 등 변형 포함). 감지 실패는 렌더에서 미표기(불명 표기 금지).
+  const IO = [
+    [/LoadImage|LoadImageOutput|ImageLoad|LoadImageMask/i, "in", "이미지"],
+    [/LoadAudio/i, "in", "오디오"],
+    [/LoadVideo|VHS_LoadVideo/i, "in", "영상"],
+    [/CLIPTextEncode|TextInput|PrimitiveString/i, "in", "텍스트"],
+    [/SaveImage|PreviewImage|SaveImageWebsocket|SaveAnimated(WEBP|PNG)|SaveWEBP|Image.*Save|SaveJ?PE?G|SavePNG/i, "out", "이미지"],
+    [/SaveAudio|PreviewAudio|VHS_SaveAudio/i, "out", "오디오"],
+    [/VideoCombine|SaveVideo|VHS_VideoCombine|SaveWEBM/i, "out", "영상"],
+  ];
   const inSet = new Set(), outSet = new Set();
   for (const n of norm.nodes) { if (isMuted(n)) continue; for (const [re, dir, kind] of IO) if (re.test(n.type || "")) (dir === "in" ? inSet : outSet).add(kind); }
   const media = [...inSet].filter((k) => k !== "텍스트");

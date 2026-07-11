@@ -43,6 +43,7 @@ const C = {
   green: "#C1BFBA", amber: "#C1BFBA", red: "#EF5350", redMuted: "#B59A9B", violet: "#A678E0", memo: "#816E48", memoBright: "#A88F5E",
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
+const SOLUTION_STROKE = `3px solid ${C.point}`; // 7: 솔루션 라운드박스 테두리(실험 · 사용자 실물 판정 예정). 제거·조정은 이 한 곳.
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
@@ -934,7 +935,7 @@ function NumBadge({ n, variant = "fill", muted = false, onClick, title, mt = 1 }
 
 function MetricBox({ value, label, unit }) {
   // comfy.org 공식 카드: 스트로크 없음 / 배경보다 살짝 밝은 플럼 / 위가 미세하게 더 밝은 그라데이션 (이미지에서 추출)
-  return (<div style={{ background: "#28222E", border: "none", borderRadius: 16, padding: "16px 18px" }}>
+  return (<div style={{ background: "#28222E", border: "none", borderRadius: 16, padding: "26px 18px" }}>
     <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.3 }}>{label}</div>
     <div style={{ marginTop: 10, display: "flex", alignItems: "baseline", gap: 3 }}>
       <span style={{ fontFamily: MONO, fontSize: 27, fontWeight: 700, color: C.point, lineHeight: 1 }}>{value}</span>
@@ -1826,7 +1827,7 @@ export default function Teardown() {
             {rxTodos.length > 0 && (<>
               {revisit && <button onClick={() => setRxUserToggled(!rxShow)} style={{ display: "block", width: "100%", textAlign: "left", background: "none", border: "none", cursor: "pointer", fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, padding: "10px 2px", marginBottom: rxShow ? 8 : 16 }}>{rxShow ? "▾" : "▸"} 처방 다시 보기</button>}
               {rxShow && (
-              <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
+              <div style={{ background: C.surface, border: SOLUTION_STROKE, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
                 {rxGroups.primary.map((r, ri) => renderActionRow(r, ri === 0, false, "fill"))}
                 {rxGroups.heldDim.length > 0 && <div id="rx-held-anchor" style={{ scrollMarginTop: 90 }} />}
                 {rxGroups.heldDim.map((r) => renderActionRow(r, false, true, "line"))}
@@ -1992,12 +1993,15 @@ export default function Teardown() {
               </div>
               {/* 1: Summary 카드 — 전부 JSON 정적 추출(그룹 현황·파이프라인·파라미터·입출력·비활성). 추출 실패 항목은 미표기. 8: 높이 +20px(패딩 32). */}
               {report.structSummary && (() => { const ss = report.structSummary; if (!(ss.groups.length || ss.pipeline || ss.keyParams || ss.io || ss.inactive.length)) return null; const kp = ss.keyParams; return (
-                <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "32px 24px", marginBottom: 24 }}>
+                <div style={{ background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 14, padding: "22px 24px", marginBottom: 24 }}>
+                  {/* 4: 카드 정체성 헤더(판정형 톤). 높이 +20은 위 MetricBox 두 카드에 적용(여긴 원복). */}
+                  <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, letterSpacing: "0.02em", marginBottom: 16 }}>워크플로우 개요</div>
                   {ss.pipeline && <div style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 6 }}>파이프라인</div>
                     <div style={{ fontSize: 16, color: C.text, lineHeight: 1.5, overflowWrap: "anywhere" }}>{ss.pipeline}</div>
                   </div>}
-                  {ss.io && <div style={{ marginBottom: 18, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>입력 <span style={{ color: C.text }}>{ss.io.inputs.join(" · ") || "확인 필요"}</span> · 출력 <span style={{ color: C.text }}>{ss.io.outputs.join(" · ") || "확인 필요"}</span></div>}
+                  {/* 4: 감지된 종류만 표기. 실패 시 "확인 필요" 대신 그 항목 미표기(불명 표기 금지). */}
+                  {ss.io && (ss.io.inputs.length > 0 || ss.io.outputs.length > 0) && <div style={{ marginBottom: 18, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>{ss.io.inputs.length > 0 && <>입력 <span style={{ color: C.text }}>{ss.io.inputs.join(" · ")}</span></>}{ss.io.inputs.length > 0 && ss.io.outputs.length > 0 ? " · " : ""}{ss.io.outputs.length > 0 && <>출력 <span style={{ color: C.text }}>{ss.io.outputs.join(" · ")}</span></>}</div>}
                   {kp && <div style={{ marginBottom: 18 }}>
                     <div style={{ fontSize: 13, fontWeight: 700, color: C.faint, marginBottom: 6 }}>핵심 파라미터</div>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 20px", fontSize: 14, color: C.dim }}>
