@@ -1385,7 +1385,7 @@ export default function Teardown() {
       const noRegMsg = noReg ? ` ${noReg}개는 Manager에 없는 팩이라 install.bat로 직접 설치해 주세요.` : "";
       // clone 인라인 뷰(보조 동선): 각 nodegroup의 git clone 전문. install.bat 다운로드가 주 동선.
       const clones = inst.map((t) => { const g = t.g; const cloneUrl = g.clone_url || (g.repo ? (g.repo.startsWith("https://") ? g.repo.replace(/\/?$/, ".git") : `https://github.com/${g.repo}.git`) : null); return { name: (g.repo || g.clone_url || "").replace(/\.git$/, "").split("/").pop(), cloneUrl }; }).filter((c) => c.cloneUrl);
-      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install", clones });
+      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install", clones, file: "install.bat" });
     }
     // 확인 — 로그의 missing_node_type. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행 최종 연번은 rxGroups에서 해소).
     const wfTypes2 = new Set((report?.nodeTypes || []).map((t) => t.toLowerCase())), wfIds2 = new Set(report?.nodeIds || []);
@@ -1415,7 +1415,7 @@ export default function Teardown() {
     // 3: 일괄 받기 스크립트 카운트·노출·bat 모두 미보유(heldSet 제외) 기준. 직링크 확정 미보유 3개 이상일 때만(1~2개는 각 행 개별 받기로 충분·미노출). 대조 전(heldSet 없음)이면 전량. 파인딩 m: 경로 입력 시 절대, 미입력 시 루트 실행.
     const heldSet = reconcile?.heldSet;
     const dlEligible = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !heldSet?.has(it.selectedFile));
-    if (dlEligible.length >= 3) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: `미보유 받기 항목 ${dlEligible.length}개를 한 번에 내려받습니다. ` + ((env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다." : "경로 미입력이면 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요."), kind: "dlscript" });
+    if (dlEligible.length >= 3) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: `미보유 받기 항목 ${dlEligible.length}개를 한 번에 내려받습니다. ` + ((env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다." : "경로 미입력이면 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요."), kind: "dlscript", file: "download.bat" });
     // 대체 후보 / 제외(주 모델) — "OOM 시 대체 후보" 톤(추천 아님). 별도 1행.
     if ((plan?.alternatives?.length || 0) + (plan?.exclusions?.length || 0) > 0) rows.push({ rid: ++rid, verb: "참고", text: "메인 모델 대체·제외 안내", kind: "altexcl", alternatives: plan.alternatives, exclusions: plan.exclusions });
     // 확인 필요 — 출처 확인 못한 모델(unknowns)
@@ -1482,7 +1482,7 @@ export default function Teardown() {
       <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text, lineHeight: "30px", marginTop: align === "center" ? 0 : 1 }}>{r.verb}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
-        {r.sub && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.sub}</div>}
+        {(r.file || r.sub) && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.file && <span style={{ fontFamily: MONO }}>{r.file}</span>}{r.file && r.sub ? " · " : ""}{r.sub}</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.5 }}>파일은 있으나 위치가 다릅니다. 현재 <span style={{ fontFamily: MONO }}>{mis.current}</span>에 있습니다. <span style={{ fontFamily: MONO }}>{mis.required}</span> 폴더로 이동해 주세요.</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 3, lineHeight: 1.5 }}>이름이 같은 다른 모델일 수 있습니다. 이동 전 용량·출처를 확인해 주세요.</div>}
         {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
@@ -1545,8 +1545,9 @@ export default function Teardown() {
       </div>
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
         {/* bat 버튼 A/B 실물 비교용 임시 배치(확정 시 단일 토큰 통일 예정). 기존 다운로드 버튼(td-hf)과 동일 line 형식, 색만 SAND(A)·LIME(B)로 분리. 화살표 없음. */}
-        {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}>install.bat</button>}
-        {r.kind === "dlscript" && <button className="td-hf-lime" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}>download.bat</button>}
+        {/* 라벨은 행동 언어(사용자 확정), 파일명은 부속 dim 줄(r.file). 버튼 형식·A/B 색은 6823048 유지. */}
+        {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}>노드 한 번에 설치</button>}
+        {r.kind === "dlscript" && <button className="td-hf-lime" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}>모델 한 번에 받기</button>}
         {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
@@ -1606,7 +1607,8 @@ export default function Teardown() {
         ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:${C.line};border-radius:8px}
         @media (prefers-reduced-motion:reduce){.td-fade{animation:none}.td-btn:hover{transform:none}}
       `}</style>
-      <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "32px 20px", boxSizing: "border-box", position: "relative", zIndex: 1, flexShrink: 0 }}>
+      {/* 소형1: 닫힘 상태에서 라이트존(입력+간이 진단)이 짧으면 경계선이 화면 중턱에 뜨는 문제 → min-height 스페이서로 경계를 뷰포트 하단 100px에 고정(position:fixed 금지, 스크롤 자연). 열림·긴 결과는 자연 흐름(무회귀). */}
+      <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "32px 20px", boxSizing: "border-box", position: "relative", zIndex: 1, flexShrink: 0, minHeight: report && !detailOpen ? "calc(100vh - 100px)" : undefined }}>
         {/* 헤더. 로고 */}
         <img src={LOGO} alt="Comfy Teardown" style={{ height: 50, width: "auto", display: "block", marginBottom: 16 }} />
         <p style={{ color: C.dim, fontSize: 16, margin: "0 0 28px", lineHeight: 1.6 }}>실행에 문제 있는 JSON 파일을 첨부하면, 모든 노드를 분석해서 문제점을 진단하고 해결법을 제시합니다.</p>
