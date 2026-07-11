@@ -1575,8 +1575,6 @@ export default function Teardown() {
         .td-btn{transition:transform .12s,opacity .18s}
         .td-btn:hover{transform:translateY(-1px)} .td-btn:active{transform:translateY(0)}
         summary::-webkit-details-marker{display:none}summary::marker{content:""}
-        /* 2: Node Reference 번호 블록 +/- 토글 — details 열림에 따라 Plus/Minus 스왑(상태 관리 없이 CSS로). 노드 블록 전용 클래스라 다른 details 무영향. */
-        details[open] > summary .nr-plus{display:none}details:not([open]) > summary .nr-minus{display:none}
         .td-copy{transition:opacity .15s;opacity:.85}.td-copy:hover{opacity:1}
         .td-havelink{background:transparent;border:none;color:${C.faint};transition:color .15s;cursor:pointer}.td-havelink:hover{color:${C.text}}
         .td-divtoggle{color:${C.faint};transition:color .15s}.td-divtoggle:hover{color:${C.dim}}
@@ -1998,14 +1996,15 @@ export default function Teardown() {
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}>워크플로우에 기록된 값을 확인하고, 사용자 환경에 맞게 조치해 주세요.</div>
                 </div>
 
-              {/* STEP 1. 커스텀 노드 설치 (Solution 단계 스타일 아코디언, 기본 펼침) */}
-              {/* 3(평탄화): STEP 토글 제거 → 정적 헤더 + 내용 상시 표시(중첩 토글 0). */}
+              {/* STEP 1. 커스텀 노드 설치 — 2(정정): 번호 섹션 헤더에만 +/- 토글(Install Script 번호 행과 동일), 기본 닫힘. 내부 노드 토글 0. */}
               {hasNodeIssues && (
                 <div style={{ paddingTop: 20, paddingBottom: 20 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div onClick={() => toggle("nref1")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>1</div>
                     <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>커스텀 노드 설치</div>
+                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("nref1"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.nref1 ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}</button>
                   </div>
+                  {open.nref1 && (
                   <div style={{ paddingLeft: 44, marginTop: 16 }}>
                 <div style={{ marginBottom: 20 }}>
                   {[...report.unmapped.map((u) => ({ t: "u", u })), ...report.broken.map((b) => ({ t: "b", b }))].map((it, i) => {
@@ -2049,30 +2048,31 @@ export default function Teardown() {
                   })}
                 </div>
                   </div>
+                  )}
                 </div>
               )}
 
-              {/* STEP 2. 모델 맞추기 — 3(평탄화): 토글 제거, 정적 헤더 + 내용 상시. */}
+              {/* STEP 2. 모델 맞추기 */}
               {recipesEnriched.length > 0 && (() => { const num = hasNodeIssues ? 2 : 1; return (
                 <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: hasNodeIssues ? `1px solid ${C.divider}` : "none" }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+                  <div onClick={() => toggle("nref2")} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
                     <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
                     <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1 }}>모델 맞추기</div>
+                    <button className="td-acc" onClick={(e) => { e.stopPropagation(); toggle("nref2"); }} aria-label="펼치기/접기" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>{open.nref2 ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}</button>
                   </div>
+                  {open.nref2 && (
                   <div style={{ paddingLeft: 44, marginTop: 16 }}>
               <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                 {recipesEnriched.map((r, ri) => (
-                  <details key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
-                    {/* 6: 노드 블록 = 기본 접힘 1층 접이. 헤더가 summary(토글), 슬롯 표가 내용. 내부 추가 접힘 0. */}
-                    <summary style={{ cursor: "pointer", listStyle: "none", outline: "none", display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
-                      <span className="nr-plus" style={{ color: C.point, display: "inline-flex", alignItems: "center", flexShrink: 0, lineHeight: 0 }}><Plus size={18} strokeWidth={2.25} /></span>
-                      <span className="nr-minus" style={{ color: C.point, display: "inline-flex", alignItems: "center", flexShrink: 0, lineHeight: 0 }}><Minus size={18} strokeWidth={2.25} /></span>
+                  <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
+                    {/* 2(정정): 노드/로더별 토글 제거 → 평탄 노출. 번호 섹션 헤더 토글이 1층(토글 안 토글 금지). 정적 헤더 div. */}
+                    <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap", marginBottom: 14 }}>
                       <span style={{ fontFamily: MONO, fontSize: 16, fontWeight: 700, color: C.text }}>{r.type}</span>
                       <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint }}>#{r.id}</span>
                       {r.tab && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet, display: "inline-flex", alignItems: "center", gap: 5 }}>{r.tabColor && <span style={{ width: 9, height: 9, borderRadius: 999, background: r.tabColor, flexShrink: 0 }} />}[탭: {r.tab}]</span>}
                       {r.sub && <span style={{ fontFamily: SANS, fontSize: 13, color: C.violet }}>[서브그래프]</span>}
                       {isAdmin && r.__offset_warning && <span style={{ fontFamily: SANS, fontSize: 13, color: C.amber }}>⚠ offset 보정됨</span>}
-                    </summary>
+                    </div>
                     {/* 슬롯 표 */}
                     <div style={{ borderTop: `1px solid ${C.line}` }}>
                       <div style={{ display: "grid", gridTemplateColumns: "24px minmax(0,0.8fr) minmax(0,2fr) minmax(0,1fr)", gap: 10, padding: "8px 0", borderBottom: `1px solid ${C.line}` }}>
@@ -2115,7 +2115,7 @@ export default function Teardown() {
                         </div>
                       ))}
                     </div>
-                  </details>
+                  </div>
                 ))}
               </div>
 
@@ -2185,6 +2185,7 @@ export default function Teardown() {
                 </>)}
               </div>}
                   </div>
+                  )}
                 </div>); })()}
               </div>
             </div>);
