@@ -6,6 +6,21 @@
 
 ---
 
+## 2026-07-11 (정보 설계 라운드 · 2차: Summary 재설계 + 스타일·시맨틱 확정)
+**한 일** — 10개 중 6개 완료(커밋 a0a59a5·d62867d), 구조 3건 3차 이월.
+- **1 Summary 재설계 + 8 높이**: analyze.structSummary(JSON 정적 추출) — 그룹 현황(제목·노드수·활성/bypass) · 파이프라인 한 줄(입력→감지 단계(노드type+그룹제목)→출력) · 핵심 파라미터(KSampler 위치기반·EmptyLatent 해상도) · 입출력 종류 · 비활성+그룹. 추출 실패는 미표기(날조 금지). Summary를 라운드박스 카드로(패딩 32=+20px). Boogu fixture에 EmptyLatent 1024·KSampler 4/lcm·LoadImage·SaveImage 추가. krea2 3그룹(Main 활성·SeedVR2/depth bypass)·PiD 이미지→업스케일→저장·Boogu 1024x1024·4·lcm. 회귀 등록.
+- **4 배경 토큰**: C.evidenceBg(#372E43) 신설 → 판단근거 박스 + 전체현황 확인필요 펼침 박스 2곳 참조(하드코딩 0, 한 곳 수정으로 전체 반영).
+- **5 개명**: Error Node Fix → "Node Reference"(영문, 에러 없어도 노출되는 표).
+- **6 GPU 비호환 시맨틱**: qwHit 행 dim(opacity·faint) 제거 → 정상 명도 + ⚠ 빨강 강조(판단근거와 동일 레벨). dim은 이미있음 전용. CLAUDE.md 시맨틱 규칙 추가.
+- **7 무결성 행간**: 3문장 연속 줄(marginTop 제거·lineHeight 1.55 통일).
+
+**미결 이월(3차, 화면 검수 동반)**:
+- **2 판단근거 → 행 내 흡수**: 별도 리스트 폐지, 행별 "근거" 1층 접이(등급·GPU 규칙·출처·한계) + 하단 "판단 기준 안내" 소형 접이. evidenceBg 배경 계승. (Solution 판단근거 details + 각 행 상호의존 재구성)
+- **3 전수 평탄화**: detailOpen 안 rn1/rn2(Node Reference STEP)·Findings BlockHead 중첩 토글 제거. 규칙 #6 추가됨.
+- **5 기본 접힘**: Node Reference 표 기본 닫힘(400줄+ 섹션 collapse — 2·3과 함께 재구성).
+
+**다음 할 일**: 화면 검수 후 push. 구조 3건은 정보 설계 3차.
+
 ## 2026-07-11 (정보 설계 라운드 · 1차: 선행 3 + 본체 일부)
 **한 일** — "가진 정보를 옳은 자리에 옳은 밀도로" 재배치. 10개 항목 중 8개 완료(커밋 34ce047·073f3ad·e73b498·0015ea3).
 - **0-1 노트 폴더 다단 경로**: parseNoteModelEntries에 href resolve/main/{dir} 2차 폴백 추가. 다단 경로·multi-line·수식어 무시는 기존 동작 확인. Boogu fixture를 실 노트 구조(수식어·Place in 2단 div·중간 문단·href 폴더)로 갱신. boogu → models/diffusion_models/boogu(2단), bat 대상 {입력}\diffusion_models\boogu. ae·qwen 무회귀.
