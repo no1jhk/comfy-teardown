@@ -1179,8 +1179,8 @@ export default function Teardown() {
   const scrollToDiagnose = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, errAcc: true })); requestAnimationFrame(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }); };
   // 디아그노시스 앵커(5): 실행 행 부속 링크 → "자세한 진단" 토글 자동 펼침 + 로그 입력(#diagnose-section)으로 스크롤. 독립 섹션 없음(현행 위치 유지).
   const openDiagnose = (e) => { if (e) e.preventDefault(); setDetailOpen(true); setOpen((o) => ({ ...o, errAcc: true })); setTimeout(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }, 80); };
-  // 소형2: "자세한 진단" 펼침 시 토글 줄(#detail-toggle)이 뷰포트 최상단 부근에 오도록 스무스 스크롤 1회 → 토글이 보이고 바로 아래 Summary가 이어짐. 닫을 때는 이동 없음.
-  const toggleDetail = () => { const next = !detailOpen; setDetailOpen(next); if (next) setTimeout(() => document.getElementById("detail-toggle")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
+  // 소형2/7: "자세한 진단" 펼침 시 토글 줄(#detail-toggle)이 뷰포트 상단으로 스무스 스크롤(토글 보이고 바로 아래 Summary). 닫을 때는 대칭으로 Solution 헤더(#solution-header)로 스크롤.
+  const toggleDetail = () => { const next = !detailOpen; setDetailOpen(next); setTimeout(() => document.getElementById(next ? "detail-toggle" : "solution-header")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1574,13 +1574,13 @@ export default function Teardown() {
                   <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12, flexShrink: 0 }}>링크 ↗</a>
                 </div>))}
             </div>);
+          // 3: 1개일 때도 링크 버튼은 행 우측 버튼 영역(타 행 동일 위계). 본문엔 안내 텍스트·출처만.
           return (
           <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 9 }}>{uniq.map((al, ai) => (
             <div key={ai} style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.5 }}>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "baseline" }}>
-                <span style={{ color: C.text, fontWeight: 600 }}>제작자 안내 {ai + 1}</span>
+                <span style={{ color: C.text, fontWeight: 600 }}>제작자 안내</span>
                 {al.linkLabel && al.linkLabel !== al.label && <span style={{ color: C.dim }}>{al.linkLabel}</span>}
-                <a className="td-hf td-outline-w" href={al.url} target="_blank" rel="noopener noreferrer" style={{ padding: "2px 9px", fontSize: 12 }}>링크 ↗</a>
                 {al.strength && <span style={{ color: C.memoBright }}>강도 {al.strength}</span>}
               </div>
               {(al.label || al.folder) && <div style={{ fontSize: 12, color: C.faint, marginTop: 2 }}>{al.label ? `출처: ${al.label}` : ""}{al.label && al.folder ? " · " : ""}{al.folder ? <span style={{ fontFamily: MONO }}>{al.folder}</span> : null}</div>}
@@ -1589,9 +1589,12 @@ export default function Teardown() {
         {r.kind === "node" && r.guides && r.guides.map((gd, gi) => <div key={gi} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 6, lineHeight: 1.5, display: "flex", gap: 7 }}><span style={{ color: C.point, flexShrink: 0 }}>{gi + 1}.</span><span>{gd}</span></div>)}
         {/* o + 6-1: 실행 행 부속 줄(재시작 안내·에러 로그 진단 링크) = 본문 대비 명도 50% dim */}
         {r.kind === "run" && r.restartNote && <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, opacity: 0.5, marginTop: 4, lineHeight: 1.5 }}>{r.restartNote}</div>}
-        {r.kind === "run" && r.diagLink && <div style={{ marginTop: 4 }}><a href="#diagnose-section" onClick={openDiagnose} style={{ fontFamily: SANS, fontSize: 14, color: C.text, opacity: 0.5, textDecoration: "underline", cursor: "pointer", lineHeight: 1.5 }}>에러가 났다면: 에러 로그를 붙여넣어 진단받기</a></div>}
+        {/* 5: 앞문장 일반(dim), 뒷문장(에러 로그로~)만 언더라인 + 연한 노랑. 앵커 동작 무변. */}
+        {r.kind === "run" && r.diagLink && <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 14, lineHeight: 1.5 }}><span style={{ color: C.text, opacity: 0.5 }}>솔루션으로도 해결이 안 되나요? </span><a href="#diagnose-section" onClick={openDiagnose} style={{ color: C.point, opacity: 0.85, textDecoration: "underline", cursor: "pointer" }}>에러 로그로 LLM 진단받기</a></div>}
       </div>
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
+        {/* 3: 제작자 안내 1개 → 링크 버튼을 우측 버튼 영역(타 행 동일 위계). 2개 이상은 본문 표. */}
+        {r.kind === "authorlinks" && (() => { const seen = new Map(); for (const al of r.links) if (!seen.has(al.url)) seen.set(al.url, al); const uniq = [...seen.values()]; return uniq.length === 1 ? <a className="td-hf td-outline-w" href={uniq[0].url} target="_blank" rel="noopener noreferrer">링크 ↗</a> : null; })()}
         {/* bat 버튼 A/B 실물 비교용 임시 배치(확정 시 단일 토큰 통일 예정). 기존 다운로드 버튼(td-hf)과 동일 line 형식, 색만 SAND(A)·LIME(B)로 분리. 화살표 없음. */}
         {/* 라벨은 행동 언어(사용자 확정), 파일명은 부속 dim 줄(r.file). 버튼 형식·A/B 색은 6823048 유지. */}
         {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> 노드 한 번에 설치</button>}
@@ -1637,6 +1640,8 @@ export default function Teardown() {
         /* 소형2(2차): Bypassed 목록 2열 그리드. 좁은 뷰포트(≤560px)에선 1열 폴백. 항목 형식은 인라인 유지. */
         .td-col2{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
         @media(max-width:560px){.td-col2{grid-template-columns:1fr}}
+        /* 소형4(3차): Solution 접기 펼침 시 토글 줄(summary)도 evidenceBg → 펼침 영역과 한 덩어리(상단과 구분). 접힘 시 무배경. */
+        details.td-fold[open]>summary{background:${C.evidenceBg}}
         /* 결과저장 등 아웃라인 pill. hover시 노랑으로 채움 (다른 버튼과 동일) */
         .td-outline{border:1px solid ${C.point};color:${C.point};background:transparent;transition:background .15s,color .15s,transform .12s}
         .td-outline:hover{background:${C.point};color:${INK};transform:translateY(-1px)}.td-outline:active{transform:translateY(0)}
@@ -1764,6 +1769,16 @@ export default function Teardown() {
                 </div>
               </div>
 
+              {/* 1: OS 토글 승격 — '내 PC 환경' 독립 줄. 경로 placeholder·드라이브 조립·대조 스니펫이 이 값(scanOs)을 상속(위치만 이동, 로직 무변). ②-c에서 이설. */}
+              <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
+                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>내 PC 환경</div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  {[{ k: "win", l: "Windows" }, { k: "unix", l: "Mac · Linux" }].map((o) => (
+                    <button key={o.k} onClick={() => setScanOs(o.k)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, padding: "5px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${scanOs === o.k ? C.point : C.line}`, background: scanOs === o.k ? "rgba(244,255,117,0.10)" : "transparent", color: scanOs === o.k ? C.point : C.dim }}>{o.l}</button>
+                  ))}
+                </div>
+              </div>
+
               {/* ②-b 내 모델 폴더 경로 (파인딩 m: checkpoints·vae가 바로 들어 있는 폴더 = 받기 절대 경로 기준) */}
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>내 모델 폴더 경로 (선택)</div>
@@ -1799,17 +1814,14 @@ export default function Teardown() {
                 {env.modelRootPartial && !folderPickWarn && !folderPickMac && <div style={{ fontSize: 13, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>브라우저 보안상 전체 경로는 직접 입력해 주세요.</div>}
                 {/* v: Mac·Linux 토글에서 폴더 선택 시 발화(전체 경로 직접 입력 유도). 입력란은 무변. */}
                 {folderPickMac && <div style={{ fontSize: 13, color: C.point, marginTop: 5, lineHeight: 1.5 }}>Mac에서는 전체 경로를 직접 입력해 주세요 (예: /Users/이름/Documents/ComfyUI/models). 폴더 선택으로는 전체 경로를 알 수 없습니다.</div>}
+                {/* 2: Mac 경로 홈 누락 방어 — /Documents·/Desktop·/Downloads로 시작하면 홈(/Users/이름) 누락 추정. 판정만(자동 보정·사용자명 추정 금지). */}
+                {/^\/(Documents|Desktop|Downloads)\b/i.test(env.modelRoot || "") && <div style={{ fontSize: 13, color: C.point, marginTop: 5, lineHeight: 1.5 }}>홈 경로가 빠진 것 같습니다. /Users/사용자명/Documents/... 형태의 전체 경로를 입력해 주세요.</div>}
               </div>
 
               {/* ②-c 내 모델 폴더 대조 (P2.7) — 읽기전용 나열 명령 복사 → 붙여넣기 → 요구 모델과 대조 → 완비 판정 */}
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 4 }}>내 모델 폴더 대조 (선택)</div>
-                <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>아래 명령을 복사해 실행한 뒤 나온 목록을 붙여넣으면, 필요한 모델을 이미 가지고 있는지 대조해 드립니다. 명령은 폴더 안을 읽기만 하며 아무것도 바꾸지 않습니다.</div>
-                <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
-                  {[{ k: "win", l: "Windows" }, { k: "unix", l: "Mac · Linux" }].map((o) => (
-                    <button key={o.k} onClick={() => setScanOs(o.k)} style={{ fontFamily: SANS, fontSize: 13, fontWeight: 600, padding: "5px 12px", borderRadius: 999, cursor: "pointer", border: `1px solid ${scanOs === o.k ? C.point : C.line}`, background: scanOs === o.k ? "rgba(244,255,117,0.10)" : "transparent", color: scanOs === o.k ? C.point : C.dim }}>{o.l}</button>
-                  ))}
-                </div>
+                <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>아래 명령을 복사해 실행한 뒤 나온 목록을 붙여넣으면, 필요한 모델을 이미 가지고 있는지 대조해 드립니다. 명령은 폴더 안을 읽기만 하며 아무것도 바꾸지 않습니다. (OS는 위 '내 PC 환경' 기준)</div>
                 {(() => {
                   // 파인딩 q: 경로 채택 우선순위 = 수동 입력(modelRoot) > 로그 추출(basePath). bat·스니펫 공통.
                   const s = buildScanSnippet(env.modelRoot || env.basePath, scanOs);
@@ -1917,7 +1929,7 @@ export default function Teardown() {
             {rxTodos.length > 0 && (
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 16, flexWrap: "wrap", marginBottom: 22, marginTop: 40 }}>
               <div style={{ minWidth: 0 }}>
-                <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>Solution</h2>
+                <h2 id="solution-header" style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1, scrollMarginTop: 16 }}>Solution</h2>
               </div>
               <button className="td-btn td-outline-w" onClick={saveReport} title="처방전을 Markdown(.md) 파일로 저장"
                 style={{ display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 999, padding: "8px 16px", fontFamily: SANS, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
@@ -1932,12 +1944,12 @@ export default function Teardown() {
                 {rxGroups.heldDim.length > 0 && <div id="rx-held-anchor" style={{ scrollMarginTop: 90 }} />}
                 {rxGroups.heldDim.map((r) => renderActionRow(r, false, true, "line"))}
                 {rxGroups.otherGroup.length > 0 && (() => { const gts = [...new Set(rxGroups.otherGroup.map((r) => r.groupTitle).filter(Boolean))]; return (
-                  <details style={{ borderTop: `1px solid ${C.divider}` }}>
+                  <details className="td-fold" style={{ borderTop: `1px solid ${C.divider}` }}>
                     <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none", textAlign: "center" }}>▸ 다른 그룹용 {rxGroups.otherGroup.length}개{gts.length ? ` · ${gts.join(", ")}` : ""} (현재 bypass된 그룹의 모델)</summary>
                     <div style={{ background: C.evidenceBg }}>{rxGroups.otherGroup.map((r) => renderActionRow(r, false, false, "line"))}</div>
                   </details>); })()}
                 {rxGroups.refInfo.length > 0 && (
-                  <details style={{ borderTop: `1px solid ${C.divider}` }}>
+                  <details className="td-fold" style={{ borderTop: `1px solid ${C.divider}` }}>
                     <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none", textAlign: "center" }}>▸ 참고 · 미확정 {rxGroups.refInfo.length}개 (대체 후보 · 제작자 안내 · 확인 필요)</summary>
                     <div style={{ background: C.evidenceBg }}>{rxGroups.refInfo.map((r) => renderActionRow(r, false, false, "line"))}</div>
                   </details>
@@ -2331,10 +2343,15 @@ export default function Teardown() {
               <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
                 <NumRow num={1} first title="비활성 노드 목록" open={open.bp1} onToggle={() => toggle("bp1")}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 12 }}>현재 꺼져 있어(우회·음소거) 실행되지 않는 노드입니다. 의도한 설정인지 확인해 주세요.</div>
-                  {/* 소형2(2차): 2열 그리드(.td-col2, ≤560px 1열). 항목 = 노드명 + 소속 그룹(dim). 중복(노드명+그룹) 병합. */}
-                  {(() => { const seen = new Set(); const items = []; for (const n of inact) { const key = n.group ? `${n.type} (${n.group})` : n.type; if (seen.has(key)) continue; seen.add(key); items.push(n); } return (
-                    <div className="td-col2">
-                      {items.map((n, i) => <div key={i} style={{ fontFamily: SANS, fontSize: 14, color: C.text, lineHeight: 1.6, overflowWrap: "anywhere" }}>{n.type}{n.group && <span style={{ color: C.dim }}> ({n.group})</span>}</div>)}
+                  {/* 6(정정): 1열 + 행 구분선 표. 노드명(본문) + 상태·그룹(dim 우측). 그룹은 짧은 라벨만(문장·메모·판정불가는 미표기, 날조 금지). 중복(노드명+그룹) 병합. 2열은 전체 현황 요약으로 이설. */}
+                  {(() => { const seen = new Set(); const items = []; for (const n of inact) { const key = `${n.type}|${n.group || ""}`; if (seen.has(key)) continue; seen.add(key); items.push(n); } const okGroup = (g) => g && g.trim().length > 0 && g.trim().length <= 28; return (
+                    <div style={{ borderTop: `1px solid ${C.divider}` }}>
+                      {items.map((n, i) => (
+                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 14, padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
+                          <span style={{ fontFamily: SANS, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.5, minWidth: 0 }}>{n.type}</span>
+                          <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, flexShrink: 0, textAlign: "right", lineHeight: 1.5 }}>{n.mode === 4 ? "우회" : "음소거"}{okGroup(n.group) ? ` · ${n.group.trim()}` : ""}</span>
+                        </div>
+                      ))}
                     </div>); })()}
                 </NumRow>
               </div>
@@ -2523,20 +2540,19 @@ export default function Teardown() {
 
               <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, marginTop: 36, paddingTop: 28, borderTop: `1px solid ${C.divider}` }}>비활성 노드 <span style={{ color: C.faint, fontWeight: 400 }}>· {report.muted.length}개</span></div>
               <div style={{ fontSize: 13, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>꺼졌거나(muted) 우회된(bypass) 노드입니다. 의도한 게 아니라면 점검 대상.</div>
+              {/* 6: 비활성 노드 요약 = 2열 그리드(.td-col2, ≤560px 1열) — 원래 의도 대상. 셀 = 노드명 + 상태(bypass/muted) + (안 써도 됨). 끊김 경고는 셀 부속. */}
               <div style={{ marginTop: 16 }}>{(
                 report.muted.length === 0 ? <Empty text="muted/bypass된 노드가 없습니다." /> : (
-                  <div style={{ display: "flex", flexDirection: "column" }}>
-                    {report.muted.map((m, i) => {
+                  <div className="td-col2">
+                    {report.muted.map((m) => {
                       const brk = report.bypassBreaks.find((b) => String(b.id) === String(m.id));
                       const ign = isIgnorableNode(m.type);
                       return (
-                      <div key={m.id} style={{ paddingTop: i > 0 ? 14 : 0, marginTop: i > 0 ? 14 : 0, borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
-                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                          <div style={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                            <ChevronRight size={16} color={ign ? C.faint : C.amber} style={{ flexShrink: 0 }} /><span style={{ fontFamily: MONO, fontSize: 18, color: ign ? C.faint : C.text, overflowWrap: "anywhere" }}>{m.type}</span>{ign && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint, flexShrink: 0 }}>· 안 써도 됨</span>}</div>
-                          <span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, flexShrink: 0 }}>{m.mode === 4 ? "bypass" : "muted"}</span>
+                      <div key={m.id} style={{ minWidth: 0 }}>
+                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
+                          <ChevronRight size={16} color={ign ? C.faint : C.amber} style={{ flexShrink: 0, alignSelf: "center" }} /><span style={{ fontFamily: MONO, fontSize: 16, color: ign ? C.faint : C.text, overflowWrap: "anywhere" }}>{m.type}</span><span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, flexShrink: 0 }}>{m.mode === 4 ? "bypass" : "muted"}</span>{ign && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint, flexShrink: 0 }}>· 안 써도 됨</span>}
                         </div>
-                        {brk && <div style={{ marginTop: 6, paddingLeft: 24, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ 이 노드가 {m.mode === 4 ? "bypass" : "muted"}라 뒤 노드{brk.targets.length ? ` (${brk.targets.join(", ")})` : ""} 입력이 끊길 수 있습니다.</div>}
+                        {brk && <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ {m.mode === 4 ? "bypass" : "muted"}라 뒤 노드{brk.targets.length ? ` (${brk.targets.join(", ")})` : ""} 입력이 끊길 수 있습니다.</div>}
                       </div>);
                     })}
                   </div>)
