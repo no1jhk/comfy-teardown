@@ -78,6 +78,7 @@
 ## 작업 이력·지시서 (포인터)
 - 과거 작업 로그·결정: `docs/HISTORY.md` (날짜별, 최신이 위 / 하단 ADR)
 - 무인 작업 지시서: `docs/AUTOPILOT.md` (Claude Code 자동 진행용 백로그·규칙)
+- 엔지니어링 로드맵(외부 감사·인프라·보안): `docs/ROADMAP.md` (제품 기능 로드맵은 PRD §7)
 
 ## 작업 종료 시 기록 (HARD RULE — 까먹지 말 것)
 - **모든 task가 끝날 때마다** `docs/HISTORY.md` 최상단(오늘 날짜 블록)에 1건 append. 사람이 따로 요청하지 않아도 자동으로 한다.

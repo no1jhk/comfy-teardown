@@ -6,6 +6,13 @@
 
 ---
 
+## 2026-07-12 (보안 점검 + ROADMAP 신설)
+**한 일**
+- **1 키 이력 점검(보고만)**: git 전 이력에서 실제 키 값(`sk-ant-<15자+>`) 커밋 0건(pickaxe). `.env.local`·`.env`·`.env*`·secret/key 파일 tracked 이력 0. `.gitignore`에 `.env`·`.env.local`·`*.local`·`dist` 이미 등재(추가 불필요). 과거 "sk-ant-" 3커밋은 전부 HISTORY.md 서술 — 실제 사고는 로컬 dist 번들(gitignored)의 `VITE_` 키 인라인 건이고 `AI_KEY` 가드(PROD dead-code 제거)로 봉인됨. **저장소 측 키 노출 0**, 재발급은 사용자 콘솔 사안.
+- **2 `docs/ROADMAP.md` 신설**: 외부 감사 2건 채택 항목. 단기 = 서버리스 프록시(Vercel Functions·Anthropic 서버 이전)·fixture ASCII 정상화·Vite/esbuild 업그레이드·GitHub Actions CI(build+smoke+e2e). 중기 = Teardown.jsx 분할·Worker 검토·SECURITY.md. 보류 = 조직형 확장(도구 정체와 상이). 근거 한 줄씩. CLAUDE.md 포인터 섹션에 링크 추가.
+**검증** — 소스 무변경(docs만). build 0 · smoke 3부 · e2e 15/15 재확인.
+**다음 할 일** — 화면 검수 후 push(사용자 전용). 로드맵 착수 시 ROADMAP.md 갱신.
+
 ## 2026-07-12 (카탈로그: SeedVR2 가족 6종 confirmed 등재)
 **한 일** — 커밋 80947e6. `model_catalog.json`의 seedvr2 family에 웹 실측(HF numz/SeedVR2_comfyUI main) 6종 `files` 등재 → confirmed. 폴더 `SEEDVR2`(대문자·결함c 검증값), 직링크 `numz/SeedVR2_comfyUI/blob/main/{파일}`(UI에서 resolve/main 변환).
 - 등재: seedvr2_ema_{7b,3b}_{fp16,fp8_e4m3fn} · seedvr2_ema_7b_sharp_fp16 · ema_vae_fp16. 변형 7b(fp16↔fp8↔sharp)·3b(fp16↔fp8)를 files의 variant·quant로 양자화 대안(4번 확정형)에 연결.
