@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-12 (Mac 실측 3차 통합 7건 + Bypassed 정정)
+**한 일** — 커밋 0bc44e7.
+- **1 OS 토글 승격**: Windows/Mac·Linux 토글을 '내 PC 환경' 독립 줄로(내 모델 폴더 경로 위). placeholder·드라이브 조립·대조 스니펫이 scanOs 상속(로직 무변, 위치만 이동). ②-c 대조 구역에서 이설.
+- **2 Mac 경로 홈 누락 방어**: modelRoot가 `/Documents`·`/Desktop`·`/Downloads`로 시작하면 발화("홈 경로가 빠진 것 같습니다…"). 판정만(자동 보정·사용자명 추정 금지).
+- **3 제작자 링크 1개 레이아웃**: authorlinks 1개일 때 링크 버튼을 renderActionRow 우측 버튼 영역으로(타 행 동일 위계). 본문엔 안내·출처만. 2개 이상 3열 표 무변.
+- **4 Solution 접기 펼침 배경**: `details.td-fold[open]>summary` 배경 evidenceBg(CSS) — 펼침 시 토글 줄도 펼침 영역과 한 덩어리. 접힘 무변.
+- **5 에러 링크 카피·위계**: "에러가 났다면: 에러 로그를 붙여넣어 진단받기" → "솔루션으로도 해결이 안 되나요? "(일반 dim) + "에러 로그로 LLM 진단받기"(언더라인·연노랑 C.point). openDiagnose 앵커 무변.
+- **6 Bypassed 정정(2열 오적용)**: Bypassed 섹션 본문 2열 해제 → 1열 행 구분선 표(노드명 본문 + 상태 우회/음소거·그룹 dim 우측, 그룹은 ≤28자 라벨만·판정불가 미표기·날조 금지). `structSummary.inactive`에 `mode` 추가. `.td-col2` 2열은 detail '전체 현황' 비활성 요약으로 이설(원래 의도 대상, 셀=노드명+상태+끊김 경고).
+- **7 자세한 진단 닫기 착지**: `toggleDetail` 닫기 시 `#solution-header`로 스무스 스크롤(펼침 착지와 대칭).
+**검증** — build 0 · regression(6: 비활성 type·group·mode 데이터 계약 신규) · smoke 3부 · e2e 15/15. 하네스 실측: Bypassed 1열(우회 상태)·td-col2 이설(Bypassed 0/전체현황 1, grep 재확인)·닫기→solution-header·크래시 0. em dash UI 0.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (Mac 실측 파인딩 u·v + 여백 2건)
 **한 일** — 커밋 bb3e0a8.
 - **u 로그 환경 추출 Mac 대응 + GPU 오탐 차단**:
