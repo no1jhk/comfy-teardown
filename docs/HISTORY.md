@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-12 (IA 재편 대수술 실행 완료 — 3커밋 · detail 블록 주제별 재편)
+**한 일** — 승계 실행 스펙(7b35630, B안)대로 detail(detailOpen) 블록을 "Node Reference + Install Script"(참조 vs 스크립트) → "2 노드 상세 · 3 모델 상세 · 4 비활성 노드"(주제별)로 재편. 3커밋 분리, 각 build 0 + 스모크 3부 + e2e 15/15.
+- **C1 노드 상세 (75ab7fd)**: 커스텀 노드 설치(구 Node Reference STEP1 미매핑·깨진 목록) + 설치 스크립트 방법 A/B(구 Install Script install 스텝: custom_nodes 경로·clone·install.bat/.sh) + 환경 의존 설정 우회(env·flash_attn)를 단일 섹션(기본 닫힘·평탄·소제목+구분선)으로 결합. STEP1·install·env 원위치 제거.
+- **C2 모델 상세 + Install Script 소멸 (d8d1865)**: GPU 점검·양자화 안내 1회(quant 스텝) + 한 번에 받기 표(plan.items confirmed·workflow_author 직링크 + download.bat, detail 내 유일 다운로드 버튼) + 모델 맞추기 슬롯 표(구 STEP2·참조 전용·버튼 0·행별 quantBad 유지). STEP2·죽은 {false&&} 블록 제거, Install Script 블록 전체 삭제(247줄).
+- **C3 비활성 독립 + 헤더·앵커 (0b053d9)**: 비활성 노드를 Node Reference #3 → 독립 4번 섹션(DetailSectionHead)로 승격. Node Reference 래퍼·intro 박스 제거. 고아 scanRoot/usedFolders 정리. 코드·`<style>` 주석의 "Node Reference"·"Install Script" 문자열까지 전부 개명. env action 카피 em dash 제거. smoke.mjs에 미매핑 커스텀 노드 추가 + 4섹션 존재·2옛이름 부재 assert.
+**어떻게** — 모듈 레벨 헬퍼 2개 신설: `DetailSectionHead`(섹션 헤더 DISPLAY32 + 우측 +/- 토글 + 기본 닫힘, 3섹션 동일) · `DetailSub`(내부 평탄 구획, 소제목 dim + 상단 구분선, 접힘 없음). 데이터 소스는 기존 그대로(rx·plan·recipesEnriched) 재배치만.
+**검증** — 최종 순서 1 Summary→2 노드 상세→3 모델 상세→4 비활성 노드→5 Findings→Diagnose. 앵커·크로스링크 전수 착지(전부 무변 Solution·Diagnose 대상): #diagnose-section·#rx-detail·#rx-held-anchor·"N번 행"(installN)·실행 행 에러 링크(openDiagnose). grep 0: nref1/2/3·sopen·scanRoot·usedFolders·"Node Reference"·"Install Script". 렌더 하네스로 노드/모델/env 상세 각각 실측(크래시 0).
+**판단(스펙 공백 → 기본값 채택, 재조정 여지)**:
+- env(flash_attn 우회) 스텝은 스펙 대조표 6항 밖 → 노드 상세 최하단 "환경 의존 설정 우회" 소제목으로 편입(노드/환경 설정 성격).
+- 받기 표는 스펙대로 신규 plan.items 기반(구 step.models 리치 표는 미승계) — 리치 다운로드 UX(GGUF 행·research·have 체크·무결성)는 무변 라이트존 Solution이 계속 담당. GGUF 대체 세트는 GPU 안내로, 무결성은 받기 표 각주로 보존.
+- 상위 섹션 헤더는 번호 배지 없이 SectionTitle 스케일 + 우측 토글(Summary·Findings 무변 헤더와 시각 일관). "번호"는 IA 순서(1~5)로 해석.
+**다음 할 일** — 화면 검수 후 push(사용자 전용). 검수 결함 시 fix-forward.
+
 ## 2026-07-12 (야간: 권한 정책 + 소형 3건 · IA 재편 B안 확정·실행 스펙 승계)
 **한 일**
 - **0 권한 정책**(커밋 74172e8·c964e25): `.claude/settings.json` permissions 병합·보강. allow 33개(build·dev·smoke·npm test·node·git *·cd·echo·head·tail·wc·grep·rg·ls·cat·sed -n·mkdir·cp·Edit·Write 등), deny 9개(git push*·rm*·sudo*·curl*·git reset --hard·clean). deny 우선 → push 차단 유지. CLAUDE.md "권한 정책" 섹션 1줄 추가.
