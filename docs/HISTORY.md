@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-12 (위계·중복 정리 4건 · 4차)
+**한 일** — 커밋 92a8668.
+- **1 '명령어로 확인하는 법' 이동 + venv 카피**: 대조 구역 하단 → '또는 직접 선택'(GPU·torch·CUDA 입력) 바로 아래로 이설. 카피에 venv 활성화 병기(`source venv/bin/activate` · Windows `venv\Scripts\activate`) — base 환경 실행 시 ModuleNotFoundError 방지. `platform=mac`이면 접이 미노출(CUDA 무관).
+- **2 Nodes ① 노드팩명 위계**: 커스텀 노드 설치 노드팩명(u.type) 폰트 15→17(+2pt).
+- **3 Nodes ② 소제목 위계**: custom_nodes 폴더 찾기·방법 A·방법 B 소제목 15→17 + weight 700→500 + 상단 여백. 블릿 미도입(인라인 가운뎃점 충돌 회피·현행 구분선 유지).
+- **4 비활성 목록 단일화**: 전체 현황 상세 목록(2열 .td-col2) → 집계 1줄("비활성 노드 N개 (우회 n1 · 음소거 n2) · 상세는 Bypassed 섹션" + `openBypassed` 앵커 링크 `#bypassed-section`). 상세 목록·끊김 경고(⚠ "연결 경로 중간에 있습니다")는 Bypassed 1곳으로 흡수(정보 손실 0·중복 노출 제거). `structSummary.inactive`에 `id` 추가(bypassBreaks 교차참조). `.td-col2` 클래스 제거(사용처 0)·미사용 `isIgnorableNode` import 제거 — grep 0.
+**검증** — build 0 · smoke 3부(신 asserts: Bypassed ⚠ 존재·전체현황 집계 1줄(비활성 N개·상세는 Bypassed)·td-col2 부재. smoke WF에 bypass→활성 링크 추가로 ⚠ 유발) · e2e 15/15 · regression. 비활성 노출 = Bypassed 1곳. em dash UI 0.
+**판단** — 1의 Mac 미노출은 platform 감지(파인딩 u) 기반, 접이 조건 단순 · 실물 재검수 권장. 3의 상단 여백 수치는 실물 확인 요망.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (Mac 실측 3차 통합 7건 + Bypassed 정정)
 **한 일** — 커밋 0bc44e7.
 - **1 OS 토글 승격**: Windows/Mac·Linux 토글을 '내 PC 환경' 독립 줄로(내 모델 폴더 경로 위). placeholder·드라이브 조립·대조 스니펫이 scanOs 상속(로직 무변, 위치만 이동). ②-c 대조 구역에서 이설.
