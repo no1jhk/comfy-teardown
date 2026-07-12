@@ -119,14 +119,24 @@ async function bundleEntry(entry, tmpName) {
         // 4: 검색 버튼 URL = 구글 site: 웹 검색(HF models?search 아님)
         if (/google\.com\/search/.test(afterHtml) && !/huggingface\.co\/models\?search/.test(afterHtml)) console.log("  ✅ 검색 버튼 = 구글 site: 웹 검색(HF models?search 0)");
         else { console.log("  ❌ 검색 버튼 URL이 웹 검색 아님(google site: 미검출 또는 HF models?search 잔존)"); fail++; }
-        // IA 재편: "자세한 진단"(detailOpen, 기본 닫힘)을 열면 2 노드 상세·3 모델 상세·4 비활성 노드 헤더가 있고, 옛 섹션명("Node Reference"·"Install Script")은 렌더 HTML에서 사라졌는지 전수 확인.
+        // IA 재편(정정 문법): "자세한 진단"을 열면 Nodes/Models/Bypassed 세 섹션이 "고정 헤더(SectionTitle·토글 없음) + 라운드박스 안 번호 행(+/- 토글)"으로 렌더되고, 옛 섹션명("Node Reference"·"Install Script")은 사라졌는지 확인.
+        const root = w.document.getElementById("root");
         const dt = [...w.document.querySelectorAll("span")].find((s) => s.textContent === "자세한 진단 보기");
         if (dt) { dt.dispatchEvent(new w.Event("click", { bubbles: true })); await new Promise((r) => setTimeout(r, 200)); }
-        const detailHtml = w.document.getElementById("root").innerHTML;
-        for (const [label, present] of [["노드 상세", true], ["모델 상세", true], ["비활성 노드", true], ["Node Reference", false], ["Install Script", false]]) {
+        const detailHtml = root.innerHTML;
+        for (const [label, present] of [["Node Reference", false], ["Install Script", false]]) {
           const has = detailHtml.includes(label);
-          if (has === present) console.log(`  ✅ 자세한 진단 · ${label} ${present ? "존재" : "부재"}`);
-          else { console.log(`  ❌ 자세한 진단 · ${label} ${present ? "미렌더(존재해야 함)" : "잔존(부재해야 함)"}`); fail++; }
+          if (has === present) console.log(`  ✅ 자세한 진단 · ${label} 부재`);
+          else { console.log(`  ❌ 자세한 진단 · ${label} 잔존(부재해야 함)`); fail++; }
+        }
+        for (const t of ["Nodes", "Models", "Bypassed"]) {
+          const h = [...root.querySelectorAll("h2")].find((x) => x.textContent === t);
+          if (!h) { console.log(`  ❌ 자세한 진단 · ${t} 섹션 헤더(h2) 미렌더`); fail++; continue; }
+          const headerToggle = h.parentElement?.querySelector('button[aria-label="펼치기/접기"]'); // 헤더 컨테이너엔 토글이 없어야(고정 헤더)
+          const box = h.parentElement?.nextElementSibling;                                          // 헤더 다음 형제 = 라운드박스
+          const rowToggle = box?.querySelector('button[aria-label="펼치기/접기"]');                  // 박스 안 번호 행엔 토글이 있어야
+          if (!headerToggle && rowToggle) console.log(`  ✅ ${t} · 고정 헤더(토글 0) + 박스 안 번호 행 +/- 토글`);
+          else { console.log(`  ❌ ${t} · headerToggle=${!!headerToggle} boxRowToggle=${!!rowToggle}(고정 헤더+행 토글이어야)`); fail++; }
         }
       }
     }

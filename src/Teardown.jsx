@@ -950,16 +950,23 @@ function MetricBox({ value, label, unit }) {
 }
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.faint, padding: "4px 0" }}>{text}</div>; }
 
-// 자세한 진단 안의 상위 섹션(노드 상세·모델 상세·비활성 노드) 공통 헤더 — SectionTitle 스케일(DISPLAY 32) + 우측 +/- 토글 + 기본 닫힘.
-// 3개 섹션이 동일 형태로 렌더되도록 단일 컴포넌트. 닫힘 시 하단 여백 0(다음 섹션과 붙지 않게 컨테이너 paddingBottom이 담당).
-function DetailSectionHead({ title, open, onToggle }) {
+// 라운드박스 안 번호 행 — 기존 스크립트 섹션의 1·2·3 번호 행 문법 그대로(원형 배지 30 + 제목 23 + dim 서브 + 우측 +/- 토글, 기본 닫힘). 콘텐츠는 paddingLeft 44.
+// 섹션 제목은 토글 없는 고정 SectionTitle(Summary·Findings와 동일). 이 번호 행 토글이 유일한 접이(토글 안 토글 0).
+function NumRow({ num, title, sub, open, onToggle, first, children }) {
   return (
-    <div onClick={onToggle} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 20, margin: open ? "0 0 28px" : 0, cursor: "pointer", flexWrap: "wrap" }}>
-      <h2 style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1 }}>{title}</h2>
-      <button className="td-acc" onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="펼치기/접기"
-        style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
-        {open ? <Minus size={28} strokeWidth={2.25} /> : <Plus size={28} strokeWidth={2.25} />}
-      </button>
+    <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: first ? "none" : `1px solid ${C.divider}` }}>
+      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+        <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2 }}>{title}</div>
+          {sub && <div style={{ fontSize: 14, color: C.dim, marginTop: 3, lineHeight: 1.5 }}>{sub}</div>}
+        </div>
+        <button className="td-acc" onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="펼치기/접기"
+          style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
+          {open ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
+        </button>
+      </div>
+      {open && <div style={{ paddingLeft: 44, marginTop: 16 }}>{children}</div>}
     </div>
   );
 }
@@ -2008,19 +2015,30 @@ export default function Teardown() {
             </div>
           )}
 
-          {/* ══ 2 노드 상세 — 커스텀 노드 설치 + 설치 스크립트(방법 A/B) + 환경 우회. 단일 섹션 토글·기본 닫힘, 내부는 평탄(소제목+구분선, 접힘 없음). ══ */}
+          {/* ══ Nodes — 커스텀 노드 설치 + 설치 스크립트(방법 A/B, env 우회 하위 구획). 고정 헤더(SectionTitle) + 라운드박스 + 번호 행(우측 +/- · 기본 닫힘). ══ */}
           {(() => {
             const installStep = rx.find((s) => s.key === "install");
             const envStep = rx.find((s) => s.key === "env");
             if (!hasNodeIssues && !installStep && !envStep) return null;
+            const envBody = envStep && (<>
+              <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.5, marginBottom: 11 }}>{envStep.desc}</div>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {envStep.items.map((it, k) => (
+                  <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.surfaceHi, borderRadius: 10, padding: "12px 14px" }}>
+                    <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 3 }} />
+                    <span style={{ fontSize: 15, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.action}</span>
+                  </div>
+                ))}
+              </div>
+            </>);
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              <DetailSectionHead title="노드 상세" open={open.nd} onToggle={() => toggle("nd")} />
-              {open.nd && (<div className="td-fade">
+              <SectionTitle>Nodes</SectionTitle>
+              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
 
-                {/* 커스텀 노드 설치 — 미매핑·깨진 노드 목록(설치 대상 파악용). */}
+                {/* ① 커스텀 노드 설치 — 미매핑·깨진 노드 목록(설치 대상 파악용). */}
                 {hasNodeIssues && (
-                <DetailSub title="커스텀 노드 설치" first>
+                <NumRow num={1} first title="커스텀 노드 설치" open={open.nd1} onToggle={() => toggle("nd1")}>
                   <div style={{ marginBottom: 4 }}>
                     {[...report.unmapped.map((u) => ({ t: "u", u })), ...report.broken.map((b) => ({ t: "b", b }))].map((it, i) => {
                       const u = it.u, b = it.b;
@@ -2062,12 +2080,13 @@ export default function Teardown() {
                       </React.Fragment>);
                     })}
                   </div>
-                </DetailSub>
+                </NumRow>
                 )}
 
-                {/* 설치 스크립트 — custom_nodes 경로 안내 + 방법 A(직접 clone) + 방법 B(자동 스크립트). 모델 받기 버튼은 3 모델 상세로 이동(버튼은 받기 표에만). */}
-                {installStep && (
-                <DetailSub title="설치 스크립트 (방법 A · B)" first={!hasNodeIssues}>
+                {/* ② 설치 스크립트 (방법 A · B) — env 우회는 이 행의 하위 구획. installStep 없이 env만이면 제목·본문을 env로. */}
+                {(installStep || envStep) && (() => { const n = hasNodeIssues ? 2 : 1; return (
+                <NumRow num={n} first={!hasNodeIssues} title={installStep ? "설치 스크립트 (방법 A · B)" : "환경 의존 설정 우회"} open={open.nd2} onToggle={() => toggle("nd2")}>
+                  {installStep && (<>
                   <div style={{ fontSize: 15, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요. 해당 폴더에서 git clone (또는 Manager의 Git URL 설치).</div>
 
                   <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
@@ -2127,41 +2146,31 @@ export default function Teardown() {
                       ))}
                     </div>
                   )}
-                </DetailSub>
-                )}
+                  </>)}
+                  {/* env 우회 — 설치 스크립트 하위 구획(installStep 있으면 소제목+구분선, env만이면 본문). */}
+                  {envStep && (installStep
+                    ? <DetailSub title="환경 의존 설정 우회">{envBody}</DetailSub>
+                    : envBody)}
+                </NumRow>
+                ); })()}
 
-                {/* 환경 의존 설정 우회 — flash_attn 등. 설치가 막히면 대체값으로. */}
-                {envStep && (
-                <DetailSub title="환경 의존 설정 우회" first={!hasNodeIssues && !installStep}>
-                  <div style={{ fontSize: 14, color: C.dim, lineHeight: 1.5, marginBottom: 11 }}>{envStep.desc}</div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {envStep.items.map((it, k) => (
-                      <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.surfaceHi, borderRadius: 10, padding: "12px 14px" }}>
-                        <ChevronRight size={18} color={C.amber} style={{ flexShrink: 0, marginTop: 3 }} />
-                        <span style={{ fontSize: 15, color: C.text, lineHeight: 1.4, overflowWrap: "anywhere" }}>{it.action}</span>
-                      </div>
-                    ))}
-                  </div>
-                </DetailSub>
-                )}
-
-              </div>)}
+              </div>
             </div>);
           })()}
 
-          {/* ══ 3 모델 상세 — GPU 점검·양자화 안내(1회) + 한 번에 받기 표(plan 기반·버튼 여기만) + 모델 맞추기 슬롯 표(참조·버튼 0). 단일 섹션 토글·기본 닫힘, 내부 평탄(소제목+구분선). ══ */}
+          {/* ══ Models — GPU 점검·양자화 안내(1회) + 한 번에 받기 표(plan 기반·버튼 여기만) + 모델 맞추기 슬롯 표(참조·버튼 0). 고정 헤더(SectionTitle) + 라운드박스 + 번호 행(우측 +/- · 기본 닫힘). ══ */}
           {(() => {
             const quantStep = rx.find((s) => s.key === "quant");
             const dlEligible = (plan?.items || []).filter((it) => { const url = (it.promoted?.downloadUrl || it.downloadUrl) || ""; return (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test(url) && !/\/tree\//.test(url); });
             if (!quantStep && dlEligible.length === 0 && recipesEnriched.length === 0) return null;
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              <DetailSectionHead title="모델 상세" open={open.md} onToggle={() => toggle("md")} />
-              {open.md && (<div className="td-fade">
+              <SectionTitle>Models</SectionTitle>
+              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
 
-                {/* GPU 점검·양자화 안내 — 1회. 슬롯 표의 행별 비호환 표기(quantBad)는 별도 유지. */}
+                {/* ① GPU 점검·양자화 안내 — 1회. 슬롯 표의 행별 비호환 표기(quantBad)는 별도 유지. */}
                 {quantStep && (
-                <DetailSub title="GPU 점검·양자화 안내" first>
+                <NumRow num={1} first title="GPU 점검·양자화 안내" open={open.md1} onToggle={() => toggle("md1")}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                     {quantStep.items.map((it, k) => (
                       <div key={k} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: C.surfaceHi, borderRadius: 10, padding: "12px 14px" }}>
@@ -2188,12 +2197,12 @@ export default function Teardown() {
                       </div>
                     ))}
                   </div>
-                </DetailSub>
+                </NumRow>
                 )}
 
-                {/* 한 번에 받기 — 출처 확인된 직링크(confirmed·workflow_author)만. 다운로드 버튼은 이 표에만(슬롯 표는 참조). */}
-                {dlEligible.length > 0 && (
-                <DetailSub title="한 번에 받기" first={!quantStep}>
+                {/* ② 한 번에 받기 — 출처 확인된 직링크(confirmed·workflow_author)만. 다운로드 버튼은 이 표에만(슬롯 표는 참조). */}
+                {dlEligible.length > 0 && (() => { const n = quantStep ? 2 : 1; return (
+                <NumRow num={n} first={!quantStep} title="한 번에 받기" open={open.md2} onToggle={() => toggle("md2")}>
                   <div style={{ fontSize: 14, color: C.dim, marginBottom: 14, lineHeight: 1.6 }}>출처가 확인된 파일입니다. 각 파일을 받아 지정 폴더에 넣거나, 아래 스크립트로 한 번에 받으세요.</div>
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
                     <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 한 번에 받기</button>
@@ -2223,12 +2232,12 @@ export default function Teardown() {
                     })}
                   </div>
                   <div style={{ fontSize: 13, color: C.faint, lineHeight: 1.6, marginTop: 12 }}>※ 받은 뒤 파일 용량을 위 표와 비교하세요. 수 KB/MB로 작으면 깨진 것이니 삭제 후 다시 받으세요.</div>
-                </DetailSub>
-                )}
+                </NumRow>
+                ); })()}
 
-                {/* 모델 맞추기 (참조) — 워크플로우가 기록한 슬롯·현재 값·폴더. 참조 전용(버튼 0). 행별 GPU 비호환 표기는 여기 유지. */}
-                {recipesEnriched.length > 0 && (
-                <DetailSub title="모델 맞추기 (참조)" first={!quantStep && dlEligible.length === 0}>
+                {/* ③ 모델 맞추기 (참조) — 워크플로우가 기록한 슬롯·현재 값·폴더. 참조 전용(버튼 0). 행별 GPU 비호환 표기는 여기 유지. */}
+                {recipesEnriched.length > 0 && (() => { const n = (quantStep ? 1 : 0) + (dlEligible.length > 0 ? 1 : 0) + 1; return (
+                <NumRow num={n} first={!quantStep && dlEligible.length === 0} title="모델 맞추기 (참조)" open={open.md3} onToggle={() => toggle("md3")}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     {recipesEnriched.map((r, ri) => (
                       <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
@@ -2283,21 +2292,23 @@ export default function Teardown() {
                       </div>
                     ))}
                   </div>
-                </DetailSub>
-                )}
+                </NumRow>
+                ); })()}
 
-              </div>)}
+              </div>
             </div>);
           })()}
 
-          {/* ══ 4 비활성 노드 — bypass·음소거된 노드 목록. 단일 섹션 토글·기본 닫힘(2 노드 상세·3 모델 상세와 동일 헤더). 구 참조 섹션 래퍼 소멸. ══ */}
+          {/* ══ Bypassed — bypass·음소거된 노드 목록. 고정 헤더(SectionTitle) + 라운드박스 + 번호 행(우측 +/- · 기본 닫힘). 콘텐츠 1개여도 동일 문법 유지. ══ */}
           {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
-              <DetailSectionHead title="비활성 노드" open={open.inact} onToggle={() => toggle("inact")} />
-              {open.inact && (<div className="td-fade">
-                <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 12 }}>현재 꺼져 있어(우회·음소거) 실행되지 않는 노드입니다. 의도한 설정인지 확인해 주세요.</div>
-                <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, lineHeight: 1.7, overflowWrap: "anywhere" }}>{[...new Set(inact.map((n) => n.group ? `${n.type} (${n.group})` : n.type))].join(" · ")}</div>
-              </div>)}
+              <SectionTitle>Bypassed</SectionTitle>
+              <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
+                <NumRow num={1} first title="비활성 노드 목록" open={open.bp1} onToggle={() => toggle("bp1")}>
+                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 12 }}>현재 꺼져 있어(우회·음소거) 실행되지 않는 노드입니다. 의도한 설정인지 확인해 주세요.</div>
+                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, lineHeight: 1.7, overflowWrap: "anywhere" }}>{[...new Set(inact.map((n) => n.group ? `${n.type} (${n.group})` : n.type))].join(" · ")}</div>
+                </NumRow>
+              </div>
             </div>); })()}
 
           {/* Findings. 박스 없는 아코디언. 헤더는 BlockHead로 통일. */}
