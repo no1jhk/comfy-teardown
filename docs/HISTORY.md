@@ -6,6 +6,17 @@
 
 ---
 
+## 2026-07-12 (정정: IA 재편 섹션 문법 회귀 — 새 문법 발명 폐기)
+**한 일** — 커밋 3bc5428. 앞선 3커밋에서 상위 섹션 헤더에 토글을 단 `DetailSectionHead`(헤더 레벨 접이)를 새로 발명한 것이 기존 문법 위반. 사용자 지적대로 **기존 문법으로 회귀**.
+- **문법**: 섹션 제목 = 토글 없는 고정 `SectionTitle`(Summary·Findings와 동일 토큰) → 라운드박스 → 박스 안 **번호 행**(원형 배지 30 + 제목 23 + dim 서브 + 우측 +/- 토글, 기본 닫힘 = 구 스크립트 섹션 1·2·3 문법). `DetailSectionHead` 폐기·`NumRow` 헬퍼 신설. `DetailSub`는 행 내부 평탄 구획용으로 유지.
+- **섹션명 영문화(확정)**: Nodes / Models / Bypassed.
+  - Nodes: ① 커스텀 노드 설치 ② 설치 스크립트 (방법 A·B) — env 우회는 ②의 하위 구획.
+  - Models: ① GPU 점검·양자화 안내 ② 한 번에 받기 ③ 모델 맞추기 (참조).
+  - Bypassed: ① 비활성 노드 목록(콘텐츠 1개여도 동일 문법).
+- open 키 nd/md/inact → nd1/nd2·md1/md2/md3·bp1(전부 기본 닫힘). 행 번호는 렌더되는 행 수 기준 동적.
+**검증** — build 0 · smoke 3부(신 asserts: h2 헤더 컨테이너 토글 0 + 다음 형제 박스 안 번호 행 토글>0을 DOM 구조로 검증 · Node Reference/Install Script 부재) · e2e 15/15 · grep 0(DetailSectionHead·nref·sopen·옛 섹션명). NumRow 기본 닫힘→토글 클릭→펼침·콘텐츠 렌더 하네스 실측. 크로스링크·앵커 무회귀(전부 무변 Solution·Diagnose 대상).
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (IA 재편 대수술 실행 완료 — 3커밋 · detail 블록 주제별 재편)
 **한 일** — 승계 실행 스펙(7b35630, B안)대로 detail(detailOpen) 블록을 "Node Reference + Install Script"(참조 vs 스크립트) → "2 노드 상세 · 3 모델 상세 · 4 비활성 노드"(주제별)로 재편. 3커밋 분리, 각 build 0 + 스모크 3부 + e2e 15/15.
 - **C1 노드 상세 (75ab7fd)**: 커스텀 노드 설치(구 Node Reference STEP1 미매핑·깨진 목록) + 설치 스크립트 방법 A/B(구 Install Script install 스텝: custom_nodes 경로·clone·install.bat/.sh) + 환경 의존 설정 우회(env·flash_attn)를 단일 섹션(기본 닫힘·평탄·소제목+구분선)으로 결합. STEP1·install·env 원위치 제거.
