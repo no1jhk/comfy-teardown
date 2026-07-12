@@ -47,6 +47,7 @@ const C = {
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const SOLUTION_STROKE = `3px solid ${C.btnSand}`; // 솔루션 라운드박스 테두리 3px. 색은 스크립트 버튼과 동일 sand 토큰(C.btnSand) 참조 → 토큰 변경 시 동시 반영. 제거·조정은 이 한 곳.
 const DETAIL_ZONE_BOTTOM_OFFSET = 200; // 자세한 진단 경계(점선) 하단 오프셋(px). 짧은 결과에서 라이트존 min-height = calc(100vh - 이 값). 실측 조정용 단일 상수.
+const ANCHOR_LINK = { color: C.point, opacity: 0.85, textDecoration: "underline", cursor: "pointer" }; // 앵커 링크(연한 노랑) 단일 토큰 — 에러 로그 진단·Bypassed 섹션 등 전 화면 동일. 색 변경은 이 한 곳.
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
@@ -1590,7 +1591,7 @@ export default function Teardown() {
         {/* o + 6-1: 실행 행 부속 줄(재시작 안내·에러 로그 진단 링크) = 본문 대비 명도 50% dim */}
         {r.kind === "run" && r.restartNote && <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, opacity: 0.5, marginTop: 4, lineHeight: 1.5 }}>{r.restartNote}</div>}
         {/* 5: 앞문장 일반(dim), 뒷문장(에러 로그로~)만 언더라인 + 연한 노랑. 앵커 동작 무변. */}
-        {r.kind === "run" && r.diagLink && <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 14, lineHeight: 1.5 }}><span style={{ color: C.text, opacity: 0.5 }}>솔루션으로도 해결이 안 되나요? </span><a href="#diagnose-section" onClick={openDiagnose} style={{ color: C.point, opacity: 0.85, textDecoration: "underline", cursor: "pointer" }}>에러 로그로 LLM 진단받기</a></div>}
+        {r.kind === "run" && r.diagLink && <div style={{ marginTop: 4, fontFamily: SANS, fontSize: 14, lineHeight: 1.5 }}><span style={{ color: C.text, opacity: 0.5 }}>솔루션으로도 해결이 안 되나요? </span><a href="#diagnose-section" onClick={openDiagnose} style={ANCHOR_LINK}>에러 로그로 LLM 진단받기</a></div>}
       </div>
       <div style={{ flexShrink: 0, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
         {/* 3: 제작자 안내 1개 → 링크 버튼을 우측 버튼 영역(타 행 동일 위계). 2개 이상은 본문 표. */}
@@ -2552,7 +2553,7 @@ export default function Teardown() {
                 {report.muted.length === 0 ? (
                   <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim }}>비활성 노드 <span style={{ color: C.faint, fontWeight: 400 }}>· 없음</span></div>
                 ) : (() => { const byp = report.muted.filter((m) => m.mode === 4).length; const mut = report.muted.length - byp; return (
-                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}><span style={{ fontWeight: 700 }}>비활성 노드 {report.muted.length}개</span> <span style={{ color: C.faint }}>(우회 {byp} · 음소거 {mut})</span> · 상세는 <a href="#bypassed-section" onClick={openBypassed} style={{ color: C.point, textDecoration: "underline", cursor: "pointer" }}>Bypassed 섹션</a></div>); })()}
+                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}><span style={{ fontWeight: 700 }}>비활성 노드 {report.muted.length}개</span> <span style={{ color: C.faint }}>(우회 {byp} · 음소거 {mut})</span> · 상세는 <a href="#bypassed-section" onClick={openBypassed} style={ANCHOR_LINK}>Bypassed 섹션</a></div>); })()}
               </div>
               {report.ignorable.length > 0 && (
                 <div style={{ marginTop: 20, fontSize: 13, color: C.faint, lineHeight: 1.5 }}>
