@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-07-12 (실물 검수 2차 소형 4건 · IA 재편 후속)
+**한 일** — 커밋 ba0abf4.
+- **1 펼침 스크롤 착지점 = 토글 줄**: `#detail-top`(Summary 위) → `#detail-toggle`(자세한 진단 토글 줄, scrollMarginTop 16). 토글이 뷰포트 상단에 보이고 Summary가 바로 아래로. detail-top 앵커 제거.
+- **2 Bypassed 2열 그리드**: `.td-col2`(grid 1fr 1fr, `@media(max-width:560px)` 1열 폴백) 신설. 목록을 조인 문자열 → 항목 div 그리드(노드명 + 소속 그룹 dim, 중복 병합 유지).
+- **3 Solution 접기 헤더 중앙정렬**: '다른 그룹용'·'참고·미확정'·'판단 기준 안내' summary textAlign center.
+- **4 Solution 접기 펼침 배경 = evidenceBg**: '다른 그룹용'·'참고·미확정' 펼침 콘텐츠를 `C.evidenceBg`(#372E43) div로 래핑(판단 기준 안내는 기존 사용). 토큰 1곳 참조(총 6회)·하드코딩 0(정의 1). 접힘 시 무변.
+**검증** — build 0 · smoke 3부 · e2e 15/15. 하네스 실측: 스크롤 대상=#detail-toggle·detail-top 제거·Bypassed .td-col2 16항목·3개 이하 무깨짐·크래시 0.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (실물 검수 소형 5건 · IA 재편 후속)
 **한 일** — 커밋 2b2f617. 실물 검수 5건.
 - **1 경계 하단 오프셋 150→200px**: 라이트존 min-height `calc(100vh - 200px)`. 단일 상수 `DETAIL_ZONE_BOTTOM_OFFSET`로 추출(추가 조정 1곳).
