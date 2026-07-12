@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-07-12 (카탈로그: SeedVR2 가족 6종 confirmed 등재)
+**한 일** — 커밋 80947e6. `model_catalog.json`의 seedvr2 family에 웹 실측(HF numz/SeedVR2_comfyUI main) 6종 `files` 등재 → confirmed. 폴더 `SEEDVR2`(대문자·결함c 검증값), 직링크 `numz/SeedVR2_comfyUI/blob/main/{파일}`(UI에서 resolve/main 변환).
+- 등재: seedvr2_ema_{7b,3b}_{fp16,fp8_e4m3fn} · seedvr2_ema_7b_sharp_fp16 · ema_vae_fp16. 변형 7b(fp16↔fp8↔sharp)·3b(fp16↔fp8)를 files의 variant·quant로 양자화 대안(4번 확정형)에 연결.
+- 미검증 변형(sharp_fp8_mixed_block35 등)은 등재 금지 → 확인 필요 유지(날조 금지).
+**실측 수용** — krea2 3그룹 fixture(=SeedVR2 워크플로우)에 ema_vae_fp16·mixed_block35_fp16 실재. ema_vae_fp16 → [확정]+models/SEEDVR2+numz 직링크. mixed_block35_fp16 → confirmed 아님(등재 밖). RTX 4060(Ada 8GB)에서 7b_fp16(16.5GB)→7b_fp8_e4m3fn 승격(Ampere는 fp8 avoid라 미승격 = native Ada+ 정합).
+**검증** — build 0 · regression(SEEDVR2 6종 블록 신규: confirmed·폴더·직링크·승격·Ampere 미승격·미등재 금지) · e2e 15/15(케이스1·6 VAE를 활성 Wan2.1로 특정 — seedvr2 ema_vae와 구분 + SEEDVR2 등재 검증 추가) · smoke 3부.
+**판단** — fp8_e4m3fn 대안은 Ada+ GPU에서만 발화(Ampere는 avoid). 8GB Ampere 입력 시 승격 대체는 3b_fp16 계열(더 작은 모델). 실물 확인 권장.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (소형 1건: 앵커 링크 색 단일 토큰)
 **한 일** — 커밋 559f0e3. 전체 현황 비활성 집계 줄의 'Bypassed 섹션' 링크를 진노랑(C.point) → 연한 노랑(C.point·opacity 0.85, 에러 링크 '에러 로그로 LLM 진단받기'와 동일). 두 앵커 링크가 모듈 상수 `ANCHOR_LINK` 1개 참조 → 시각 문법 단일화(색 변경 1곳). 동작 무변.
 **검증** — build 0 · smoke 3부(TDZ 최상위 const 9개·선언전참조 0) · e2e 15/15.
