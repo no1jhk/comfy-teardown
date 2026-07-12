@@ -761,6 +761,37 @@ console.log("\n" + "=".repeat(70) + "\n6: 비활성 노드 데이터(type·group
   if (ok) console.log("  ✅ 비활성 2개(BypassNodeA:mode4·group Upscale · MuteNodeB:mode2)·활성(mode0) 제외");
 }
 
+// === SEEDVR2 카탈로그 등재(6종) — confirmed·numz 직링크·models/SEEDVR2 + 7b_fp16→fp8 승격(Ada 8GB) + 미검증 변형 confirmed 금지 ===
+console.log("\n" + "=".repeat(70) + "\nSEEDVR2 6종: confirmed·models/SEEDVR2·numz 직링크 · 7b→fp8 승격(RTX4060) · Ampere fp8 미승격 · 미등재 금지");
+{
+  const mk = (files) => ({ last_node_id: files.length + 1, nodes: [
+    ...files.map((f, i) => ({ id: i + 1, type: "SeedVR2LoadDiTModel", mode: 0, pos: [0, i * 120], size: [300, 100], flags: {}, order: i, properties: {}, widgets_values: [f] })),
+    { id: 99, type: "SeedVR2", mode: 0, pos: [400, 0], size: [300, 100], flags: {}, order: 90, properties: {}, widgets_values: [] },
+  ] });
+  let ok = true;
+  const plan = buildModelPlan(analyze(normalize(mk(["seedvr2_ema_7b_fp16.safetensors", "ema_vae_fp16.safetensors"])), null), { gpu: "RTX 4060" });
+  if (plan.family !== "seedvr2") { console.log(`  ❌ family seedvr2 아님: ${plan.family}`); fail++; ok = false; }
+  const main = plan.items.find((i) => i.selectedFile === "seedvr2_ema_7b_fp16.safetensors");
+  const vae = plan.items.find((i) => i.selectedFile === "ema_vae_fp16.safetensors");
+  for (const [name, it] of [["7b_fp16", main], ["ema_vae", vae]]) {
+    if (!it || it.confidence !== "confirmed") { console.log(`  ❌ ${name} confirmed 아님(${it?.confidence})`); fail++; ok = false; }
+    else if (!/models[\/\\]SEEDVR2/.test(it.folder || "")) { console.log(`  ❌ ${name} 폴더 models/SEEDVR2 아님: ${it.folder}`); fail++; ok = false; }
+    else if (it.sourceRepo !== "numz/SeedVR2_comfyUI") { console.log(`  ❌ ${name} 출처 이상: ${it.sourceRepo}`); fail++; ok = false; }
+    else if (!(it.downloadUrl || "").includes("numz/SeedVR2_comfyUI/blob/main/")) { console.log(`  ❌ ${name} 직링크 이상: ${it.downloadUrl}`); fail++; ok = false; }
+  }
+  if (main && main.size !== "16.5GB") { console.log(`  ❌ 7b_fp16 용량 16.5GB 아님: ${main.size}`); fail++; ok = false; }
+  if (plan.unknowns.length) { console.log(`  ❌ 확인 필요(unknowns) 잔존(등재 6종 한정): ${plan.unknowns.map((u) => u.selectedFile)}`); fail++; ok = false; }
+  // 8GB Ada(RTX 4060): 7b_fp16(16.5>12) vramTooBig → 확정 대체 7b_fp8_e4m3fn(Ada prefer)로 승격
+  if (main?.promoted?.filename !== "seedvr2_ema_7b_fp8_e4m3fn.safetensors") { console.log(`  ❌ RTX 4060 승격 7b_fp8 아님: ${main?.promoted?.filename}`); fail++; ok = false; }
+  // Ampere 8GB(RTX 3070): fp8_e4m3fn는 avoid → fp8로 승격 금지(native Ada+ 정합)
+  const mainAmp = buildModelPlan(analyze(normalize(mk(["seedvr2_ema_7b_fp16.safetensors"])), null), { gpu: "RTX 3070" }).items.find((i) => i.role === "main_model");
+  if (mainAmp?.promoted?.filename === "seedvr2_ema_7b_fp8_e4m3fn.safetensors") { console.log("  ❌ Ampere 8GB에서 fp8_e4m3fn 승격(avoid 위반)"); fail++; ok = false; }
+  // 미검증 변형(sharp_fp8_mixed_block35 등)은 등재 밖 → confirmed 금지(날조 방지)
+  const planFake = buildModelPlan(analyze(normalize(mk(["seedvr2_ema_7b_sharp_fp8_mixed_block35.safetensors"])), null), { gpu: "RTX 4060" });
+  if (planFake.items.concat(planFake.unknowns).some((i) => /mixed_block35/.test(i.selectedFile) && i.confidence === "confirmed")) { console.log("  ❌ 미등재 변형(mixed_block35) confirmed(날조)"); fail++; ok = false; }
+  if (ok) console.log("  ✅ 7b_fp16·ema_vae confirmed·models/SEEDVR2·numz 직링크 · RTX4060 승격 7b_fp8 · Ampere fp8 미승격 · 미등재 변형 confirmed 금지");
+}
+
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");
 for (const r of rows) console.log("  " + r.join("  |  "));

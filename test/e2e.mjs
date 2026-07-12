@@ -57,10 +57,15 @@ console.log("=".repeat(70) + "\n[1] krea2 + RTX 3090 (완료 기준 · confirmed
     else if (it.confidence !== "confirmed") { console.log(`  ❌ ${t} confidence ${it.confidence}(confirmed 기대)`); fail++; ok = false; }
     else if (/unet|확인 필요/.test(it.folder || "")) { console.log(`  ❌ ${t} 폴더에 models/unet·확인 필요 잔존: ${it.folder}`); fail++; ok = false; }
   }
-  // 워크플로우 실제 요구 VAE는 Wan2.1_VAE_upscale2x. Note의 대체(qwen_image_vae)로 치환되면 실패(실측: 워크플로우 참조값 우선)
-  const vae = plan.items.find((i) => i.role === "vae");
-  if (vae?.selectedFile !== "wan2.1_vae_upscale2x_imageonly_real_v1.safetensors" || /qwen_image_vae/i.test(vae?.selectedFile || "")) { console.log(`  ❌ VAE selectedFile 기대 Wan2.1_VAE_upscale2x, 실제 ${vae?.selectedFile}`); fail++; ok = false; }
+  // 워크플로우 실제 요구(활성) VAE = Wan2.1_VAE_upscale2x. seedvr2 그룹의 ema_vae_fp16도 이제 confirmed(별도 vae) → selectedFile로 특정.
+  const vae = plan.items.find((i) => /wan2\.1_vae_upscale2x/i.test(i.selectedFile));
+  if (!vae || /qwen_image_vae/i.test(vae?.selectedFile || "")) { console.log(`  ❌ Wan2.1_VAE_upscale2x 미선택(vae role: ${plan.items.filter((i) => i.role === "vae").map((i) => i.selectedFile)})`); fail++; ok = false; }
   if (vae && vae.size !== "484MB") { console.log(`  ❌ VAE 용량 기대 484MB(실측), 실제 ${vae.size}`); fail++; ok = false; }
+  // SEEDVR2 등재: ema_vae_fp16 confirmed·models/SEEDVR2 · 미검증 변형(mixed_block35)은 confirmed 금지(등재 밖·날조 방지)
+  const emaVae = plan.items.find((i) => i.selectedFile === "ema_vae_fp16.safetensors");
+  if (!emaVae || emaVae.confidence !== "confirmed" || !/SEEDVR2/.test(emaVae.folder || "")) { console.log(`  ❌ ema_vae_fp16 confirmed·models/SEEDVR2 아님(${emaVae?.confidence}·${emaVae?.folder})`); fail++; ok = false; }
+  const mixed = [...plan.items, ...plan.unknowns].find((i) => /mixed_block35/.test(i.selectedFile));
+  if (mixed && mixed.confidence === "confirmed") { console.log(`  ❌ 미검증 변형(mixed_block35) confirmed(등재 금지 위반)`); fail++; ok = false; }
   if (ok) {
     console.log("  ✅ Main Model: krea2_raw_bf16.safetensors [confirmed] 26.3GB Comfy-Org/Krea-2");
     console.log(`  ✅ 넣기: ${main.fullPath}`);
@@ -118,8 +123,8 @@ console.log("\n" + "=".repeat(70) + "\n[6] Note 링크·강도 (제작자 안내
 {
   const { plan } = planRows(KREA2, { gpu: "RTX 3090", basePath: "N:\\ComfyUI_models" });
   let ok = true;
-  // 3모델은 confirmed(files DB)라 직링크가 검증 repo로. VAE는 spacepxl.
-  const vae = plan.items.find((i) => i.role === "vae");
+  // 3모델은 confirmed(files DB)라 직링크가 검증 repo로. 활성 VAE는 spacepxl(Wan2.1) — seedvr2 ema_vae와 구분해 특정.
+  const vae = plan.items.find((i) => /wan2\.1_vae_upscale2x/i.test(i.selectedFile));
   if (!/spacepxl\/Wan2\.1-VAE-upscale2x/.test(vae?.downloadUrl || "")) { console.log(`  ❌ VAE 직링크(spacepxl) 이상: ${vae?.downloadUrl}`); fail++; ok = false; }
   // Turbo Lora 강도 안내 = authorLinks(슬롯 아님)에서
   const turbo = plan.authorLinks.find((a) => /turbo\s*lora/i.test(a.label) && a.strength);

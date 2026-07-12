@@ -71,8 +71,23 @@
       "label": "SeedVR2",
       "detect": { "filename": ["seedvr2", "seedvr_2", "seedvr-2"], "nodeType": ["SeedVR2"] },
       "folders": { "main_model": "SEEDVR2", "vae": "SEEDVR2" },
-      "variants": [],
-      "source": null
+      "variants": [
+        { "match": "7b_fp16", "quant": "fp16", "kind": "7b" },
+        { "match": "7b_fp8", "quant": "fp8_e4m3fn", "kind": "7b" },
+        { "match": "7b_sharp", "quant": "fp16", "kind": "7b" },
+        { "match": "3b_fp16", "quant": "fp16", "kind": "3b" },
+        { "match": "3b_fp8", "quant": "fp8_e4m3fn", "kind": "3b" }
+      ],
+      "source": "numz/SeedVR2_comfyUI",
+      "_files_note": "웹 실측(2026-07-12 · HuggingFace numz/SeedVR2_comfyUI main 트리 기준). 이 6종만 confirmed 자격. 미검증 변형(sharp_fp8_mixed_block35 등)은 등재 금지 — 확인 필요 유지(날조 금지). 폴더 SEEDVR2(대문자, 결함c 검증값). 변형: 7b(fp16↔fp8↔sharp)·3b(fp16↔fp8) — fp8_e4m3fn은 Ada+ 네이티브(Ampere avoid).",
+      "files": [
+        { "filename": "seedvr2_ema_7b_fp16.safetensors", "role": "main_model", "variant": "7b", "quant": "fp16", "repo": "numz/SeedVR2_comfyUI", "repo_path": "seedvr2_ema_7b_fp16.safetensors", "folder": "SEEDVR2", "size": "16.5GB", "confidence": "confirmed" },
+        { "filename": "seedvr2_ema_7b_fp8_e4m3fn.safetensors", "role": "main_model", "variant": "7b", "quant": "fp8_e4m3fn", "repo": "numz/SeedVR2_comfyUI", "repo_path": "seedvr2_ema_7b_fp8_e4m3fn.safetensors", "folder": "SEEDVR2", "size": "8.24GB", "confidence": "confirmed" },
+        { "filename": "seedvr2_ema_7b_sharp_fp16.safetensors", "role": "main_model", "variant": "7b", "quant": "fp16", "repo": "numz/SeedVR2_comfyUI", "repo_path": "seedvr2_ema_7b_sharp_fp16.safetensors", "folder": "SEEDVR2", "size": "16.5GB", "confidence": "confirmed" },
+        { "filename": "seedvr2_ema_3b_fp16.safetensors", "role": "main_model", "variant": "3b", "quant": "fp16", "repo": "numz/SeedVR2_comfyUI", "repo_path": "seedvr2_ema_3b_fp16.safetensors", "folder": "SEEDVR2", "size": "6.78GB", "confidence": "confirmed" },
+        { "filename": "seedvr2_ema_3b_fp8_e4m3fn.safetensors", "role": "main_model", "variant": "3b", "quant": "fp8_e4m3fn", "repo": "numz/SeedVR2_comfyUI", "repo_path": "seedvr2_ema_3b_fp8_e4m3fn.safetensors", "folder": "SEEDVR2", "size": "3.39GB", "confidence": "confirmed" },
+        { "filename": "ema_vae_fp16.safetensors", "role": "vae", "variant": null, "quant": "fp16", "repo": "numz/SeedVR2_comfyUI", "repo_path": "ema_vae_fp16.safetensors", "folder": "SEEDVR2", "size": "501MB", "confidence": "confirmed" }
+      ]
     }
   }
 }
