@@ -47,7 +47,7 @@ const C = {
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const SOLUTION_STROKE = `3px solid ${C.btnSand}`; // 솔루션 라운드박스 테두리 3px. 색은 스크립트 버튼과 동일 sand 토큰(C.btnSand) 참조 → 토큰 변경 시 동시 반영. 제거·조정은 이 한 곳.
 const DETAIL_ZONE_BOTTOM_OFFSET = 200; // 자세한 진단 경계(점선) 하단 오프셋(px). 짧은 결과에서 라이트존 min-height = calc(100vh - 이 값). 실측 조정용 단일 상수.
-const ANCHOR_LINK = { color: C.point, opacity: 0.85, textDecoration: "underline", cursor: "pointer" }; // 앵커 링크(연한 노랑) 단일 토큰 — 에러 로그 진단·Bypassed 섹션 등 전 화면 동일. 색 변경은 이 한 곳.
+const ANCHOR_LINK = { color: C.btnSand, textDecoration: "underline", cursor: "pointer" }; // 앵커 링크 단일 토큰 — 색은 sand 버튼(C.btnSand·노드 한 번에 설치)과 동일 연노랑, 언더라인 유지. 에러 로그 진단·Bypassed 섹션 등 전 화면 동일. 색 변경은 이 한 곳.
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
