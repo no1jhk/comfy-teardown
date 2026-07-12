@@ -6,6 +6,11 @@
 
 ---
 
+## 2026-07-12 (소형 1건: ANCHOR_LINK 색 sand 통일)
+**한 일** — 커밋 daf677a. 앵커 링크 단일 토큰 `ANCHOR_LINK`의 색을 `C.point`+opacity → `C.btnSand`(#D9D8B8, '노드 한 번에 설치' 등 sand 버튼과 동일 연노랑)로. 언더라인 유지. 토큰 1곳 수정으로 에러 링크('에러 로그로 LLM 진단받기')·Bypassed 섹션 링크 동시 반영.
+**검증** — build 0 · smoke 3부(TDZ 최상위 const 9개) · e2e 15/15.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (보안 점검 + ROADMAP 신설)
 **한 일**
 - **1 키 이력 점검(보고만)**: git 전 이력에서 실제 키 값(`sk-ant-<15자+>`) 커밋 0건(pickaxe). `.env.local`·`.env`·`.env*`·secret/key 파일 tracked 이력 0. `.gitignore`에 `.env`·`.env.local`·`*.local`·`dist` 이미 등재(추가 불필요). 과거 "sk-ant-" 3커밋은 전부 HISTORY.md 서술 — 실제 사고는 로컬 dist 번들(gitignored)의 `VITE_` 키 인라인 건이고 `AI_KEY` 가드(PROD dead-code 제거)로 봉인됨. **저장소 측 키 노출 0**, 재발급은 사용자 콘솔 사안.
