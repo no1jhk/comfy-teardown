@@ -1175,8 +1175,8 @@ export default function Teardown() {
   const scrollToDiagnose = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, errAcc: true })); requestAnimationFrame(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }); };
   // 디아그노시스 앵커(5): 실행 행 부속 링크 → "자세한 진단" 토글 자동 펼침 + 로그 입력(#diagnose-section)으로 스크롤. 독립 섹션 없음(현행 위치 유지).
   const openDiagnose = (e) => { if (e) e.preventDefault(); setDetailOpen(true); setOpen((o) => ({ ...o, errAcc: true })); setTimeout(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }, 80); };
-  // 소형2: "자세한 진단" 펼침 시 detail 최상단(Summary)이 뷰포트 상단 부근에 오도록 스무스 스크롤 1회. 닫을 때는 이동 없음.
-  const toggleDetail = () => { const next = !detailOpen; setDetailOpen(next); if (next) setTimeout(() => document.getElementById("detail-top")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
+  // 소형2: "자세한 진단" 펼침 시 토글 줄(#detail-toggle)이 뷰포트 최상단 부근에 오도록 스무스 스크롤 1회 → 토글이 보이고 바로 아래 Summary가 이어짐. 닫을 때는 이동 없음.
+  const toggleDetail = () => { const next = !detailOpen; setDetailOpen(next); if (next) setTimeout(() => document.getElementById("detail-toggle")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1629,6 +1629,9 @@ export default function Teardown() {
         /* 스크립트 받기 버튼 단일 클래스(전 화면 Solution·노드/모델 상세 공통). td-hf 형식 + sand 토큰 + ↓ 아이콘. 색 변경은 C.btnSand 한 곳. gap 7 = 처방전 저장 버튼 일치. */
         .td-hf-sand{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${C.btnSand};color:${C.btnSand};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sand:hover{background:${C.btnSand};color:${INK}}
+        /* 소형2(2차): Bypassed 목록 2열 그리드. 좁은 뷰포트(≤560px)에선 1열 폴백. 항목 형식은 인라인 유지. */
+        .td-col2{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
+        @media(max-width:560px){.td-col2{grid-template-columns:1fr}}
         /* 결과저장 등 아웃라인 pill. hover시 노랑으로 채움 (다른 버튼과 동일) */
         .td-outline{border:1px solid ${C.point};color:${C.point};background:transparent;transition:background .15s,color .15s,transform .12s}
         .td-outline:hover{background:${C.point};color:${INK};transform:translateY(-1px)}.td-outline:active{transform:translateY(0)}
@@ -1911,13 +1914,13 @@ export default function Teardown() {
                 {rxGroups.heldDim.map((r) => renderActionRow(r, false, true, "line"))}
                 {rxGroups.otherGroup.length > 0 && (() => { const gts = [...new Set(rxGroups.otherGroup.map((r) => r.groupTitle).filter(Boolean))]; return (
                   <details style={{ borderTop: `1px solid ${C.divider}` }}>
-                    <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none" }}>▸ 다른 그룹용 {rxGroups.otherGroup.length}개{gts.length ? ` · ${gts.join(", ")}` : ""} (현재 bypass된 그룹의 모델)</summary>
-                    {rxGroups.otherGroup.map((r) => renderActionRow(r, false, false, "line"))}
+                    <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none", textAlign: "center" }}>▸ 다른 그룹용 {rxGroups.otherGroup.length}개{gts.length ? ` · ${gts.join(", ")}` : ""} (현재 bypass된 그룹의 모델)</summary>
+                    <div style={{ background: C.evidenceBg }}>{rxGroups.otherGroup.map((r) => renderActionRow(r, false, false, "line"))}</div>
                   </details>); })()}
                 {rxGroups.refInfo.length > 0 && (
                   <details style={{ borderTop: `1px solid ${C.divider}` }}>
-                    <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none" }}>▸ 참고 · 미확정 {rxGroups.refInfo.length}개 (대체 후보 · 제작자 안내 · 확인 필요)</summary>
-                    {rxGroups.refInfo.map((r) => renderActionRow(r, false, false, "line"))}
+                    <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13.5, fontWeight: 600, color: C.dim, padding: "13px 18px", listStyle: "none", textAlign: "center" }}>▸ 참고 · 미확정 {rxGroups.refInfo.length}개 (대체 후보 · 제작자 안내 · 확인 필요)</summary>
+                    <div style={{ background: C.evidenceBg }}>{rxGroups.refInfo.map((r) => renderActionRow(r, false, false, "line"))}</div>
                   </details>
                 )}
               </div>
@@ -1926,7 +1929,7 @@ export default function Teardown() {
             {/* 2(판단근거 흡수): 별도 per-model 리스트 폐지 → 각 행 "근거" 접이로 흡수. 여긴 총론(판단 기준)만. clone 스크립트는 설치 행 install.bat 다운로드로 보존. */}
             {rxTodos.length > 0 && (
             <details id="rx-detail" className="td-fade" style={{ marginTop: 8 }} open={rxDetailOpen} onToggle={(e) => setRxDetailOpen(e.currentTarget.open)}>
-              <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.faint, padding: "10px 0", listStyle: "none" }}>▸ 판단 기준 안내</summary>
+              <summary style={{ cursor: "pointer", fontFamily: SANS, fontSize: 13, fontWeight: 600, color: C.faint, padding: "10px 0", listStyle: "none", textAlign: "center" }}>▸ 판단 기준 안내</summary>
               <div style={{ background: C.evidenceBg, border: `1px solid ${C.divider}`, borderRadius: 12, padding: "16px 18px", marginTop: 8, fontFamily: SANS, fontSize: 13.5, color: C.dim, lineHeight: 1.75 }}>
                 <div>· 등급은 확정(검증된 카탈로그에 실존) · 워크플로우 안내(제작자 제공) · 추정 후보 · 확인 필요 순입니다. 각 행의 "근거"에서 파일별 등급과 출처를 확인하실 수 있습니다.</div>
                 <div style={{ marginTop: 8 }}>· GPU와 VRAM을 입력하시면 그 기준으로 양자화 호환과 대체 후보를 판정합니다. 입력이 없으면 확정 판정을 하지 않습니다.</div>
@@ -1948,7 +1951,7 @@ export default function Teardown() {
       {report && (
         <div style={{ flex: 1, position: "relative", width: "100%", background: C.bgDeep, display: "flex", flexDirection: "column" }}>
           {/* ── 경계 divider: 존 컨테이너의 top edge에 absolute 걸침(translateY -50%). 텍스트가 라인에 수직 중앙, 배경 투명(상반부 밝은/하반부 어두운). 부모(존) 폭 기준 full-bleed(100vw 아님 → 가로 스크롤 없음). ── */}
-          <div onClick={toggleDetail} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
+          <div id="detail-toggle" onClick={toggleDetail} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", scrollMarginTop: 16, display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
             <div className="td-divtoggle" style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
               <span>자세한 진단 보기</span>
@@ -1959,8 +1962,7 @@ export default function Teardown() {
           <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "36px 20px 0", boxSizing: "border-box", flex: 1, display: "flex", flexDirection: "column" }}>
 
           {detailOpen && (<div className="td-fade">
-          {/* 소형2: 펼침 시 스크롤 착지 지점(detail 최상단). scrollMarginTop으로 상단에 약간 여백. */}
-          <div id="detail-top" style={{ scrollMarginTop: 16 }} />
+          {/* 소형2(2차): 펼침 스크롤 착지점은 위 #detail-toggle(토글 줄). Summary는 그 바로 아래로 이어짐. */}
           {/* Summary. 아래 Solution과의 구분선 제거(borderBottom 없음) */}
           {summary && (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
@@ -2310,7 +2312,11 @@ export default function Teardown() {
               <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
                 <NumRow num={1} first title="비활성 노드 목록" open={open.bp1} onToggle={() => toggle("bp1")}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 12 }}>현재 꺼져 있어(우회·음소거) 실행되지 않는 노드입니다. 의도한 설정인지 확인해 주세요.</div>
-                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.text, lineHeight: 1.7, overflowWrap: "anywhere" }}>{[...new Set(inact.map((n) => n.group ? `${n.type} (${n.group})` : n.type))].join(" · ")}</div>
+                  {/* 소형2(2차): 2열 그리드(.td-col2, ≤560px 1열). 항목 = 노드명 + 소속 그룹(dim). 중복(노드명+그룹) 병합. */}
+                  {(() => { const seen = new Set(); const items = []; for (const n of inact) { const key = n.group ? `${n.type} (${n.group})` : n.type; if (seen.has(key)) continue; seen.add(key); items.push(n); } return (
+                    <div className="td-col2">
+                      {items.map((n, i) => <div key={i} style={{ fontFamily: SANS, fontSize: 14, color: C.text, lineHeight: 1.6, overflowWrap: "anywhere" }}>{n.type}{n.group && <span style={{ color: C.dim }}> ({n.group})</span>}</div>)}
+                    </div>); })()}
                 </NumRow>
               </div>
             </div>); })()}
