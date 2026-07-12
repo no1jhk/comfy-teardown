@@ -6,6 +6,19 @@
 
 ---
 
+## 2026-07-12 (Mac 실측 파인딩 u·v + 여백 2건)
+**한 일** — 커밋 bb3e0a8.
+- **u 로그 환경 추출 Mac 대응 + GPU 오탐 차단**:
+  - (1) `parseComfyLog`에 `Platform: Darwin`·`Device: mps`·`Total VRAM … mps` 감지 → `platform="mac"`, GPU·torch·CUDA 추출 스킵(gpu_rules 미적용·env.gpu 공란). UI 발화 "Mac (Apple Silicon · CUDA 없음)" + 요약 GPU "Mac (CUDA 없음)".
+  - (2) GPU 패턴 강화: 느슨한 `[AB]\d{3,4}`(Darwin 로그의 해시 파편 "b0117"을 GPU로 오탐) 제거. RTX/GTX 명시 모델만 확정, 데이터센터(A/H/L/T/V)는 NVIDIA 문맥 + 화이트리스트 동반 시에만. 미충족 공란.
+  - (3) 추출 실패 발화 신설(로그 있음·GPU 미검출·Mac 아님): "로그에서 GPU 정보를 찾지 못했습니다. 터미널(서버 콘솔) 시작 부분부터 복사 · F12 아님." 기존 "켜자마자 복사하면 잘립니다" 카피를 실제 원인(뒤늦게 복사 시 앞부분 유실)에 맞게 교정.
+- **v Mac 폴더 버튼 조립 오염 수리**: `applyPickedFolder`에 OS 분기 — `scanOs!=="win"`이면 조립·입력란 반영 금지 + 발화("Mac에서는 전체 경로를 직접 입력…"). placeholder OS별(win `D:\ComfyModels` / mac `/Users/…`). 직접 입력 시 발화 해제. Windows 조립 무회귀(t).
+- **여백1** Solution 첫 행만 상단 패딩 +10(14→24, `first ? "24px 18px 14px"`). 행 간 규칙 무변.
+- **여백2** (확인) 접기 중앙정렬·evidenceBg 배경은 직전 커밋 ba0abf4에 반영 완료 — 재확인만.
+**검증** — build 0 · regression(파인딩 u: Darwin→mac·b0117 오탐 0·RTX3090/GTX1080/RTX A6000·torch/cuda 무회귀·unix/win 조립 2케이스) · smoke 3부 · e2e 15/15. Mac 발화 하네스 실측(Mac 판정·GPU 오탐 0·F12 카피). em dash UI 0(주석만).
+**판단** — v의 컴포넌트 동선(native 폴더 피커)은 jsdom 미지원이라 하네스 대신 assembleModelPath OS 분기 regression + 코드로 검증. 실물 재검수 권장.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (실물 검수 2차 소형 4건 · IA 재편 후속)
 **한 일** — 커밋 ba0abf4.
 - **1 펼침 스크롤 착지점 = 토글 줄**: `#detail-top`(Summary 위) → `#detail-toggle`(자세한 진단 토글 줄, scrollMarginTop 16). 토글이 뷰포트 상단에 보이고 Summary가 바로 아래로. detail-top 앵커 제거.
