@@ -574,6 +574,12 @@ console.log("\n" + "=".repeat(70) + "\nP2.7 최종: 대조 분모 · 스니펫 �
   if (!nixSnip.usingDefault || !nixSnip.snippet?.includes('"ComfyUI/models"')) { console.log("  ❌ 기본 경로 스니펫 실패"); fail++; ok = false; }
   const relSnip = buildScanSnippet("ComfyModels", "win");
   if (!relSnip.needsAbsolute || relSnip.snippet) { console.log("  ❌ n-1 폴더명만인데 needsAbsolute 아님"); fail++; ok = false; }
+  // (n-1 Mac) unix + 절대경로('/Volumes/...') → find 대상이 절대 경로 리터럴(따옴표), 상대·기본 아님. Windows와 동일 원칙.
+  const macSnip = buildScanSnippet("/Volumes/T7/ComfyUI/models", "unix");
+  if (macSnip.needsAbsolute || macSnip.usingDefault || !macSnip.snippet?.includes('find "/Volumes/T7/ComfyUI/models"')) { console.log("  ❌ n-1 Mac 절대경로 리터럴 실패"); fail++; ok = false; }
+  // (n-1 Mac 미입력) unix + 빈 경로 → 현행 상대 기본(ComfyUI/models) + usingDefault 유지.
+  const macDef = buildScanSnippet("", "unix");
+  if (!macDef.usingDefault || !macDef.snippet?.includes('find "ComfyUI/models"')) { console.log("  ❌ n-1 Mac 미입력 기본 경로 실패"); fail++; ok = false; }
   // (n-2) 파서 실패 발화: 에러 텍스트 → error_path, 잡텍스트 → no_items, 정상 → null
   if (scanInputDiagnosis("ItemNotFoundException: Cannot find path 'D:\\x'", 0) !== "error_path") { console.log("  ❌ n-2 에러 패턴 미감지"); fail++; ok = false; }
   if (scanInputDiagnosis("random note not a listing", 0) !== "no_items") { console.log("  ❌ n-2 목록 아님 미감지"); fail++; ok = false; }

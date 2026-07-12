@@ -46,6 +46,7 @@ const C = {
 };
 const INK = "#1A1505"; // 노랑 배경 위 텍스트
 const SOLUTION_STROKE = `3px solid ${C.btnSand}`; // 솔루션 라운드박스 테두리 3px. 색은 스크립트 버튼과 동일 sand 토큰(C.btnSand) 참조 → 토큰 변경 시 동시 반영. 제거·조정은 이 한 곳.
+const DETAIL_ZONE_BOTTOM_OFFSET = 200; // 자세한 진단 경계(점선) 하단 오프셋(px). 짧은 결과에서 라이트존 min-height = calc(100vh - 이 값). 실측 조정용 단일 상수.
 const MONO = "'SF Mono','JetBrains Mono','Fira Code',ui-monospace,Menlo,monospace";
 const DISPLAY = "'PP Formula','Space Grotesk','Neue Haas Grotesk Display Pro','Pretendard Variable',Inter,sans-serif"; // 제목용 — comfy.org 공식은 PP Formula(유료). 없으면 Space Grotesk로 폴백. 한글 제목은 Pretendard.
 const SANS = "'Pretendard Variable',Pretendard,Inter,-apple-system,'Apple SD Gothic Neo','Noto Sans KR',sans-serif";
@@ -1174,6 +1175,8 @@ export default function Teardown() {
   const scrollToDiagnose = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, errAcc: true })); requestAnimationFrame(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }); };
   // 디아그노시스 앵커(5): 실행 행 부속 링크 → "자세한 진단" 토글 자동 펼침 + 로그 입력(#diagnose-section)으로 스크롤. 독립 섹션 없음(현행 위치 유지).
   const openDiagnose = (e) => { if (e) e.preventDefault(); setDetailOpen(true); setOpen((o) => ({ ...o, errAcc: true })); setTimeout(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }, 80); };
+  // 소형2: "자세한 진단" 펼침 시 detail 최상단(Summary)이 뷰포트 상단 부근에 오도록 스무스 스크롤 1회. 닫을 때는 이동 없음.
+  const toggleDetail = () => { const next = !detailOpen; setDetailOpen(next); if (next) setTimeout(() => document.getElementById("detail-top")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1646,7 +1649,7 @@ export default function Teardown() {
         @media (prefers-reduced-motion:reduce){.td-fade{animation:none}.td-btn:hover{transform:none}}
       `}</style>
       {/* 소형1: 닫힘 상태에서 라이트존(입력+간이 진단)이 짧으면 경계선이 화면 중턱에 뜨는 문제 → min-height 스페이서로 경계를 뷰포트 하단 100px에 고정(position:fixed 금지, 스크롤 자연). 열림·긴 결과는 자연 흐름(무회귀). */}
-      <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "32px 20px", boxSizing: "border-box", position: "relative", zIndex: 1, flexShrink: 0, minHeight: report && !detailOpen ? "calc(100vh - 150px)" : undefined }}>
+      <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "32px 20px", boxSizing: "border-box", position: "relative", zIndex: 1, flexShrink: 0, minHeight: report && !detailOpen ? `calc(100vh - ${DETAIL_ZONE_BOTTOM_OFFSET}px)` : undefined }}>
         {/* 헤더. 로고 */}
         <img src={LOGO} alt="Comfy Teardown" style={{ height: 50, width: "auto", display: "block", marginBottom: 16 }} />
         <p style={{ color: C.dim, fontSize: 16, margin: "0 0 28px", lineHeight: 1.6 }}>실행에 문제 있는 JSON 파일을 첨부하면, 모든 노드를 분석해서 문제점을 진단하고 해결법을 제시합니다.</p>
@@ -1945,7 +1948,7 @@ export default function Teardown() {
       {report && (
         <div style={{ flex: 1, position: "relative", width: "100%", background: C.bgDeep, display: "flex", flexDirection: "column" }}>
           {/* ── 경계 divider: 존 컨테이너의 top edge에 absolute 걸침(translateY -50%). 텍스트가 라인에 수직 중앙, 배경 투명(상반부 밝은/하반부 어두운). 부모(존) 폭 기준 full-bleed(100vw 아님 → 가로 스크롤 없음). ── */}
-          <div onClick={() => setDetailOpen((v) => !v)} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
+          <div onClick={toggleDetail} style={{ position: "absolute", top: 0, left: 0, right: 0, transform: "translateY(-50%)", display: "flex", alignItems: "center", cursor: "pointer", zIndex: 2 }}>
             <div style={{ flex: 1, borderTop: `3px dashed ${C.divider}` }} />
             <div className="td-divtoggle" style={{ display: "flex", alignItems: "center", gap: 8, fontFamily: SANS, fontSize: 21, fontWeight: 600, flexShrink: 0, padding: "0 12px" }}>
               <span>자세한 진단 보기</span>
@@ -1956,6 +1959,8 @@ export default function Teardown() {
           <div style={{ maxWidth: 1080, width: "100%", margin: "0 auto", padding: "36px 20px 0", boxSizing: "border-box", flex: 1, display: "flex", flexDirection: "column" }}>
 
           {detailOpen && (<div className="td-fade">
+          {/* 소형2: 펼침 시 스크롤 착지 지점(detail 최상단). scrollMarginTop으로 상단에 약간 여백. */}
+          <div id="detail-top" style={{ scrollMarginTop: 16 }} />
           {/* Summary. 아래 Solution과의 구분선 제거(borderBottom 없음) */}
           {summary && (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>
@@ -2121,13 +2126,12 @@ export default function Teardown() {
 
                   <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px" }}>
                     <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
-                    <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다.</div>
+                    <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다 (초보자 권장 · 반드시 custom_nodes 폴더 안에서 실행).</div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
                       <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> install.bat (Windows)</button>
                       <button className="td-hf-sand" onClick={() => downloadText("install.sh", buildInstallScript(report, "sh", env))}><Download size={15} /> install.sh (Mac/Linux)</button>
                     </div>
                     {!env.customNodesPath && <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>로그에서 custom_nodes 경로를 찾지 못했습니다. 스크립트 안의 경로를 직접 입력해 주세요. (로그를 붙여넣으면 경로를 채워 드립니다.)</div>}
-                    <div style={{ marginTop: 8, fontSize: 13, color: C.faint, lineHeight: 1.5, textAlign: "center" }}>※ 초보자는 이 방법 권장. 반드시 custom_nodes 폴더 안에서 실행하세요.</div>
                     <div style={{ marginTop: 20, fontSize: 13, color: C.dim, lineHeight: 1.65, borderTop: `1px solid ${C.divider}`, paddingTop: 10 }}>
                       <div style={{ fontWeight: 650, color: C.text, marginBottom: 4 }}>설치 확인하는 법</div>
                       <div>· 실행하면 터미널에 "Cloning into …" 또는 "Successfully installed" 메시지가 뜹니다. 에러 시 빨간 글씨가 나옵니다.</div>
@@ -2204,7 +2208,7 @@ export default function Teardown() {
                 {dlEligible.length > 0 && (() => { const n = quantStep ? 2 : 1; return (
                 <NumRow num={n} first={!quantStep} title="한 번에 받기" open={open.md2} onToggle={() => toggle("md2")}>
                   <div style={{ fontSize: 14, color: C.dim, marginBottom: 14, lineHeight: 1.6 }}>출처가 확인된 파일입니다. 각 파일을 받아 지정 폴더에 넣거나, 아래 스크립트로 한 번에 받으세요.</div>
-                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 16 }}>
+                  <div style={{ display: "flex", justifyContent: "center", marginBottom: 66 }}>
                     <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 한 번에 받기</button>
                   </div>
                   <div style={{ borderTop: `1px solid ${C.divider}` }}>
@@ -2237,7 +2241,7 @@ export default function Teardown() {
 
                 {/* ③ 모델 맞추기 (참조) — 워크플로우가 기록한 슬롯·현재 값·폴더. 참조 전용(버튼 0). 행별 GPU 비호환 표기는 여기 유지. */}
                 {recipesEnriched.length > 0 && (() => { const n = (quantStep ? 1 : 0) + (dlEligible.length > 0 ? 1 : 0) + 1; return (
-                <NumRow num={n} first={!quantStep && dlEligible.length === 0} title="모델 맞추기 (참조)" open={open.md3} onToggle={() => toggle("md3")}>
+                <NumRow num={n} first={!quantStep && dlEligible.length === 0} title="모델 맞추기 (참조)" sub="모든 로더 노드의 참조 값 기록입니다. 파일 받기는 위 한 번에 받기 표에서 진행해 주세요." open={open.md3} onToggle={() => toggle("md3")}>
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     {recipesEnriched.map((r, ri) => (
                       <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
