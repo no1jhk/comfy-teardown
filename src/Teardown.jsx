@@ -1021,7 +1021,8 @@ export default function Teardown() {
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const [envOpen, setEnvOpen] = useState(false);
   const [envLog, setEnvLog] = useState("");
-  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], modelRootAssembled: false });
+  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], modelRootAssembled: false, platform: "" });
+  const [folderPickMac, setFolderPickMac] = useState(false); // v: Mac·Linux 토글에서 폴더 선택 시 발화(전체 경로 직접 입력 유도)
   const [folderScan, setFolderScan] = useState(""); // P2.7: 붙여넣은 폴더 스캔 출력(내 모델 폴더 대조)
   const [scanOs, setScanOs] = useState("win");      // P2.7: 스니펫 OS 토글(win|unix)
   const [scanDrive, setScanDrive] = useState("C");  // 파인딩 s: Windows 드라이브 셀렉트(폴더 버튼 경로 조립용)
@@ -1032,7 +1033,7 @@ export default function Teardown() {
   const onEnvLog = (text) => {
     setEnvLog(text);
     const parsed = parseComfyLog(text);
-    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, vram: parsed.vramGB ?? prev.vram, basePath: parsed.basePath || prev.basePath, customNodesPath: parsed.customNodesPath || prev.customNodesPath, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed }));
+    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, vram: parsed.vramGB ?? prev.vram, basePath: parsed.basePath || prev.basePath, customNodesPath: parsed.customNodesPath || prev.customNodesPath, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed, platform: parsed.platform || prev.platform }));
   };
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);
@@ -1055,13 +1056,16 @@ export default function Teardown() {
   const applyPickedFolder = (name) => {
     const clean = String(name || "").trim();
     if (!clean) return;
+    // v: Mac·Linux는 브라우저가 폴더명만 반환 → 전체 경로를 알 수 없음. Windows 조립 금지(오염 차단). 입력란 무변 + 발화(직접 입력 유도).
+    if (scanOs !== "win") { setFolderPickWarn(false); setFolderPickMac(true); return; }
+    setFolderPickMac(false);
     if (isTypeFolder(clean)) { setFolderPickWarn(true); return; }
     setFolderPickWarn(false);
     const isAbs = (v) => /^[A-Za-z]:[\\/]/.test(v) || /^\//.test(v);
-    // 직접 타이핑한 절대 경로(조립 산출 아님)는 우선 유지. 그 외엔 현재 드라이브로 조립하고 조립 산출 플래그 세움.
+    // 직접 타이핑한 절대 경로(조립 산출 아님)는 우선 유지. 그 외엔 현재 드라이브로 조립하고 조립 산출 플래그 세움(Windows만 도달).
     setEnv((p) => (isAbs(p.modelRoot || "") && !p.modelRootAssembled)
       ? { ...p, modelRootPartial: false }
-      : { ...p, modelRoot: assembleModelPath(scanDrive, clean, scanOs), modelRootPartial: scanOs !== "win", modelRootAssembled: true });
+      : { ...p, modelRoot: assembleModelPath(scanDrive, clean, scanOs), modelRootPartial: false, modelRootAssembled: true });
   };
   const saveReport = () => {
     if (!report) return;
@@ -1261,8 +1265,8 @@ export default function Teardown() {
     const joined = texts.join("\n");
     const hasImport = /Import times for custom nodes/i.test(joined);
     const hasPrestartup = /Prestartup times for custom nodes/i.test(joined);
-    return { truncated: hasPrestartup && !hasImport, packN: logEnv.installedPacks.length, failN: logEnv.importFailed.length, gpu: env.gpu, basePath: env.basePath, modelRoot: env.modelRoot };
-  }, [envLog, errlog, logEnv.installedPacks, logEnv.importFailed, env.gpu, env.basePath, env.modelRoot]);
+    return { truncated: hasPrestartup && !hasImport, packN: logEnv.installedPacks.length, failN: logEnv.importFailed.length, gpu: env.gpu, basePath: env.basePath, modelRoot: env.modelRoot, platform: env.platform };
+  }, [envLog, errlog, logEnv.installedPacks, logEnv.importFailed, env.gpu, env.basePath, env.modelRoot, env.platform]);
 
   // 코어 버전 요구 판정(작업 A). 워크플로우가 쓰는 코어 기능이 로그 ComfyUI 버전보다 신버전을 요구하면 최상단 확인 행.
   const coreCheck = React.useMemo(() => {
@@ -1505,7 +1509,8 @@ export default function Teardown() {
     <React.Fragment key={r.rid}>
       {/* 구분선: 판단근거 체계와 동일 — 라운드 박스 좌우 여백 인셋(100% 가로지르기 금지), 색·두께 동일 토큰 */}
       {!first && <div style={{ borderTop: `1px solid ${C.divider}`, marginLeft: 18, marginRight: 18 }} />}
-      <div style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: align === "center" ? "center" : "start", padding: "14px 18px", opacity: dim ? 0.55 : 1 }}>
+      {/* 여백1: 첫 행만 상단 패딩 +10(14→24) — 긴 제목 답답함 해소. 행 간 규칙(구분선·14px) 무변. */}
+      <div style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: align === "center" ? "center" : "start", padding: first ? "24px 18px 14px" : "14px 18px", opacity: dim ? 0.55 : 1 }}>
       <NumBadge n={r.n} variant={variant} mt={align === "center" ? 0 : 1} />
       {/* #2 라벨 정렬: 라벨(verb)을 배지와 한 몸으로 — 배지 높이(30px)와 같은 lineHeight 밴드 + 동일 mt(광학 보정). 다행 top·단행 center에서 배지·라벨이 제목 첫 줄과 동일 기준선. */}
       <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text, lineHeight: "30px", marginTop: align === "center" ? 0 : 1 }}>{r.verb}</span>
@@ -1700,13 +1705,25 @@ export default function Teardown() {
             <div className="td-fade" style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: "20px 22px", marginTop: 6 }}>
               {/* ① ComfyUI 로그 붙여넣기 */}
               <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 }}>ComfyUI 로그 붙여넣기</div>
-              <div style={{ fontSize: 13, color: C.dim, marginBottom: 8, lineHeight: 1.55 }}>ComfyUI가 완전히 켜져 화면이 보인 뒤, 콘솔 내용을 처음부터 끝까지 전체 복사해 붙여넣어 주세요. 켜자마자 복사하면 설치 정보가 잘립니다.</div>
+              <div style={{ fontSize: 13, color: C.dim, marginBottom: 8, lineHeight: 1.55 }}>ComfyUI를 실행한 터미널(서버 콘솔)의 내용을 처음부터 끝까지 전체 복사해 붙여넣어 주세요. GPU·torch·CUDA는 시작 직후에 출력되므로, 뒤늦게 일부만 복사하면 앞부분이 유실됩니다. 브라우저 F12 콘솔이 아닙니다.</div>
               <textarea value={envLog} onChange={(e) => onEnvLog(e.target.value)} spellCheck={false}
                 placeholder="ComfyUI 시작 콘솔 로그 전체를 붙여넣으세요. GPU·경로·설치된 노드를 자동으로 읽습니다."
                 style={{ width: "100%", minHeight: 110, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", color: C.text, fontFamily: MONO, fontSize: 13, lineHeight: 1.6, resize: "vertical", boxSizing: "border-box" }} />
               {logInfo && (
                 <div style={{ marginTop: 8, fontSize: 13, color: "#8BC34A", lineHeight: 1.5 }}>
-                  로그에서 확인됨: GPU {logInfo.gpu || "확인 안 됨"} · 경로 {logInfo.modelRoot ? `${logInfo.modelRoot} (직접 입력)` : (logInfo.basePath || "확인 안 됨")} · 설치 팩 {logInfo.packN}개{logInfo.failN > 0 ? ` · 로드 실패 ${logInfo.failN}개` : ""}
+                  로그에서 확인됨: GPU {logInfo.platform === "mac" ? "Mac (CUDA 없음)" : (logInfo.gpu || "확인 안 됨")} · 경로 {logInfo.modelRoot ? `${logInfo.modelRoot} (직접 입력)` : (logInfo.basePath || "확인 안 됨")} · 설치 팩 {logInfo.packN}개{logInfo.failN > 0 ? ` · 로드 실패 ${logInfo.failN}개` : ""}
+                </div>
+              )}
+              {/* u(1): Mac(Darwin) 판정 발화 — GPU·CUDA 판정 미적용 고지. */}
+              {logInfo?.platform === "mac" && (
+                <div style={{ marginTop: 8, fontSize: 13, color: C.dim, lineHeight: 1.55, background: C.evidenceBg, borderRadius: 8, padding: "9px 12px" }}>
+                  Mac (Apple Silicon · CUDA 없음) 환경으로 확인했습니다. GPU·CUDA 기반 판정(양자화 호환·대체 후보)은 적용하지 않습니다.
+                </div>
+              )}
+              {/* u(3): GPU 추출 실패 발화(로그는 있으나 GPU 미검출·Mac 아님). 오탐 대신 재복사 유도. */}
+              {logInfo && logInfo.platform !== "mac" && !logInfo.gpu && (
+                <div style={{ marginTop: 8, fontSize: 13, color: C.point, lineHeight: 1.55, background: "rgba(244,255,117,0.08)", border: `1px solid ${C.point}55`, borderRadius: 8, padding: "9px 12px" }}>
+                  로그에서 GPU 정보를 찾지 못했습니다. ComfyUI를 실행한 터미널(서버 콘솔)의 시작 부분부터 복사해 주세요. 브라우저 F12 콘솔이 아닙니다.
                 </div>
               )}
               {logInfo?.truncated && (
@@ -1759,8 +1776,8 @@ export default function Teardown() {
                       {["C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"].map((d) => <option key={d} value={d}>{d}:</option>)}
                     </select>
                   )}
-                  <input type="text" value={env.modelRoot} onChange={(e) => { setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false, modelRootAssembled: false })); setFolderPickWarn(false); }}
-                    placeholder="예: D:\ComfyUI\models"
+                  <input type="text" value={env.modelRoot} onChange={(e) => { setEnv((p) => ({ ...p, modelRoot: e.target.value, modelRootPartial: false, modelRootAssembled: false })); setFolderPickWarn(false); setFolderPickMac(false); }}
+                    placeholder={scanOs === "win" ? "예: D:\\ComfyModels" : "예: /Users/이름/Documents/ComfyUI/models"}
                     style={{ flex: 1, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
                   <button onClick={async () => {
                     try {
@@ -1779,7 +1796,9 @@ export default function Teardown() {
                   </button>
                 </div>
                 {folderPickWarn && <div style={{ fontSize: 13, color: C.point, marginTop: 5, lineHeight: 1.4 }}>모델 종류 폴더가 아니라 그 상위 폴더를 선택해 주세요. checkpoints·vae·loras가 바로 들어 있는 폴더가 필요합니다.</div>}
-                {env.modelRootPartial && !folderPickWarn && <div style={{ fontSize: 13, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>브라우저 보안상 전체 경로는 직접 입력해 주세요.</div>}
+                {env.modelRootPartial && !folderPickWarn && !folderPickMac && <div style={{ fontSize: 13, color: C.faint, marginTop: 5, lineHeight: 1.4 }}>브라우저 보안상 전체 경로는 직접 입력해 주세요.</div>}
+                {/* v: Mac·Linux 토글에서 폴더 선택 시 발화(전체 경로 직접 입력 유도). 입력란은 무변. */}
+                {folderPickMac && <div style={{ fontSize: 13, color: C.point, marginTop: 5, lineHeight: 1.5 }}>Mac에서는 전체 경로를 직접 입력해 주세요 (예: /Users/이름/Documents/ComfyUI/models). 폴더 선택으로는 전체 경로를 알 수 없습니다.</div>}
               </div>
 
               {/* ②-c 내 모델 폴더 대조 (P2.7) — 읽기전용 나열 명령 복사 → 붙여넣기 → 요구 모델과 대조 → 완비 판정 */}

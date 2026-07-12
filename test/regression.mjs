@@ -292,6 +292,28 @@ console.log("\n" + "=".repeat(70) + "\n실로그 설치 해소(krea2_console_log
   if (ok) console.log(`  ✅ 로그 3팩 제외·잔존 2·GPU ${parsed.gpu}·Prestartup 인식·basePath ${parsed.basePath}`);
 }
 
+// === 파인딩 u: 로그 환경 추출 Mac(Darwin) 대응 + GPU 오탐 차단 + NVIDIA 무회귀 ===
+console.log("\n" + "=".repeat(70) + "\n파인딩 u: Darwin 판정 · GPU 오탐(b0117) 차단 · NVIDIA 무회귀");
+{
+  let ok = true;
+  // (1) Darwin 로그 → platform mac, GPU·torch·CUDA 공란(gpu_rules 미적용). 해시 파편(b0117)도 GPU로 안 잡힘.
+  const mac = parseComfyLog("** Platform: Darwin\n** Python version: 3.11\nComfyUI version: 0.3.40\nTotal VRAM 16384 MB\nModel path b0117abc\nDevice: mps");
+  if (mac.platform !== "mac") { console.log(`  ❌ Darwin platform 기대 mac, 실제 '${mac.platform}'`); fail++; ok = false; }
+  if (mac.gpu !== "" || mac.torch !== "" || mac.cuda !== "") { console.log(`  ❌ Mac GPU/torch/CUDA 공란이어야(오탐 0), 실제 gpu='${mac.gpu}' torch='${mac.torch}' cuda='${mac.cuda}'`); fail++; ok = false; }
+  // (2) 비-Mac에서도 "b0117" 등 해시 파편은 GPU 미검출(NVIDIA·RTX·GTX 문맥 없음 → 공란, 오탐보다 공란).
+  const noise = parseComfyLog("ComfyUI version: 0.3.40\nsome build b0117\nTotal VRAM 8192 MB");
+  if (noise.gpu !== "") { console.log(`  ❌ 노이즈(b0117) GPU 오탐, 실제 '${noise.gpu}'`); fail++; ok = false; }
+  // (3) NVIDIA 무회귀: RTX 3090 / GTX 1080 Ti / 워크스테이션 RTX A6000 + torch·cuda.
+  const rtx = parseComfyLog("Device: cuda:0 NVIDIA GeForce RTX 3090 : cudaMallocAsync\ntorch 2.4.0+cu124");
+  if (!/RTX 3090/.test(rtx.gpu) || rtx.torch !== "2.4.0" || rtx.cuda !== "12.4") { console.log(`  ❌ RTX 3090/torch/cuda 무회귀 실패, 실제 gpu='${rtx.gpu}' torch='${rtx.torch}' cuda='${rtx.cuda}'`); fail++; ok = false; }
+  if (!/GTX 1080/.test(parseComfyLog("NVIDIA GeForce GTX 1080 Ti").gpu)) { console.log("  ❌ GTX 1080 추출 실패"); fail++; ok = false; }
+  if (!/A6000/.test(parseComfyLog("Device: NVIDIA RTX A6000").gpu)) { console.log("  ❌ RTX A6000 추출 실패"); fail++; ok = false; }
+  // (4/파인딩 v) 폴더 조립 OS 분기: unix는 폴더명만(드라이브 조립 안 함), win은 절대 조립(무회귀). 컴포넌트는 unix에서 입력란 미반영+발화(하네스 검증).
+  if (assembleModelPath("C", "models", "unix") !== "models") { console.log(`  ❌ unix 조립이 폴더명만 반환해야, 실제 '${assembleModelPath("C", "models", "unix")}'`); fail++; ok = false; }
+  if (assembleModelPath("N", "ComfyModels", "win") !== "N:\\ComfyModels") { console.log(`  ❌ win 조립 무회귀 실패, 실제 '${assembleModelPath("N", "ComfyModels", "win")}'`); fail++; ok = false; }
+  if (ok) console.log("  ✅ Darwin→mac·GPU/torch/CUDA 공란 · b0117 오탐 0 · RTX3090/GTX1080/RTX A6000·torch/cuda 무회귀 · unix/win 조립");
+}
+
 // === 단계 0: Prestartup만 있고 Import times 잘린 로그에서도 설치 인식 ===
 console.log("\n" + "=".repeat(70) + "\nPrestartup-only 잘린 로그 설치 인식");
 {

@@ -13,21 +13,29 @@ export function tokenSim(a, b) {
 
 // ComfyUI 콘솔 로그 → GPU/torch/CUDA + Import times 블록에서 설치 팩·로드 실패 팩(경로 마지막 폴더명, 소문자).
 export function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", vramGB: null, basePath: "", customNodesPath: "", installedPacks: [], importFailed: [] };
-  // 실측 VRAM (콘솔 "Total VRAM 8192 MB"). gpu_rules 테이블보다 항상 우선(테이블은 폴백).
+  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", vramGB: null, basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], platform: "" };
+  // u(1): Mac(Darwin) 감지 → CUDA/NVIDIA 부재 환경. GPU·torch·CUDA 추출을 스킵해 오탐(버전 해시 파편이 GPU로 잡히는 등)을 원천 차단. gpu_rules는 미적용(env.gpu 공란).
+  const isMac = /Platform:\s*Darwin/i.test(text) || /\bdevice\s*[:=]\s*mps\b/i.test(text) || /Total VRAM[^\n]*\bmps\b/i.test(text);
+  if (isMac) out.platform = "mac";
+  // 실측 VRAM (콘솔 "Total VRAM 8192 MB"). gpu_rules 테이블보다 항상 우선(테이블은 폴백). Mac 통합 메모리도 동일 표기 → 유지.
   const vm = text.match(/Total VRAM\s+(\d+)\s*MB/i);
   if (vm) out.vramGB = Math.round(parseInt(vm[1], 10) / 1024);
-  const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
-  if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
+  if (!isMac) {
+    const t = text.match(/(?:pytorch|torch)\s*(?:version)?[:\s]+([\d.]+)\+cu(\d+)/i);
+    if (t) { out.torch = t[1]; const c = t[2]; out.cuda = c.length >= 3 ? c.slice(0, -1) + "." + c.slice(-1) : c; }
+  }
   // ComfyUI 본체 버전 (로그 서두: "ComfyUI version: 0.25.1" / "ComfyUI v0.27.0"). 코어 기능 요구 판정용.
   const cv = text.match(/ComfyUI\s*(?:version)?\s*[:\s]\s*v?(\d+\.\d+(?:\.\d+)?)/i);
   if (cv) out.comfyVersion = cv[1];
   // custom_nodes 경로 (설치 스크립트·브리핑 clone 대상). Import/Prestartup 경로의 custom_nodes 디렉터리.
   const cn = text.match(/([A-Za-z]:[\\/][^\n]*?[\\/]custom_nodes)[\\/]/i) || text.match(/(\/[^\n]*?\/custom_nodes)\//);
   if (cn) out.customNodesPath = cn[1];
-  const g = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?RTX\s*(\d{4})\s*(Ti|Super)?/i);
-  if (g) out.gpu = "RTX " + g[1] + (g[2] ? " " + g[2] : "");
-  else { const g2 = text.match(/([AB]\d{3,4}|RTX\s*A?\d{4,5})/i); if (g2) out.gpu = g2[0].trim(); }
+  // u(2): GPU 오탐 차단. RTX/GTX 명시 모델만 확정. 데이터센터/워크스테이션(A/H/L/T/V 시리즈)은 "NVIDIA" 문맥 + 화이트리스트 동반 시에만. 미충족은 공란(오탐보다 공란). Mac은 위에서 스킵.
+  if (!isMac) {
+    const rtx = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?(RTX|GTX)\s*(A?\d{3,5})\s*(Ti|Super)?/i);
+    if (rtx) out.gpu = rtx[1].toUpperCase() + " " + rtx[2].toUpperCase() + (rtx[3] ? " " + rtx[3] : "");
+    else { const dc = text.match(/NVIDIA[^\n]{0,30}?\b(A100|A40|A30|A16|A10|A6000|A5000|A4500|A4000|A2000|H100|H200|B200|L40S?|L4|T4|V100)\b/i); if (dc) out.gpu = dc[1].toUpperCase(); }
+  }
   // "Adding extra search path <종류> <경로>" → 모델 루트(basePath) 자동 추출. 각 경로의 부모(마지막=종류 폴더 제외)의 공통 접두.
   const extraPaths = [...text.matchAll(/^\s*Adding extra search path\s+\S+\s+(.+?)\s*$/gim)].map((mm) => mm[1]);
   if (extraPaths.length) {
