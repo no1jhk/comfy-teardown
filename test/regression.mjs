@@ -792,6 +792,35 @@ console.log("\n" + "=".repeat(70) + "\nSEEDVR2 6종: confirmed·models/SEEDVR2·
   if (ok) console.log("  ✅ 7b_fp16·ema_vae confirmed·models/SEEDVR2·numz 직링크 · RTX4060 승격 7b_fp8 · Ampere fp8 미승격 · 미등재 변형 confirmed 금지");
 }
 
+// === Krea2 Edit 계열 등재(2종) + ComfyUI-Krea2Edit extension map ===
+console.log("\n" + "=".repeat(70) + "\nKrea2 Edit: RealVae(비공식 미러 근거)·identity_edit confirmed + Krea2Edit 노드팩 매핑");
+{
+  const rep = analyze(normalize({ last_node_id: 5, nodes: [
+    { id: 1, type: "VAELoader", mode: 0, pos: [0, 0], size: [300, 100], flags: {}, order: 0, properties: {}, widgets_values: ["krea2RealVae_v10.safetensors"] },
+    { id: 2, type: "LoraLoaderModelOnly", mode: 0, pos: [0, 150], size: [300, 100], flags: {}, order: 1, properties: {}, widgets_values: ["krea2_identity_edit_v1.safetensors", 1.0] },
+    { id: 3, type: "Krea2EditModelPatch", mode: 0, pos: [400, 0], size: [300, 100], flags: {}, order: 2, properties: {}, widgets_values: [] },
+    { id: 4, type: "Krea2EditGroundedEncode", mode: 0, pos: [400, 150], size: [300, 100], flags: {}, order: 3, properties: {}, widgets_values: [] },
+    { id: 5, type: "Krea2Sampler", mode: 0, pos: [800, 0], size: [300, 100], flags: {}, order: 4, properties: {}, widgets_values: [] },
+  ] }), null);
+  const plan = buildModelPlan(rep, { gpu: "RTX 3090" });
+  let ok = true;
+  const rv = plan.items.find((i) => i.selectedFile === "krea2realvae_v10.safetensors");
+  if (!rv || rv.confidence !== "confirmed" || !/models[\/\\]vae/.test(rv.folder || "") || rv.sourceRepo !== "Kutches/Kr3a" || !(rv.downloadUrl || "").includes("Kutches/Kr3a/blob/main/krea2RealVae_v10")) { console.log(`  ❌ RealVae 등재 이상(${rv?.confidence}·${rv?.folder}·${rv?.sourceRepo})`); fail++; ok = false; }
+  if (rv && !/비공식 커뮤니티 미러/.test(rv.reason || "")) { console.log(`  ❌ RealVae 비공식 출처 근거 미표기: ${rv?.reason}`); fail++; ok = false; }
+  if (rv && rv.size !== "508MB") { console.log(`  ❌ RealVae 용량 508MB 아님: ${rv?.size}`); fail++; ok = false; }
+  const ie = plan.items.find((i) => i.selectedFile === "krea2_identity_edit_v1.safetensors");
+  if (!ie || ie.confidence !== "confirmed" || !/models[\/\\]loras/.test(ie.folder || "") || ie.sourceRepo !== "conradlocke/krea2-identity-edit" || ie.size !== "1.83GB") { console.log(`  ❌ identity_edit 등재 이상(${ie?.confidence}·${ie?.folder}·${ie?.sourceRepo}·${ie?.size})`); fail++; ok = false; }
+  if (plan.unknowns.some((u) => /krea2realvae|krea2_identity_edit/i.test(u.selectedFile))) { console.log("  ❌ 등재 2종이 unknowns로 빠짐(확인 필요 잔존)"); fail++; ok = false; }
+  // extension map: 실측 Edit 노드(Krea2EditModelPatch·Krea2EditGroundedEncode) → lbouaraba/comfyui-krea2edit(prefix). Krea2Sampler(비-Edit)는 미매핑(오탐 0)
+  for (const t of ["Krea2EditModelPatch", "Krea2EditGroundedEncode"]) {
+    const km = rep.unmapped.find((u) => u.type === t);
+    if (!km || km.repo !== "lbouaraba/comfyui-krea2edit") { console.log(`  ❌ ${t} 매핑 이상: ${km?.repo}`); fail++; ok = false; }
+  }
+  const ks = rep.unmapped.find((u) => u.type === "Krea2Sampler");
+  if (ks && ks.repo === "lbouaraba/comfyui-krea2edit") { console.log("  ❌ Krea2Sampler(비-Edit)가 Krea2Edit로 오매핑"); fail++; ok = false; }
+  if (ok) console.log("  ✅ RealVae(models/vae·Kutches/Kr3a·비공식 미러 근거)·identity_edit(models/loras·conradlocke) confirmed · Krea2Edit{ModelPatch,GroundedEncode}→lbouaraba/comfyui-krea2edit · Krea2Sampler 오탐 0");
+}
+
 console.log("\n" + "=".repeat(70));
 console.log("요약 [파일 | recipes/슬롯 | quantBad | ggufAlt | 확인필요 | src분포]");
 for (const r of rows) console.log("  " + r.join("  |  "));

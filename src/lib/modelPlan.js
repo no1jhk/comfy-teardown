@@ -85,7 +85,7 @@ export function buildModelPlan(report, env) {
       // repo 실파일명과 워크플로우 참조명이 다르면 리네임 안내(받은 파일을 참조명으로).
       const wfBase = m.file.replace(/\\/g, "/").split("/").pop();
       if (repoFn && repoFn.toLowerCase() !== b) renameHint = `받은 파일 이름을 ${wfBase}으로 바꾸거나, 노드에서 받은 파일을 선택해 주세요.`;
-      reason = `검증된 카탈로그(${db.repo})에 이 파일이 실존${size ? ` (${size})` : ""}${repoFn && repoFn.toLowerCase() !== b ? ` · repo 실파일명 ${repoFn}` : ""}.`;
+      reason = `검증된 카탈로그(${db.repo})에 이 파일이 실존${size ? ` (${size})` : ""}${repoFn && repoFn.toLowerCase() !== b ? ` · repo 실파일명 ${repoFn}` : ""}.${db.note ? ` ${db.note}` : ""}`;
     } else if (noteLink) {
       confidence = "workflow_author"; downloadUrl = noteLink.url;
       if (noteLink.size) size = noteLink.size; // 파인딩 r: 노트 명시 용량

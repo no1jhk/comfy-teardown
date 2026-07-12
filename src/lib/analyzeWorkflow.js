@@ -36,6 +36,7 @@ export const REPO_BY_CNR = {
   "comfyui-kjnodes": "kijai/ComfyUI-KJNodes",
   "comfyui_memory_cleanup": "LAOGOU-666/Comfyui-Memory_Cleanup",
   "rgthree": "rgthree/rgthree-comfy",
+  "comfyui-krea2edit": "lbouaraba/comfyui-krea2edit", // Krea2 Edit 노드팩(Manager 미등재 · clone 처방 대상). cnr_id 있을 때 매칭.
 };
 export const REPO_BY_PREFIX = [
   ["Trellis2", "visualbruno/ComfyUI-Trellis2"],
@@ -45,6 +46,7 @@ export const REPO_BY_PREFIX = [
   ["GeomPack", "PozzettiAndrea/ComfyUI-GeometryPack"],
   ["RMBG", "1038lab/ComfyUI-RMBG"],
   ["Fast Groups", "rgthree/rgthree-comfy"],
+  ["Krea2Edit", "lbouaraba/comfyui-krea2edit"], // Manager 미등재 팩(cnr_id 없음) → 노드 타입 접두 매칭. 실측 노드: Krea2EditModelPatch·Krea2EditGroundedEncode(둘 다 Krea2Edit 접두).
 ];
 export const RENAME_HINT = {
   "hymotionlite.ckpt": "다운로드 원본은 latest.ckpt → 이 이름으로 리네임 필요",
