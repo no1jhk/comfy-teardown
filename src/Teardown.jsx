@@ -951,17 +951,15 @@ function MetricBox({ value, label, unit }) {
 }
 function Empty({ text }) { return <div style={{ fontSize: 13, color: C.faint, padding: "4px 0" }}>{text}</div>; }
 
-// 라운드박스 안 번호 행 — 기존 스크립트 섹션의 1·2·3 번호 행 문법 그대로(원형 배지 30 + 제목 23 + dim 서브 + 우측 +/- 토글, 기본 닫힘). 콘텐츠는 paddingLeft 44.
+// 라운드박스 안 번호 행 — 기존 스크립트 섹션의 1·2·3 번호 행 문법 그대로(원형 배지 30 + 제목 23 + 우측 +/- 토글, 기본 닫힘). 콘텐츠는 paddingLeft 44.
 // 섹션 제목은 토글 없는 고정 SectionTitle(Summary·Findings와 동일). 이 번호 행 토글이 유일한 접이(토글 안 토글 0).
-function NumRow({ num, title, sub, open, onToggle, first, children }) {
+// 규칙: 접힘 상태는 배지+제목+토글만. 설명성 서브카피는 sub 슬롯이 아니라 펼침 내용(children) 첫 줄 dim으로 둔다(접힘 높이 균일).
+function NumRow({ num, title, open, onToggle, first, children }) {
   return (
     <div style={{ paddingTop: 20, paddingBottom: 20, borderTop: first ? "none" : `1px solid ${C.divider}` }}>
       <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
         <div style={{ width: 30, height: 30, borderRadius: 15, background: C.point, color: INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0 }}>{num}</div>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2 }}>{title}</div>
-          {sub && <div style={{ fontSize: 14, color: C.dim, marginTop: 3, lineHeight: 1.5 }}>{sub}</div>}
-        </div>
+        <div style={{ fontSize: 23, fontWeight: 650, color: C.text, lineHeight: 1.2, flex: 1, minWidth: 0 }}>{title}</div>
         <button className="td-acc" onClick={(e) => { e.stopPropagation(); onToggle(); }} aria-label="펼치기/접기"
           style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
           {open ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
@@ -2281,7 +2279,9 @@ export default function Teardown() {
 
                 {/* ③ 모델 맞추기 (참조) — 워크플로우가 기록한 슬롯·현재 값·폴더. 참조 전용(버튼 0). 행별 GPU 비호환 표기는 여기 유지. */}
                 {recipesEnriched.length > 0 && (() => { const n = (quantStep ? 1 : 0) + (dlEligible.length > 0 ? 1 : 0) + 1; return (
-                <NumRow num={n} first={!quantStep && dlEligible.length === 0} title="모델 맞추기 (참조)" sub="모든 로더 노드의 참조 값 기록입니다. 파일 받기는 위 한 번에 받기 표에서 진행해 주세요." open={open.md3} onToggle={() => toggle("md3")}>
+                <NumRow num={n} first={!quantStep && dlEligible.length === 0} title="모델 맞추기 (참조)" open={open.md3} onToggle={() => toggle("md3")}>
+                  {/* 설명성 서브카피는 펼침 내용 첫 줄(dim). 접힘 시 제목만 노출(NumRow sub 슬롯 미사용). */}
+                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 14 }}>모든 로더 노드의 참조 값 기록입니다. 파일 받기는 위 한 번에 받기 표에서 진행해 주세요.</div>
                   <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
                     {recipesEnriched.map((r, ri) => (
                       <div key={`${r.type}-${r.id}`} style={{ paddingTop: ri > 0 ? 42 : 0, borderTop: ri > 0 ? `1px solid ${C.divider}` : "none" }}>
