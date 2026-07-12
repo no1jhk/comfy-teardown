@@ -18,6 +18,9 @@
 - **GitHub Actions CI (build + smoke + e2e)**
   근거: 현재 `build`·`smoke`(3부)·`e2e`(15케이스)를 로컬 수동 실행에 의존한다. push마다 자동 게이트로 돌리면 회귀·TDZ·JSX 파손을 병합 전에 차단(런타임 크래시 사고 9fd2b07·356f5db 계열 예방).
 
+- **카탈로그 제안 내보내기 (학습 루프 반자동화)**
+  근거: 실전에서 LLM 진단으로 해결된 항목의 검증→등재가 수동 지시문 경유로 확인됨(SeedVR2 6종·Krea2 Edit 계열). learned cache 후보를 검증 필드(파일명·용량·직링크·근거)를 채운 JSON 스니펫으로 내보내 → 사용자 승인 → `model_catalog` 병합. 자동 등재는 금지 유지(날조 방지), 승인 1클릭까지만 자동화.
+
 ## 중기
 
 - **Teardown.jsx 분할 · Web Worker 검토**

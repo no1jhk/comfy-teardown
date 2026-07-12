@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-07-12 (Krea2Edit 실전 완주 후속 3건: 브리핑 형식·카탈로그 2종+확장맵·ROADMAP)
+**한 일** — 커밋 4c105d9(코드) + 문서.
+- **1 LLM 브리핑 답변 형식 강화**: 실측(수신 LLM 답변이 장문 산문). buildBriefing "답변 형식"을 두 블록 강제로 교체 — ① 요약 표(`| # | 문제 | 조치 | 완료 확인 |`, 조치=핵심어) ② 실행 블록(명령·경로·변경값 코드블록, 설명 1줄). 확인 필요는 조치 열 + 유력 후보·근거 1줄. 산문 금지·날조 금지 유지. 구조 데이터·처방 참고 블록 무변.
+- **2 카탈로그 2종 + 확장맵**(실전 해결 사례 승격): krea2RealVae_v10(508MB·models/vae·Kutches/Kr3a) confirmed + 근거에 "비공식 커뮤니티 미러(2곳 SHA256 일치)" 명기(modelPlan reason에 `db.note` 지원 신설). krea2_identity_edit_v1(1.83GB·models/loras·conradlocke) confirmed(공식). 확장맵 `REPO_BY_PREFIX ["Krea2Edit"]`→lbouaraba/comfyui-krea2edit(Manager 미등재·clone 처방). 실측 노드 Krea2EditModelPatch·Krea2EditGroundedEncode 둘 다 매핑, Krea2Sampler 오탐 0. `REPO_BY_CNR "comfyui-krea2edit"` 병기.
+- **3 ROADMAP 학습 루프 반자동화**: 단기에 "카탈로그 제안 내보내기" 추가 — learned cache 후보를 검증 필드 채운 JSON 스니펫으로 내보내 사용자 승인→model_catalog 병합. 자동 등재 금지(날조 방지)·승인 1클릭까지만. 근거: 실전 검증→등재가 수동 지시문 경유(SeedVR2·Krea2 Edit)로 확인됨.
+**검증** — build 0 · smoke 3부 · e2e 15/15 · regression(Krea2 Edit 블록: 2종 confirmed·비공식 근거·확장맵 2노드·오탐 0). em dash UI 0(브리핑 라벨 콜론화).
+**판단** — 확장맵 접두 "Krea2Edit"는 실측 두 노드(ModelPatch·GroundedEncode) 공통 접두라 확정. 추가 Edit 노드도 자동 매핑.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-12 (소형 1건: ANCHOR_LINK 색 sand 통일)
 **한 일** — 커밋 daf677a. 앵커 링크 단일 토큰 `ANCHOR_LINK`의 색을 `C.point`+opacity → `C.btnSand`(#D9D8B8, '노드 한 번에 설치' 등 sand 버튼과 동일 연노랑)로. 언더라인 유지. 토큰 1곳 수정으로 에러 링크('에러 로그로 LLM 진단받기')·Bypassed 섹션 링크 동시 반영.
 **검증** — build 0 · smoke 3부(TDZ 최상위 const 9개) · e2e 15/15.
