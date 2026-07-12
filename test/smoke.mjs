@@ -82,7 +82,7 @@ async function bundleEntry(entry, tmpName) {
 
   // 최소 유효 ComfyUI 워크플로우(자립적 — fixture는 gitignore라 커밋 안 됨). MarkdownNote 3링크로 제작자 링크 표(3) 렌더도 함께 검증.
   const WF = JSON.stringify({
-    last_node_id: 6, last_link_id: 1, version: 0.4, groups: [], links: [[1, 1, 0, 2, 0, "LATENT"]],
+    last_node_id: 6, last_link_id: 2, version: 0.4, groups: [], links: [[1, 1, 0, 2, 0, "LATENT"], [2, 5, 0, 3, 0, "MODEL"]], // 링크2: bypass 노드5 → 활성 노드3 = 끊김 경고(⚠) 유발
     nodes: [
       { id: 1, type: "CheckpointLoaderSimple", pos: [0, 0], size: [300, 100], flags: {}, order: 0, mode: 0, widgets_values: ["model.safetensors"], inputs: [], outputs: [{ name: "MODEL", type: "MODEL", links: [] }] },
       { id: 2, type: "KSampler", pos: [400, 0], size: [300, 300], flags: {}, order: 1, mode: 0, widgets_values: [123, "randomize", 20, 8, "euler", "normal", 1], inputs: [], outputs: [] },
@@ -138,6 +138,17 @@ async function bundleEntry(entry, tmpName) {
           if (!headerToggle && rowToggle) console.log(`  ✅ ${t} · 고정 헤더(토글 0) + 박스 안 번호 행 +/- 토글`);
           else { console.log(`  ❌ ${t} · headerToggle=${!!headerToggle} boxRowToggle=${!!rowToggle}(고정 헤더+행 토글이어야)`); fail++; }
         }
+        // 4(4차): 비활성 단일화 — Bypassed 행 펼침 시 끊김 경고(⚠), 전체 현황 펼침 시 집계 1줄(상세는 Bypassed)만·2열 목록(td-col2) 부재.
+        const clickToggleNear = (text) => { const el = [...root.querySelectorAll("div,span")].find((d) => d.textContent === text); let h = el; for (let i = 0; i < 6 && h; i++) { if (h.querySelector?.('button[aria-label="펼치기/접기"]')) break; h = h.parentElement; } const b = h?.querySelector?.('button[aria-label="펼치기/접기"]'); if (b) b.dispatchEvent(new w.Event("click", { bubbles: true })); };
+        clickToggleNear("비활성 노드 목록"); await new Promise((r) => setTimeout(r, 150));
+        clickToggleNear("전체 현황"); await new Promise((r) => setTimeout(r, 150));
+        const invHtml = root.innerHTML;
+        if (/연결 경로 중간에 있습니다/.test(invHtml)) console.log("  ✅ Bypassed 행 끊김 경고(⚠) 존재");
+        else { console.log("  ❌ Bypassed 끊김 경고 미렌더(bypass→활성 링크 케이스)"); fail++; }
+        if (invHtml.includes("상세는") && /비활성 노드 \d+개/.test(invHtml)) console.log("  ✅ 전체 현황 집계 1줄(비활성 N개 · 상세는 Bypassed 링크)");
+        else { console.log("  ❌ 전체 현황 집계 1줄 미렌더(상세는/비활성 N개)"); fail++; }
+        if (!/td-col2/.test(invHtml)) console.log("  ✅ 전체 현황 2열 목록(td-col2) 부재 — 상세 목록 Bypassed 단일화");
+        else { console.log("  ❌ td-col2 잔존(상세 목록 미단일화)"); fail++; }
       }
     }
   } catch (e) { console.log(`  ❌ 파일 투입 시뮬 크래시: ${e && e.name}: ${e && e.message}`); fail++; }

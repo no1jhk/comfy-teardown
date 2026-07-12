@@ -406,7 +406,7 @@ export function analyze(norm, mgrMap) {
   if (outputs.length) stages.push(outputs.join("·") + " 저장");
   const pipeline = stages.length >= 2 ? stages.join(" → ") : null;
   // (5) 비활성 노드(muted) + 소속 그룹
-  const inactiveNodes = muted.map((m) => { const n = norm.nodes.find((x) => x.id === m.id); return { type: m.type, group: n ? groupOf(n) : null, mode: m.mode }; });
+  const inactiveNodes = muted.map((m) => { const n = norm.nodes.find((x) => x.id === m.id); return { id: m.id, type: m.type, group: n ? groupOf(n) : null, mode: m.mode }; });
   const structSummary = { groups: groupStatus, io, keyParams, pipeline, inactive: inactiveNodes };
   const packs = Object.keys(packVers).map((id) => {
     const vers = [...packVers[id]].filter(Boolean).map(String);

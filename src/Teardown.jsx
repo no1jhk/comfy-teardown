@@ -8,7 +8,7 @@ import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
 import { buildRecipes, groupNodesByRepo } from "./data/redNodeRecipe.js";
 import { parseComfyLog, packInstalled, parseValueNotInList, parseMissingNodeType, compareVersion, latestLogSession, extractErrorLines, hasDiskError } from "./logParse.js";
-import { normalize, analyze, hfLink, isIgnorableNode } from "./lib/analyzeWorkflow.js";
+import { normalize, analyze, hfLink } from "./lib/analyzeWorkflow.js";
 import { recommend, gpuProfile } from "./lib/modelRecommender.js";
 import { matchLabelToNode } from "./lib/parseWorkflowNotes.js";
 import { buildModelPlan, downloadTargetFolder } from "./lib/modelPlan.js";
@@ -1181,6 +1181,8 @@ export default function Teardown() {
   const openDiagnose = (e) => { if (e) e.preventDefault(); setDetailOpen(true); setOpen((o) => ({ ...o, errAcc: true })); setTimeout(() => { document.getElementById("diagnose-section")?.scrollIntoView({ behavior: "smooth", block: "start" }); setTimeout(() => document.querySelector("#diagnose-section textarea")?.focus(), 400); }, 80); };
   // 소형2/7: "자세한 진단" 펼침 시 토글 줄(#detail-toggle)이 뷰포트 상단으로 스무스 스크롤(토글 보이고 바로 아래 Summary). 닫을 때는 대칭으로 Solution 헤더(#solution-header)로 스크롤.
   const toggleDetail = () => { const next = !detailOpen; setDetailOpen(next); setTimeout(() => document.getElementById(next ? "detail-toggle" : "solution-header")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
+  // 4(4차): 전체 현황 집계 1줄 → Bypassed 섹션 상세로. bp1 펼침 + #bypassed-section 스크롤(같은 detail 블록 내).
+  const openBypassed = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, bp1: true })); setTimeout(() => document.getElementById("bypassed-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1637,9 +1639,7 @@ export default function Teardown() {
         /* 스크립트 받기 버튼 단일 클래스(전 화면 Solution·노드/모델 상세 공통). td-hf 형식 + sand 토큰 + ↓ 아이콘. 색 변경은 C.btnSand 한 곳. gap 7 = 처방전 저장 버튼 일치. */
         .td-hf-sand{display:inline-flex;align-items:center;justify-content:center;gap:7px;border:1px solid ${C.btnSand};color:${C.btnSand};background:transparent;border-radius:999px;padding:6px 16px;min-width:76px;font-family:${SANS};font-size:12px;font-weight:700;text-decoration:none;transition:background .15s,color .15s;cursor:pointer;white-space:nowrap}
         .td-hf-sand:hover{background:${C.btnSand};color:${INK}}
-        /* 소형2(2차): Bypassed 목록 2열 그리드. 좁은 뷰포트(≤560px)에선 1열 폴백. 항목 형식은 인라인 유지. */
-        .td-col2{display:grid;grid-template-columns:1fr 1fr;gap:6px 24px}
-        @media(max-width:560px){.td-col2{grid-template-columns:1fr}}
+        /* (비활성 2열 그리드 클래스는 4차에서 제거 — 목록 단일화로 사용처 0) */
         /* 소형4(3차): Solution 접기 펼침 시 토글 줄(summary)도 evidenceBg → 펼침 영역과 한 덩어리(상단과 구분). 접힘 시 무배경. */
         details.td-fold[open]>summary{background:${C.evidenceBg}}
         /* 결과저장 등 아웃라인 pill. hover시 노랑으로 채움 (다른 버튼과 동일) */
@@ -1769,6 +1769,31 @@ export default function Teardown() {
                 </div>
               </div>
 
+              {/* 소형1(4차): 명령어로 확인하는 법 — '또는 직접 선택' 바로 아래(나온 값을 위 칸에 입력). Mac 판정 시 미노출(CUDA 무관). 대조 구역 하단에서 이설. */}
+              {env.platform !== "mac" && (
+                <div style={{ marginTop: 12 }}>
+                  <button onClick={() => setCmdOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, color: C.faint, fontFamily: SANS, fontSize: 13 }}>
+                    <CircleAlert size={13} /> 명령어로 확인하는 법</button>
+                  {cmdOpen && (
+                    <div className="td-fade" style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.55, marginBottom: 8 }}>ComfyUI가 쓰는 파이썬 환경에서 실행하면 torch·CUDA 버전이 나옵니다. ComfyUI 폴더에서 <span style={{ fontFamily: MONO, color: C.text }}>source venv/bin/activate</span> (Windows: <span style={{ fontFamily: MONO, color: C.text }}>{"venv\\Scripts\\activate"}</span>) 실행 후 아래 명령을 입력하고, 나온 값을 위 칸에 입력해 주세요.</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {[
+                          { label: "torch + CUDA", cmd: 'python -c "import torch; print(torch.__version__, torch.version.cuda)"' },
+                          { label: "GPU 정보", cmd: "nvidia-smi" },
+                        ].map((item) => (
+                          <div key={item.cmd} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "7px 11px" }}>
+                            <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, flex: 1, overflowWrap: "anywhere" }}>{item.cmd}</code>
+                            <button onClick={() => copy(item.cmd, "cmd-" + item.label)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: C.point, flexShrink: 0 }}>
+                              {copiedKey === "cmd-" + item.label ? <Check size={14} /> : <Copy size={14} />}</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
               {/* 1: OS 토글 승격 — '내 PC 환경' 독립 줄. 경로 placeholder·드라이브 조립·대조 스니펫이 이 값(scanOs)을 상속(위치만 이동, 로직 무변). ②-c에서 이설. */}
               <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>내 PC 환경</div>
@@ -1863,25 +1888,7 @@ export default function Teardown() {
                 })()}
               </div>
 
-              {/* ③ 명령어 안내 */}
-              <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
-                <button onClick={() => setCmdOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, color: C.faint, fontFamily: SANS, fontSize: 13 }}>
-                  <CircleAlert size={13} /> 명령어로 확인하는 법</button>
-                {cmdOpen && (
-                  <div className="td-fade" style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 6 }}>
-                    {[
-                      { label: "torch + CUDA", cmd: 'python -c "import torch; print(torch.__version__, torch.version.cuda)"' },
-                      { label: "GPU 정보", cmd: "nvidia-smi" },
-                    ].map((item) => (
-                      <div key={item.cmd} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "7px 11px" }}>
-                        <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, flex: 1, overflowWrap: "anywhere" }}>{item.cmd}</code>
-                        <button onClick={() => copy(item.cmd, "cmd-" + item.label)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: C.point, flexShrink: 0 }}>
-                          {copiedKey === "cmd-" + item.label ? <Check size={14} /> : <Copy size={14} />}</button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
+              {/* ③ 명령어 안내는 소형1(4차)에서 '또는 직접 선택' 바로 아래로 이설. */}
             </div>
           )}
         </div>
@@ -2088,7 +2095,7 @@ export default function Teardown() {
                           <div style={{ flex: 1, minWidth: 0 }}>
                             {it.t === "u" ? (<>
                               <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                                <span style={{ fontFamily: MONO, fontSize: 15, fontWeight: 700, color: C.text }}>{u.type}</span>
+                                <span style={{ fontFamily: MONO, fontSize: 17, fontWeight: 700, color: C.text }}>{u.type}</span>
                                 <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>워크플로우 {u.id}번 노드</span>
                               </div>
                               {(u.repo || u.clone_url) ? (() => {
@@ -2127,7 +2134,7 @@ export default function Teardown() {
                   {installStep && (<>
                   <div style={{ fontSize: 15, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>이 노드들을 ComfyUI custom_nodes 폴더에 설치하세요. 해당 폴더에서 git clone (또는 Manager의 Git URL 설치).</div>
 
-                  <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
+                  <div style={{ fontSize: 17, fontWeight: 500, color: C.text, marginTop: 14, marginBottom: 6 }}>custom_nodes 폴더 찾기</div>
                   <div style={{ fontSize: 13, color: C.faint, marginBottom: 8, lineHeight: 1.5 }}>내 설치 유형에 맞는 경로를 탐색기/터미널 주소창에 붙여넣으세요.</div>
                   <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "12px 12px", fontSize: 13, color: C.dim, lineHeight: 1.6 }}>
                     {[
@@ -2147,7 +2154,7 @@ export default function Teardown() {
                   <div style={{ marginTop: 8, fontSize: 14, color: C.dim, lineHeight: 1.5 }}>※ macOS/Linux Desktop 앱은 설치 경로가 다를 수 있습니다. 앱 설정에서 ComfyUI 경로를 확인하세요.</div>
 
                   <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginTop: 30, marginBottom: 12 }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 A. 직접</div>
+                    <div style={{ fontSize: 17, fontWeight: 500, color: C.text, marginTop: 4, marginBottom: 8 }}>방법 A. 직접</div>
                     <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>custom_nodes 폴더에서 우클릭해 Git Bash Here(또는 터미널)를 열고, 아래 명령을 붙여넣으세요:</div>
                     <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
                       <button className="td-copy" onClick={() => copy(installStep.command, "nd-install")} title="전체 복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
@@ -2158,7 +2165,7 @@ export default function Teardown() {
                   </div>
 
                   <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px" }}>
-                    <div style={{ fontSize: 15, fontWeight: 700, color: C.text, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
+                    <div style={{ fontSize: 17, fontWeight: 500, color: C.text, marginTop: 4, marginBottom: 8 }}>방법 B. 자동 스크립트</div>
                     <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 18 }}>아래 스크립트를 custom_nodes 폴더에 넣고 실행하면 노드팩이 일괄 설치됩니다 (초보자 권장 · 반드시 custom_nodes 폴더 안에서 실행).</div>
                     <div style={{ display: "flex", gap: 10, alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
                       <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> install.bat (Windows)</button>
@@ -2338,20 +2345,22 @@ export default function Teardown() {
 
           {/* ══ Bypassed — bypass·음소거된 노드 목록. 고정 헤더(SectionTitle) + 라운드박스 + 번호 행(우측 +/- · 기본 닫힘). 콘텐츠 1개여도 동일 문법 유지. ══ */}
           {report.structSummary?.inactive?.length > 0 && (() => { const inact = report.structSummary.inactive; return (
-            <div style={{ marginTop: 29, paddingBottom: 48 }}>
+            <div id="bypassed-section" style={{ marginTop: 29, paddingBottom: 48, scrollMarginTop: 16 }}>
               <SectionTitle>Bypassed</SectionTitle>
               <div style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 18, padding: "18px 34px", overflow: "hidden" }}>
                 <NumRow num={1} first title="비활성 노드 목록" open={open.bp1} onToggle={() => toggle("bp1")}>
                   <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6, marginBottom: 12 }}>현재 꺼져 있어(우회·음소거) 실행되지 않는 노드입니다. 의도한 설정인지 확인해 주세요.</div>
-                  {/* 6(정정): 1열 + 행 구분선 표. 노드명(본문) + 상태·그룹(dim 우측). 그룹은 짧은 라벨만(문장·메모·판정불가는 미표기, 날조 금지). 중복(노드명+그룹) 병합. 2열은 전체 현황 요약으로 이설. */}
-                  {(() => { const seen = new Set(); const items = []; for (const n of inact) { const key = `${n.type}|${n.group || ""}`; if (seen.has(key)) continue; seen.add(key); items.push(n); } const okGroup = (g) => g && g.trim().length > 0 && g.trim().length <= 28; return (
+                  {/* 4(4차): 비활성 상세는 여기 1곳. 1열 행 구분선 표(노드명 + 상태·그룹 dim 우측). 그룹은 짧은 라벨만(문장·메모·판정불가 미표기·날조 금지). 끊김 경고(⚠)를 전체 현황에서 흡수 — 해당 행 부속(dim amber). 중복 없음(노드별 1행 → 현황 집계 N과 일치). */}
+                  {(() => { const okGroup = (g) => g && g.trim().length > 0 && g.trim().length <= 28; return (
                     <div style={{ borderTop: `1px solid ${C.divider}` }}>
-                      {items.map((n, i) => (
-                        <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 14, padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
-                          <span style={{ fontFamily: SANS, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.5, minWidth: 0 }}>{n.type}</span>
-                          <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, flexShrink: 0, textAlign: "right", lineHeight: 1.5 }}>{n.mode === 4 ? "우회" : "음소거"}{okGroup(n.group) ? ` · ${n.group.trim()}` : ""}</span>
-                        </div>
-                      ))}
+                      {inact.map((n, i) => { const brk = report.bypassBreaks.find((b) => String(b.id) === String(n.id)); return (
+                        <div key={i} style={{ padding: "10px 0", borderTop: i > 0 ? `1px solid ${C.divider}` : "none" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 14 }}>
+                            <span style={{ fontFamily: SANS, fontSize: 14, color: C.text, overflowWrap: "anywhere", lineHeight: 1.5, minWidth: 0 }}>{n.type}</span>
+                            <span style={{ fontFamily: SANS, fontSize: 13, color: C.dim, flexShrink: 0, textAlign: "right", lineHeight: 1.5 }}>{n.mode === 4 ? "우회" : "음소거"}{okGroup(n.group) ? ` · ${n.group.trim()}` : ""}</span>
+                          </div>
+                          {brk && <div style={{ marginTop: 4, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ 연결 경로 중간에 있습니다. 뒤 노드{brk.targets.length ? ` (${brk.targets.join(", ")})` : ""} 입력이 끊길 수 있습니다.</div>}
+                        </div>); })}
                     </div>); })()}
                 </NumRow>
               </div>
@@ -2538,25 +2547,13 @@ export default function Teardown() {
                 })()
               )}</div>
 
-              <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, marginTop: 36, paddingTop: 28, borderTop: `1px solid ${C.divider}` }}>비활성 노드 <span style={{ color: C.faint, fontWeight: 400 }}>· {report.muted.length}개</span></div>
-              <div style={{ fontSize: 13, color: C.faint, marginTop: 4, lineHeight: 1.5 }}>꺼졌거나(muted) 우회된(bypass) 노드입니다. 의도한 게 아니라면 점검 대상.</div>
-              {/* 6: 비활성 노드 요약 = 2열 그리드(.td-col2, ≤560px 1열) — 원래 의도 대상. 셀 = 노드명 + 상태(bypass/muted) + (안 써도 됨). 끊김 경고는 셀 부속. */}
-              <div style={{ marginTop: 16 }}>{(
-                report.muted.length === 0 ? <Empty text="muted/bypass된 노드가 없습니다." /> : (
-                  <div className="td-col2">
-                    {report.muted.map((m) => {
-                      const brk = report.bypassBreaks.find((b) => String(b.id) === String(m.id));
-                      const ign = isIgnorableNode(m.type);
-                      return (
-                      <div key={m.id} style={{ minWidth: 0 }}>
-                        <div style={{ display: "flex", alignItems: "baseline", gap: 8, minWidth: 0, flexWrap: "wrap" }}>
-                          <ChevronRight size={16} color={ign ? C.faint : C.amber} style={{ flexShrink: 0, alignSelf: "center" }} /><span style={{ fontFamily: MONO, fontSize: 16, color: ign ? C.faint : C.text, overflowWrap: "anywhere" }}>{m.type}</span><span style={{ fontFamily: MONO, fontSize: 13, color: C.faint, flexShrink: 0 }}>{m.mode === 4 ? "bypass" : "muted"}</span>{ign && <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint, flexShrink: 0 }}>· 안 써도 됨</span>}
-                        </div>
-                        {brk && <div style={{ marginTop: 4, paddingLeft: 24, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ {m.mode === 4 ? "bypass" : "muted"}라 뒤 노드{brk.targets.length ? ` (${brk.targets.join(", ")})` : ""} 입력이 끊길 수 있습니다.</div>}
-                      </div>);
-                    })}
-                  </div>)
-              )}</div>
+              {/* 4(4차): 비활성 노드는 집계 1줄만(상세 목록·끊김 경고는 Bypassed 1곳). 중복 노출 제거. */}
+              <div style={{ marginTop: 36, paddingTop: 28, borderTop: `1px solid ${C.divider}` }}>
+                {report.muted.length === 0 ? (
+                  <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim }}>비활성 노드 <span style={{ color: C.faint, fontWeight: 400 }}>· 없음</span></div>
+                ) : (() => { const byp = report.muted.filter((m) => m.mode === 4).length; const mut = report.muted.length - byp; return (
+                  <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, lineHeight: 1.6 }}><span style={{ fontWeight: 700 }}>비활성 노드 {report.muted.length}개</span> <span style={{ color: C.faint }}>(우회 {byp} · 음소거 {mut})</span> · 상세는 <a href="#bypassed-section" onClick={openBypassed} style={{ color: C.point, textDecoration: "underline", cursor: "pointer" }}>Bypassed 섹션</a></div>); })()}
+              </div>
               {report.ignorable.length > 0 && (
                 <div style={{ marginTop: 20, fontSize: 13, color: C.faint, lineHeight: 1.5 }}>
                   import 경고 무시 가능: <span style={{ fontFamily: MONO, color: C.dim }}>{report.ignorable.join(", ")}</span>. 이 노드를 안 쓰면 시작 로그의 빨간 import 에러는 무시해도 됩니다.
