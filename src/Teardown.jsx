@@ -2158,10 +2158,19 @@ export default function Teardown() {
                   <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginTop: 30, marginBottom: 12 }}>
                     <div style={{ fontSize: 17, fontWeight: 500, color: C.text, marginTop: 4, marginBottom: 8 }}>방법 A. 직접</div>
                     <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>custom_nodes 폴더에서 우클릭해 Git Bash Here(또는 터미널)를 열고, 아래 명령을 붙여넣으세요:</div>
-                    <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
-                      <button className="td-copy" onClick={() => copy(installStep.command, "nd-install")} title="전체 복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                        {copiedKey === "nd-install" ? <Check size={16} /> : <Copy size={16} />}</button>
-                      <pre style={{ margin: 0, fontFamily: MONO, fontSize: 13, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.7, paddingRight: 32 }}>{installStep.command}</pre>
+                    {/* 복사 단위 = 값 행 하나. 각 git clone 명령을 행으로 분해, 행 우측 끝 복사 아이콘(custom_nodes 경로 찾기와 동일 행 문법). 박스 우측 상단은 전체 복사 유지. */}
+                    <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "6px 13px" }}>
+                      <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 0 2px" }}>
+                        <button className="td-copy" onClick={() => copy(installStep.command, "nd-install")} title="모든 명령을 한 번에 복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: SANS, fontSize: 13, fontWeight: 600 }}>
+                          {copiedKey === "nd-install" ? <Check size={14} /> : <Copy size={14} />} 전체 복사</button>
+                      </div>
+                      {installStep.command.split("\n").filter((l) => l.trim()).map((cmd, ci) => (
+                        <div key={ci} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${C.divider}` }}>
+                          <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 13.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.5 }}>{cmd}</code>
+                          <button className="td-copy" onClick={() => copy(cmd, `nd-clone-${ci}`)} title="이 명령만 복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+                            {copiedKey === `nd-clone-${ci}` ? <Check size={14} /> : <Copy size={14} />}</button>
+                        </div>
+                      ))}
                     </div>
                     {installStep.warn && <div style={{ marginTop: 7, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ {installStep.warn}</div>}
                   </div>
