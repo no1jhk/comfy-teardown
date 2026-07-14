@@ -764,6 +764,7 @@ function buildBriefing(report, errlog, env) {
   L.push(`|---|---|---|---|`);
   L.push(`② 실행 블록: 항목 번호별로 복사해 실행할 명령·경로·변경값만 코드블록으로. 설명문은 코드블록 위 1줄로 제한.`);
   L.push(`확신 없는 항목은 표의 "조치" 열에 "확인 필요" + 유력 후보·근거를 1줄로. 없는 URL·파일은 지어내지 마세요.`);
+  L.push(`답변은 ComfyUI만 쓰는 비개발자 기준으로 작성해 주세요. 터미널·PowerShell 명령은 GUI 대안(ComfyUI-Manager 설치, 탐색기 파일 이동, 브라우저 다운로드)이 없을 때만 제시하고, 명령을 줄 때는 어디에 붙여넣는지(실행 위치·프로그램명)까지 안내해 주세요.`);
   L.push(`캡처 이미지를 따로 첨부한 경우, 이미지 속 빨간 노드와 위 구조 데이터를 대조해 판단하세요.`);
   L.push(``);
   L.push(`## 워크플로우 구조 (대상: ${report.source})`);
@@ -980,6 +981,27 @@ function DetailSub({ title, first, children }) {
     <div style={{ marginTop: first ? 0 : 24, paddingTop: first ? 0 : 24, borderTop: first ? "none" : `1px solid ${C.divider}` }}>
       {title && <div style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.dim, letterSpacing: "0.02em", marginBottom: 16 }}>{title}</div>}
       {children}
+    </div>
+  );
+}
+
+// 복사 단위 = 값 행. 여러 줄 값(명령·URL·경로)을 줄 단위 값 행으로 분해, 행 우측 끝 복사 아이콘 + 박스 우측 상단 "전체 복사".
+// "박스 + 우측 상단 복사" 패턴 전 화면 단일 문법(방법 A clone·AI 결과 명령 등). 아이콘 클릭 = 그 줄만 클립보드(개행·안내 미포함). copy·copiedKey는 상위 상태(피드백 기존 방식).
+function CopyRows({ text, keyBase, copy, copiedKey }) {
+  const lines = String(text || "").split("\n").filter((l) => l.trim());
+  return (
+    <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "6px 13px" }}>
+      <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 0 2px" }}>
+        <button className="td-copy" onClick={() => copy(text, `${keyBase}-all`)} title="모든 줄을 한 번에 복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: SANS, fontSize: 13, fontWeight: 600 }}>
+          {copiedKey === `${keyBase}-all` ? <Check size={14} /> : <Copy size={14} />} 전체 복사</button>
+      </div>
+      {lines.map((ln, i) => (
+        <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${C.divider}` }}>
+          <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 13.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.5 }}>{ln}</code>
+          <button className="td-copy" onClick={() => copy(ln, `${keyBase}-${i}`)} title="이 줄만 복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
+            {copiedKey === `${keyBase}-${i}` ? <Check size={14} /> : <Copy size={14} />}</button>
+        </div>
+      ))}
     </div>
   );
 }
@@ -1521,6 +1543,8 @@ export default function Teardown() {
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
         {(r.file || r.sub) && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.file && <span style={{ fontFamily: MONO }}>{r.file}</span>}{r.file && r.sub ? " · " : ""}{r.sub}</div>}
+        {/* 2c: 확인 필요 항목 공통 부속 — 다음 행동(LLM 진단) 안내. */}
+        {r.kind === "model" && r.badge === "확인 필요" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>LLM 진단받기로 넘기면 출처를 함께 찾아드립니다.</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.5 }}>파일은 있으나 위치가 다릅니다. 현재 <span style={{ fontFamily: MONO }}>{mis.current}</span>에 있습니다. <span style={{ fontFamily: MONO }}>{mis.required}</span> 폴더로 이동해 주세요.</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 3, lineHeight: 1.5 }}>이름이 같은 다른 모델일 수 있습니다. 이동 전 용량·출처를 확인해 주세요.</div>}
         {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
@@ -1699,13 +1723,15 @@ export default function Teardown() {
 
         {/* 환경 정보. 접이식. JSON 드롭존 아래, 결과 위. 선택사항. */}
         <div style={{ marginTop: 14 }}>
-          <button onClick={() => setEnvOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "6px 0", color: C.dim, fontFamily: SANS, fontSize: 14, fontWeight: 600 }}>
-            {envOpen ? <Minus size={15} color={C.dim} /> : <Plus size={15} color={C.dim} />}
-            <span>내 환경 정보 (선택)</span>
-            {(env.gpu || env.torch || env.cuda || env.modelRoot) && !envOpen && (
-              <span style={{ fontSize: 13, color: C.point, fontWeight: 400, marginLeft: 4 }}>
-                {[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot && `경로: ${env.modelRoot}`].filter(Boolean).join(" · ")}
-              </span>
+          {/* 2: 접힌 헤더를 상태 표시기로 승격. '(선택)' 삭제. 미입력=완화 경고(amber, 신규 토큰 없음)·입력=환경 요약을 헤더 본문 크기(15)로 강조. */}
+          <button onClick={() => setEnvOpen((v) => !v)} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "6px 0", width: "100%", textAlign: "left", flexWrap: "wrap" }}>
+            {envOpen ? <Minus size={15} color={C.dim} style={{ flexShrink: 0, marginTop: 3 }} /> : <Plus size={15} color={C.dim} style={{ flexShrink: 0, marginTop: 3 }} />}
+            {envOpen ? (
+              <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>내 환경 정보</span>
+            ) : (env.gpu || env.torch || env.cuda || env.modelRoot) ? (
+              <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.5, minWidth: 0, overflowWrap: "anywhere" }}>내 환경 정보 <span style={{ color: C.point }}>{[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot].filter(Boolean).join(" · ")}</span></span>
+            ) : (
+              <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.amber, lineHeight: 1.5, minWidth: 0 }}>내 환경 정보 미입력 <span style={{ color: C.dim, fontWeight: 400 }}>· 보유 파일 대조를 건너뜁니다. 입력하면 이미 가진 파일을 걸러 드립니다.</span></span>
             )}
           </button>
           {envOpen && (
@@ -1946,6 +1972,14 @@ export default function Teardown() {
             </div>
             )}
 
+            {/* 2b: 진단 기준 환경 요약 한 줄 재노출(환경정보 헤더와 동일 요약). 미입력이면 보유 대조 생략 안내. */}
+            {rxTodos.length > 0 && (() => { const summary = [env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot].filter(Boolean).join(" · "); return (
+              <div style={{ marginBottom: 16, fontSize: 15, lineHeight: 1.55 }}>
+                {summary
+                  ? <span style={{ color: C.dim }}>이 진단은 아래 환경 기준입니다: <span style={{ color: C.point, fontWeight: 600 }}>{summary}</span></span>
+                  : <span style={{ color: C.dim }}>환경정보가 없어 보유 대조를 건너뛰었습니다. 입력하면 이미 가진 파일을 체크로 걸러드립니다.</span>}
+              </div>); })()}
+
             {/* 당장 할 일. 액션 테이블(동사 선행). 근거는 각 행 "근거" 접이. 총론은 아래 판단 기준 안내. 5: 처방 다시 보기 토글 제거 → 상시 노출. */}
             {rxTodos.length > 0 && (
               <div style={{ background: C.surface, border: SOLUTION_STROKE, borderRadius: 14, overflow: "hidden", marginBottom: 16 }}>
@@ -2158,20 +2192,8 @@ export default function Teardown() {
                   <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "14px 18px", marginTop: 30, marginBottom: 12 }}>
                     <div style={{ fontSize: 17, fontWeight: 500, color: C.text, marginTop: 4, marginBottom: 8 }}>방법 A. 직접</div>
                     <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 10 }}>custom_nodes 폴더에서 우클릭해 Git Bash Here(또는 터미널)를 열고, 아래 명령을 붙여넣으세요:</div>
-                    {/* 복사 단위 = 값 행 하나. 각 git clone 명령을 행으로 분해, 행 우측 끝 복사 아이콘(custom_nodes 경로 찾기와 동일 행 문법). 박스 우측 상단은 전체 복사 유지. */}
-                    <div style={{ background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "6px 13px" }}>
-                      <div style={{ display: "flex", justifyContent: "flex-end", padding: "4px 0 2px" }}>
-                        <button className="td-copy" onClick={() => copy(installStep.command, "nd-install")} title="모든 명령을 한 번에 복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 5, fontFamily: SANS, fontSize: 13, fontWeight: 600 }}>
-                          {copiedKey === "nd-install" ? <Check size={14} /> : <Copy size={14} />} 전체 복사</button>
-                      </div>
-                      {installStep.command.split("\n").filter((l) => l.trim()).map((cmd, ci) => (
-                        <div key={ci} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${C.divider}` }}>
-                          <code style={{ flex: 1, minWidth: 0, fontFamily: MONO, fontSize: 13.5, color: C.text, overflowWrap: "anywhere", lineHeight: 1.5 }}>{cmd}</code>
-                          <button className="td-copy" onClick={() => copy(cmd, `nd-clone-${ci}`)} title="이 명령만 복사" style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "inline-flex", alignItems: "center", flexShrink: 0 }}>
-                            {copiedKey === `nd-clone-${ci}` ? <Check size={14} /> : <Copy size={14} />}</button>
-                        </div>
-                      ))}
-                    </div>
+                    {/* 복사 단위 = 값 행(명령 하나씩). CopyRows 단일 문법(전 화면 공통). */}
+                    <CopyRows text={installStep.command} keyBase="nd-clone" copy={copy} copiedKey={copiedKey} />
                     {installStep.warn && <div style={{ marginTop: 7, fontSize: 13, color: C.amber, lineHeight: 1.45 }}>⚠ {installStep.warn}</div>}
                   </div>
 
@@ -2780,10 +2802,9 @@ export default function Teardown() {
                       </div>
                     )}
                     {aiResult.command && (
-                      <div style={{ marginTop: 18, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", position: "relative" }}>
-                        <button className="td-copy" onClick={() => copy(aiResult.command, "ai-cmd")} title="복사" style={{ position: "absolute", top: 8, right: 8, background: "transparent", border: "none", color: C.point, padding: 4, cursor: "pointer", display: "inline-flex", alignItems: "center" }}>
-                          {copiedKey === "ai-cmd" ? <Check size={16} /> : <Copy size={16} />}</button>
-                        <pre style={{ margin: 0, fontFamily: MONO, fontSize: 13, color: C.text, whiteSpace: "pre-wrap", overflowWrap: "anywhere", lineHeight: 1.6, paddingRight: 32 }}>{aiResult.command}</pre>
+                      <div style={{ marginTop: 18 }}>
+                        {/* 복사 단위 = 값 행(명령 줄 하나씩). CopyRows 단일 문법. */}
+                        <CopyRows text={aiResult.command} keyBase="ai-cmd" copy={copy} copiedKey={copiedKey} />
                       </div>
                     )}
                     <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.divider}`, display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
