@@ -6,6 +6,15 @@
 
 ---
 
+## 2026-07-14 (로그 블록 부재 피드백 + 크기 이상 파일 명시 + 파서 오탐 수리)
+**한 일** — 커밋 5cfbdf3.
+- **수리1 로그 상태 3분기**: 로그를 붙여넣어도 Import 블록이 없으면 왜 안 걸러지는지 몰랐던 문제. logEnv에 `logProvided`·`hasImportBlock` 플래그 추가(parseComfyLog 기존 감지 규칙을 병합 텍스트에 재적용, 파싱 로직 무변). (a)로그 미유입=현행 힌트 / (b)로그 유입+Import 블록 없음=교체 힌트 "붙여넣은 로그에 노드 설치 목록이 없습니다. 시작 로그 앞부분의 Import times for custom nodes 블록까지 포함해 주세요" / (c)블록 성공=현행(걸러냄+이미 설치됨).
+- **수리2 크기 이상 파일 명시**: 폴더 대조 corrupt를 개수만("크기 이상 1개") → 파일별 인라인 "{파일명} · 보유 {실제} / 기대 {카탈로그} · 삭제 후 재다운로드 권장"(복수 전부). fmtBytes 헬퍼(소용량 KB/B).
+- **선행 수리(조사로 발견)**: parseFolderScan이 파일명 속 "3_4b"·"7b" 토큰을 단위(4B·7B)로 오인 → qwen_3_4b(7.49GB)·seedvr2_7b(16.5GB) 등 멀쩡한 파일이 corrupt 오판정("삭제 후 재다운로드" 오발화). 크기를 파일명 밖(크기 열)에서만 파싱하도록 수리. 실측: 수리 전 4·7 → 수리 후 7490000000·16500000000.
+**검증** — build 0 · smoke · e2e 15/15 · regression. 하네스 12/12(로그 3분기 a/b/c·정상용량 corrupt 오탐 없음·깨진 파일 137KB 명시). em dash UI 0.
+**판단(태스크 지시 점검)** — 태스크가 지시한 "MB/MiB 단위 통일 여부" 점검 결과: corrupt는 실측<기대의 10% 임계라 MB↔MiB(약 4.9%)·GB↔GiB(약 7.4%) 단위 차이는 오탐을 못 만듦(무해). 진짜 오탐은 단위 문제가 아니라 파서의 파일명 토큰 오인이었고, 이를 선행 수리로 해소.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-14 (z-image 계열 등재 + 파일명 표기 변형 정규화 매칭)
 **한 일** — 커밋 2건 분리.
 - **커밋① 71d8c27 (z-image 등재)**: model_catalog에 `zimage` family 5파일. bf16·qwen_3_4b·ae는 Comfy-Org/z_image_turbo split_files 확정, z-image-Q3_K_M.gguf는 unsloth/Z-Image-GGUF(무증류 base·ComfyUI-GGUF 필요). fp8_e4m3fn은 원 배포처 미상 → `confidence:"unsourced"` + `alt_of` 신설: 확정 대체 bf16을 promoted로 안내(추정 후보 뱃지·자체 다운로드 없음), Ampere fp8 출력 글리치 실측 note. ae는 generic 파일명(Flux 공유) → `weak` 플래그로 워크플로우 제작자 노트 있으면 양보(회귀 'r ae workflow_author' 수리), 없으면 confirmed. modelPlan: unsourced·weak 분기 + promoted `originLabel`(자리표시자/출처 미상/VRAM 구분) → 렌더 통일.
