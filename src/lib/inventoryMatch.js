@@ -42,15 +42,17 @@ export function parseFolderScan(text) {
     const segs = fileTok.split("/").filter(Boolean);
     const filename = segs[segs.length - 1].toLowerCase();
     const folder = segs.length > 1 ? segs[segs.length - 2].toLowerCase() : "";
-    // 크기: 단위형(TB/GB/MB/KB/B) 우선, 없으면 파일 토큰 제거 후 4자리+ 정수(바이트)의 최댓값.
+    // 크기: 크기 열(파일명 밖)에서만 파싱. 파일 토큰을 먼저 제거해 파일명 내 "3_4b"·"7b" 등이
+    // 단위(4B·7B)로 오인돼 극소 용량 → corrupt 오판정되는 것을 방지. 단위형(TB/GB/MB/KB/B) 우선, 없으면 4자리+ 정수(바이트) 최댓값.
     let size = null;
-    const um = norm.match(/(\d[\d,]*(?:\.\d+)?)\s*(TB|GB|MB|KB|B)\b/i);
+    const sizePart = norm.replace(fileTok, " ");
+    const um = sizePart.match(/(\d[\d,]*(?:\.\d+)?)\s*(TB|GB|MB|KB|B)\b/i);
     if (um) {
       const v = parseFloat(um[1].replace(/,/g, "")); const u = um[2].toUpperCase();
       const mult = u === "TB" ? 1e12 : u === "GB" ? 1e9 : u === "MB" ? 1e6 : u === "KB" ? 1e3 : 1;
       size = Math.round(v * mult);
     } else {
-      const nums = (norm.replace(fileTok, "").match(/\d{4,}/g) || []).map(Number);
+      const nums = (sizePart.match(/\d{4,}/g) || []).map(Number);
       if (nums.length) size = Math.max(...nums);
     }
     const prev = inv.get(filename);

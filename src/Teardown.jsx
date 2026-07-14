@@ -81,6 +81,14 @@ function fmtSize(gb) {
   if (typeof gb !== "number" || !(gb > 0)) return null;
   return gb < 1 ? `${Math.round(gb * 1000)}MB` : `${gb}GB`;
 }
+// 바이트 → 사람 단위(십진). 깨진 파일의 소용량(KB·B)도 표시(fmtSize는 GB<1을 MB로만 내려 0MB로 뭉갬).
+function fmtBytes(b) {
+  if (typeof b !== "number" || !(b > 0)) return "확인 불가";
+  if (b >= 1e9) return `${(b / 1e9).toFixed(1)}GB`;
+  if (b >= 1e6) return `${Math.round(b / 1e6)}MB`;
+  if (b >= 1e3) return `${Math.round(b / 1e3)}KB`;
+  return `${b}B`;
+}
 // model_sizes.json → 알려진 정상 용량(GB). 정확 일치만(오판 방지). 모르면 null.
 function knownModelSize(file) {
   const stem = file.replace(/\\/g, "/").split("/").pop().replace(/\.[^.]+$/, "").toLowerCase();
@@ -1280,11 +1288,15 @@ export default function Teardown() {
   // 실PC 패배 원인: 콘솔 로그를 파싱하는 env 박스는 접힌 아코디언에 숨어, 사용자는 눈에 띄는 에러 로그 박스에 붙여넣지만 그건 설치 인식을 안 했음. 어디에 붙여도 인식되게 병합.
   const logEnv = React.useMemo(() => {
     const fromErr = errlog && errlog.trim() ? parseComfyLog(errlog) : { installedPacks: [], importFailed: [] };
+    // 수리1: 로그 상태 3분기용 — 로그 유입 여부 + Import 블록 존재(parseComfyLog가 이미 쓰는 감지 규칙을 병합 텍스트에 재적용). 파싱 로직 무변.
+    const anyText = `${envLog || ""}\n${errlog || ""}`;
     return {
       installedPacks: [...new Set([...(env.installedPacks || []), ...fromErr.installedPacks])],
       importFailed: [...new Set([...(env.importFailed || []), ...fromErr.importFailed])],
+      logProvided: !!((envLog && envLog.trim()) || (errlog && errlog.trim())),
+      hasImportBlock: /Import times for custom nodes/i.test(anyText),
     };
-  }, [env.installedPacks, env.importFailed, errlog]);
+  }, [env.installedPacks, env.importFailed, errlog, envLog]);
 
   // 붙여넣은 로그 감지 요약 + 불완전(잘림) 감지. 사용자가 뭘 읽어냈는지·재복사 필요한지 즉시 판단하게.
   const logInfo = React.useMemo(() => {
@@ -1449,7 +1461,11 @@ export default function Teardown() {
       const noRegMsg = noReg ? ` ${noReg}개는 Manager에 없는 팩이라 install.bat로 직접 설치해 주세요.` : "";
       // clone 인라인 뷰(보조 동선): 각 nodegroup의 git clone 전문. install.bat 다운로드가 주 동선.
       const clones = inst.map((t) => { const g = t.g; const cloneUrl = g.clone_url || (g.repo ? (g.repo.startsWith("https://") ? g.repo.replace(/\/?$/, ".git") : `https://github.com/${g.repo}.git`) : null); return { name: (g.repo || g.clone_url || "").replace(/\.git$/, "").split("/").pop(), cloneUrl }; }).filter((c) => c.cloneUrl);
-      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install", clones, file: "install.bat", logHint: !logEnv.installedPacks.length, installedNames });
+      const noInst = !logEnv.installedPacks.length;
+      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install", clones, file: "install.bat",
+        logHint: noInst && !logEnv.logProvided,                                     // (a) 로그 미유입
+        logMissingBlock: noInst && logEnv.logProvided && !logEnv.hasImportBlock,    // (b) 로그 유입 + Import 블록 없음
+        installedNames });
     }
     // 확인 — 로그의 missing_node_type. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행 최종 연번은 rxGroups에서 해소).
     const wfTypes2 = new Set((report?.nodeTypes || []).map((t) => t.toLowerCase())), wfIds2 = new Set(report?.nodeIds || []);
@@ -1492,7 +1508,7 @@ export default function Teardown() {
     // o: 실행 행 완결화 — 재시작 안내 각주·에러 로그 링크를 이 행의 부속 줄로 편입(별도 각주·배너 링크 제거).
     rows.push({ rid: ++rid, verb: "실행", text: "큐를 실행해 주세요.", kind: "run", restartNote: "모든 항목을 마쳤다면 ComfyUI를 완전히 재시작한 뒤 워크플로우를 다시 열어 주세요. 빨간 노드가 남아 있지 않으면 정상입니다.", diagLink: true });
     return rows;
-  }, [rxTodos, logEnv.installedPacks, errlog, plan, coreCheck, report, env.modelRoot, env.basePath, env.customNodesPath, reconcile?.heldSet]);
+  }, [rxTodos, logEnv.installedPacks, logEnv.logProvided, logEnv.hasImportBlock, errlog, plan, coreCheck, report, env.modelRoot, env.basePath, env.customNodesPath, reconcile?.heldSet]);
 
   // UX2 솔루션 필터링 + 넘버링 최종 부여.
   // 주노출(실행 차단): 로그 거부값·깨진 노드·설치·디스크·버전 + 대조 미보유 받기. 이미 있음(dim ✓, 하단) / 참고·미확정(접기2). 판정 근거 없으면 전량 순서 노출(현행).
@@ -1552,6 +1568,8 @@ export default function Teardown() {
         {r.kind === "install" && r.installedNames?.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>이미 설치됨: {r.installedNames.map((n, i) => <span key={i}>{i > 0 ? ", " : ""}<span style={{ fontFamily: MONO }}>{n}</span></span>)}</div>}
         {/* 작업1: 로그 미유입 시 노드 대조 유도(모델 폴더 스캔 유도와 평행 톤). */}
         {r.kind === "install" && r.logHint && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>ComfyUI 시작 로그를 붙여넣으면 이미 설치된 노드팩은 걸러 드립니다.</div>}
+        {/* 수리1(b): 로그는 있으나 Import 블록이 없어 대조 불가. 무엇을 더 붙여야 하는지 명시. */}
+        {r.kind === "install" && r.logMissingBlock && <div style={{ fontFamily: SANS, fontSize: 14, color: C.point, marginTop: 4, lineHeight: 1.5 }}>붙여넣은 로그에 노드 설치 목록이 없습니다. 시작 로그 앞부분의 "Import times for custom nodes" 블록까지 포함해 주세요.</div>}
         {/* 2c: 확인 필요 항목 공통 부속 — 다음 행동(LLM 진단) 안내. */}
         {r.kind === "model" && r.badge === "확인 필요" && !r.planItem?.placeholder && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>LLM 진단받기로 넘기면 출처를 함께 찾아드립니다.</div>}
         {/* 작업3-1·3-2: 자리표시자 발화(휴리스틱 또는 카탈로그 note). 웹검색 대신 계열 안내·드롭다운 직접 선택 유도. */}
@@ -1931,18 +1949,23 @@ export default function Teardown() {
                   const total = reconcile.results.length;
                   const found = reconcile.heldSet.size;
                   const misN = reconcile.results.filter((r) => r.misplaced).length;
-                  const corrN = reconcile.results.filter((r) => r.corrupt).length;
+                  const corruptFiles = reconcile.results.filter((r) => r.corrupt);
+                  const corrN = corruptFiles.length;
                   let msg;
                   if (reconcile.complete) msg = `${found}/${total}개 확인됨.${summary?.envComplete ? "" : " 필요한 모델을 모두 가지고 있습니다."}`;
                   else if (found === 0 && misN === 0) msg = `0/${total}개 확인됨. 필요한 모델이 목록에 없습니다. 아래 받기 항목을 진행해 주세요.`;
                   else msg = `${found}/${total}개 확인됨. 아래 목록에서 이미 있음 표시(✓)를 확인해 주세요. 나머지는 받기 항목에 있습니다.`;
-                  return (
+                  return (<>
                     <div style={{ fontSize: 13, marginTop: 7, lineHeight: 1.5, color: reconcile.complete ? C.green : C.point }}>
                       {msg}
                       {misN > 0 && <span style={{ color: C.memoBright }}> · 위치 다름 {misN}개(아래 이동 안내 참고)</span>}
                       {corrN > 0 && <span style={{ color: C.red }}> · 크기 이상(파일 깨짐 의심) {corrN}개</span>}
                     </div>
-                  );
+                    {/* 수리2: 크기 이상 파일 명시(개수만 → 파일별 보유/기대 용량 + 행동). 복수면 전부. */}
+                    {corrN > 0 && <div style={{ marginTop: 6, display: "flex", flexDirection: "column", gap: 4 }}>
+                      {corruptFiles.map((r, i) => <div key={i} style={{ fontSize: 13, color: C.red, lineHeight: 1.5 }}><span style={{ fontFamily: MONO }}>{r.file}</span> · 보유 {fmtBytes(r.parsedSize)} / 기대 {r.expected || "확인 불가"} · 삭제 후 재다운로드 권장</div>)}
+                    </div>}
+                  </>);
                 })()}
               </div>
 
