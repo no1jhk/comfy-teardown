@@ -155,5 +155,63 @@ async function bundleEntry(entry, tmpName) {
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
 }
 
+// ── D. 감사 대응 렌더 경로: promoted+대체보유(altHeld) 재선택 안내·배너 금지 + Log path 대안 (커밋 dbd6a2f) ──
+{
+  const { JSDOM, VirtualConsole } = await import("jsdom");
+  let caught = null;
+  const vc = new VirtualConsole(); vc.on("jsdomError", (e) => { caught = (e && e.detail) || e; });
+  const dom = new JSDOM(`<!DOCTYPE html><body><div id="root"></div></body>`, { url: "http://localhost/", pretendToBeVisual: true, virtualConsole: vc });
+  const w = dom.window;
+  w.Element.prototype.scrollIntoView = function () {};
+  try { Object.defineProperty(globalThis.navigator, "clipboard", { value: { writeText: () => Promise.resolve() }, configurable: true }); } catch { /* noop */ }
+  w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  globalThis.window = w; globalThis.document = w.document; globalThis.location = w.location;
+  globalThis.localStorage = w.localStorage; globalThis.matchMedia = w.matchMedia;
+  globalThis.FileReader = w.FileReader; globalThis.File = w.File; globalThis.Blob = w.Blob;
+  globalThis.Event = w.Event; globalThis.Node = w.Node; globalThis.HTMLElement = w.HTMLElement;
+  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
+  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+  const onErr = (e) => { caught = e && (e.error || e.reason || e); };
+  process.on("uncaughtException", onErr); process.on("unhandledRejection", onErr);
+  const setTA = (el, v) => { const s = Object.getOwnPropertyDescriptor(w.HTMLTextAreaElement.prototype, "value").set; s.call(el, v); el.dispatchEvent(new w.Event("input", { bubbles: true })); };
+  const nd = (id, type, file) => ({ id, type, pos: [0, 0], size: [1, 1], flags: {}, order: id, mode: 0, widgets_values: file != null ? [file, "default"] : [], properties: {}, inputs: [], outputs: [] });
+  const WF = JSON.stringify({ last_node_id: 9, last_link_id: 0, version: 0.4, groups: [], links: [], nodes: [nd(1, "UNETLoader", "z_image_turbo_fp8_e4m3fn.safetensors"), nd(9, "SaveImage", null)] });
+  let tmp;
+  try {
+    tmp = await bundleEntry(`import React from "react"; import { createRoot } from "react-dom/client"; import Teardown from "./src/Teardown.jsx"; createRoot(document.getElementById("root")).render(React.createElement(Teardown)); export const ok = true;`, ".smoke-audit.mjs");
+    await import("file://" + tmp);
+    await new Promise((r) => setTimeout(r, 60));
+    const root = w.document.getElementById("root");
+    const input = w.document.querySelector('input[type="file"]');
+    Object.defineProperty(input, "files", { value: [new w.File([WF], "z.json", { type: "application/json" })], configurable: true });
+    input.dispatchEvent(new w.Event("change", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    if (caught) throw caught;
+    const envT = [...root.querySelectorAll('button[aria-label="펼치기/접기"]')].find((b) => { let p = b; for (let i = 0; i < 5 && p; i++) { if (/내 환경 정보/.test(p.textContent)) return true; p = p.parentElement; } return false; });
+    if (envT) envT.dispatchEvent(new w.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 80));
+    const logTA = [...root.querySelectorAll("textarea")].find((t) => /ComfyUI 시작 콘솔 로그/.test(t.placeholder || ""));
+    if (logTA) setTA(logTA, "** Log path: C:\\Users\\me\\ComfyUI\\user\\comfyui.log\nStarting server");
+    await new Promise((r) => setTimeout(r, 120));
+    if (/로그 파일로 대신하기/.test(root.textContent) && /comfyui\.log/.test(root.textContent)) console.log("  ✅ Log path 로그 → '로그 파일로 대신하기' 실경로 렌더");
+    else { console.log("  ❌ Log path 대안 블록 미렌더"); fail++; }
+    const altBtn = [...root.querySelectorAll("button")].find((b) => /다른 방법으로 입력/.test(b.textContent));
+    if (altBtn) altBtn.dispatchEvent(new w.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 80));
+    const scanTA = [...root.querySelectorAll("textarea")].find((t) => /실행 결과 전체를 여기에 붙여넣어/.test(t.placeholder || ""));
+    if (scanTA) setTA(scanTA, "diffusion_models\\z_image_turbo_bf16.safetensors\t12000000000");
+    await new Promise((r) => setTimeout(r, 150));
+    if (caught) throw caught;
+    const txt = root.textContent.replace(/\s+/g, " ");
+    if (/이미 있음 · 선택: UNETLoader에서 z_image_turbo_bf16\.safetensors으로 바꿔 주세요/.test(txt)) console.log("  ✅ altHeld 재선택 안내(활성) 렌더");
+    else { console.log("  ❌ altHeld 재선택 안내 미렌더"); fail++; }
+    if (!/구조상 실행 준비 완료/.test(txt) && !/필요한 모델을 모두 가지고 있습니다/.test(txt)) console.log("  ✅ 대체 보유 시 '실행 준비 완료' 오배너 금지");
+    else { console.log("  ❌ 재선택 대기인데 실행 준비 완료 오배너"); fail++; }
+    if (![...root.querySelectorAll("a")].some((a) => /z_image_turbo_bf16/.test(a.href))) console.log("  ✅ altHeld → 대체 다운로드 링크 제거");
+    else { console.log("  ❌ altHeld인데 대체 다운로드 링크 잔존"); fail++; }
+  } catch (e) { console.log(`  ❌ 감사 대응 렌더 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
+  finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
+}
+
 console.log(fail === 0 ? "✅ 렌더 스모크 통과" : `❌ 렌더 스모크 ${fail}건 실패`);
 process.exit(fail === 0 ? 0 : 1);

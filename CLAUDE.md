@@ -15,6 +15,7 @@
 2a. 모든 커밋 직전 `npm run build` 에러 0 **+** `node test/smoke.mjs`(렌더 스모크) 통과 필수. 둘 다 통과해야 커밋.
    - build: esbuild는 JSX 에러를 출력하고도 exit 0·"✓ built"로 넘어가므로 **transformed 메시지·exit code가 아니라 에러 부재로 판정**한다. tail 금지 — 빌드 전문(특히 `transforming...` 구간)에 `The character`·`is not valid`·`[plugin:vite:esbuild]` 등 에러가 한 줄이라도 있으면 커밋 금지.
    - 렌더 스모크: build가 통과해도 TDZ(파생 토큰이 기초 상수를 선언 전 참조)·제거된 setState 잔존 호출 등 런타임 크래시는 로드/조작 즉시 사망(빈 화면)이라 build로 못 잡는다. smoke 3부 — ①최상위 const 선언-전-참조 정적 스캔(TDZ) ②메인 컴포넌트 랜딩 렌더 예외 0 ③jsdom 마운트 후 파일 투입→analyze 경로 예외 0·결과 화면 진입. 파생 상수 신설·이동, useState/식별자 제거 시 특히 필수. `node test/e2e.mjs`에도 편입([15]).
+2b. 신규 로직 검증 하네스는 자가삭제 금지 — 새 판정·상태·분기를 넣으면 그 검증을 `test/regression.mjs`(데이터·순수함수) 또는 `test/smoke.mjs`(렌더 경로)에 durable 케이스로 커밋한다. 일회성 `test/_*.mjs` 자가삭제 하네스는 즉석 확인용일 뿐, 그것만으로 "검증됨"으로 커밋 금지(로직을 통째로 제거해도 게이트가 통과하면 커버 0).
 3. URL·repo·파일명 날조 절대 금지. 미확인은 "확인 필요"로 비워둠.
 4. 모든 변경 후 변경요약: 표 + 정확한 라인번호.
 5. 새 기능 심사 기준: "빨간 워크플로, 캡쳐 대신 JSON 한 번 — 한 방에"에 기여하는가.
