@@ -6,6 +6,22 @@
 
 ---
 
+## 2026-07-15 (code-auditor 신설 + 첫 감사 → 수리 5건 + 게이트 보강 + 재감사)
+**한 일** — 커밋 6991354(에이전트)·dbd6a2f(수리)·f926027(게이트).
+- **code-auditor 서브에이전트 신설**(`.claude/agents/code-auditor.md`): 구현 완료분의 적대적 검수자(지시 밖 결함 탐색). 3질문 프레임(실사용자 잔여 문제/인접 결함/검증 사각), read-only 권한(Read·Grep·Glob·Bash), 출력 [심각도·표면·재현·수리 제안], 카피 규칙 검수 포함. 커스텀 에이전트는 다음 세션부터 `subagent_type: code-auditor`로 호출(이번 세션 생성분은 미등록이라 첫 감사·재감사는 정의 주입 general-purpose로 동등 실행).
+- **첫 감사(64570fc·032c51e)**: [상] 대체 보유(altHeld) 시 complete=true→"실행 준비 완료" 오배너인데 로더는 미보유 원본 지시라 Run 사망·안내 dim 매몰 / [중] goFillEnv가 altOpen 미펼침 / [중] altHeld 크기 미검사(깨진 대체 우회) / [중하] 원본·대체 변형 무차별 병합 / [하] logPath sticky / [중] 신규 로직 테스트 커버 0.
+- **수리 5건(dbd6a2f)**: (1)altHeld를 complete·heldSet(dim) 제외·noDownloadSet(받기 제외) 분리·재선택 활성 안내 / (2)altHeld 크기 대조(altCorrupt) / (3)goFillEnv setAltOpen / (4)variant·altVariant 분리(promoted 원본변형 억제) / (5)logPath sticky 제거.
+- **게이트 보강(f926027)**: regression에 altHeld/altCorrupt/altVariant/logPath durable 케이스, smoke Part D(altHeld 렌더+Log path), CLAUDE.md 2b(자가삭제 하네스 금지).
+**재감사 결과(dbd6a2f·f926027) — 미결(사용자 판정 대기)**: 재감사가 새 발견 >하를 냄. 자동 수리 금지(보고 후 판정) 원칙에 따라 미착수.
+- **[상] 미해소**: altCorrupt가 `promoted.size` 있을 때만 크기 대조 → z-image bf16(카탈로그 size 없음)은 altExp=0으로 검사 자체가 죽어, 깨진(137KB) bf16이 여전히 altHeld로 통과(첫 감사 [중] flagship 케이스 재발). 직접 확인함(수리 2 구현 미완).
+- **[중하] altHeld 활성 행 과교정 잔존**: 행에 verb "받기"·"넣기: models/..."가 남아 "이미 있음·선택"과 행동 언어 충돌.
+- **[중하] 인접**: Models "한 번에 받기" 표(Teardown ~2346)의 두 번째 dlEligible이 noDownloadSet 미필터 → altHeld 확정 승격이 표에 다운로드 링크로 노출(처방과 불일치).
+- **[하]** 폴더 대조 요약 else 분기(found=0·altN>0) 중간 문장 사실 불일치.
+- **[중] 검증 사각**: 새 durable 커버가 null-size altCorrupt·받기/넣기 잔존·표 링크를 안 밟음.
+- **해소 확인**: [상] 오배너·dim 매몰·goFillEnv·logPath sticky·variant 과억제 우려는 해소.
+**막힌 점** — 수리 2가 flagship(z-image bf16, size 미등재) 케이스에서 미완. bf16 실측 size 등재 또는 size 미상 시 altHeld 무크기 성립 차단이 후속 수리 후보.
+**다음 할 일** — 재감사 [상]·[중하]×2·[하]·[중] 수리 판정 받기(수리 2 완성 = altCorrupt null-size 방어 + altHeld 행 verb/넣기 억제 + Models 표 dlEligible noDownloadSet 필터 + 요약 카피 + durable 커버). logPath 형식 실측(ROADMAP 단기).
+
 ## 2026-07-14 (환경정보 입력부 재설계 + 확정 대체 파일 보유 대조)
 **한 일** — 커밋 2건 분리.
 - **작업1 커밋 64570fc (환경 입력부 재구성)**: 처음 온 사용자에게 3개 폼 덩어리로 보이던 것을 로그 붙여넣기 단독으로 축소. 제목 좌측 Terminal 라인 아이콘·배지 없음·서브텍스트 교체("GPU, torch, CUDA, 설치된 노드팩을 파악합니다"). 직접 선택·폴더 대조 → "다른 방법으로 입력" 접이(altOpen, dim 부속 "직접 선택 · 폴더 대조"), 펼침 시 좌측 아이콘 SlidersHorizontal/FolderOpen. 내부 폼·명령 복사 행·대조 로직 무변, 위치만 이동. 로그 파일 대안: logParse에 logPath 추출(`** Log path: ...comfyui.log`) 추가, 실경로 확보 시에만 "로그 파일로 대신하기: {경로}" + 복사 행(미확보 시 미렌더). 기존 유지: 상태 표시기·2단계 배지·OS 토글. 본문 15px.
