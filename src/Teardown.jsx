@@ -2,7 +2,7 @@ import React, { useState, useCallback, useRef, useEffect } from "react";
 import {
   Upload, Boxes, ChevronRight, ChevronUp, GitBranch,
   CircleAlert, Copy, Check, Plus, Minus, Download,
-  Terminal, ImagePlus, X, Loader2, FolderOpen,
+  Terminal, ImagePlus, X, Loader2, FolderOpen, SlidersHorizontal,
 } from "lucide-react";
 import { LOGO } from "./assets/logo.js";
 import compat from "./data/compatibility.json";
@@ -1052,8 +1052,9 @@ export default function Teardown() {
   const [briefingBusy, setBriefingBusy] = useState(false); // 브리핑 복사 처리 중 표시(딤+스피너)
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const [envOpen, setEnvOpen] = useState(false);
+  const [altOpen, setAltOpen] = useState(false); // 작업1: 환경 '다른 방법으로 입력'(직접 선택·폴더 대조) 접이
   const [envLog, setEnvLog] = useState("");
-  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], modelRootAssembled: false, platform: "" });
+  const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], modelRootAssembled: false, platform: "", logPath: "" });
   const [folderPickMac, setFolderPickMac] = useState(false); // v: Mac·Linux 토글에서 폴더 선택 시 발화(전체 경로 직접 입력 유도)
   const [folderScan, setFolderScan] = useState(""); // P2.7: 붙여넣은 폴더 스캔 출력(내 모델 폴더 대조)
   const [scanOs, setScanOs] = useState("win");      // P2.7: 스니펫 OS 토글(win|unix)
@@ -1065,7 +1066,7 @@ export default function Teardown() {
   const onEnvLog = (text) => {
     setEnvLog(text);
     const parsed = parseComfyLog(text);
-    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, vram: parsed.vramGB ?? prev.vram, basePath: parsed.basePath || prev.basePath, customNodesPath: parsed.customNodesPath || prev.customNodesPath, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed, platform: parsed.platform || prev.platform }));
+    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, vram: parsed.vramGB ?? prev.vram, basePath: parsed.basePath || prev.basePath, customNodesPath: parsed.customNodesPath || prev.customNodesPath, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed, platform: parsed.platform || prev.platform, logPath: parsed.logPath || prev.logPath }));
   };
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);
@@ -1784,9 +1785,12 @@ export default function Teardown() {
             </div>
             {envOpen && (
               <div className="td-fade" style={{ marginTop: 16 }}>
-              {/* ① ComfyUI 로그 붙여넣기 */}
-              <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 }}>ComfyUI 로그 붙여넣기</div>
-              <div style={{ fontSize: 13, color: C.dim, marginBottom: 8, lineHeight: 1.55 }}>ComfyUI를 실행한 터미널(서버 콘솔)의 내용을 처음부터 끝까지 전체 복사해 붙여넣어 주세요. GPU·torch·CUDA는 시작 직후에 출력되므로, 뒤늦게 일부만 복사하면 앞부분이 유실됩니다. 브라우저 F12 콘솔이 아닙니다.</div>
+              {/* ① ComfyUI 로그 붙여넣기 (기본 경로, 단독 노출). 좌측 터미널 라인 아이콘. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                <Terminal size={17} color={C.dim} style={{ flexShrink: 0 }} />
+                <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>ComfyUI 로그 붙여넣기</div>
+              </div>
+              <div style={{ fontSize: 15, color: C.dim, marginBottom: 10, lineHeight: 1.55 }}>ComfyUI를 실행한 터미널(서버 콘솔)의 내용을 처음부터 끝까지 전체 복사해 붙여넣어 주세요. GPU, torch, CUDA, 설치된 노드팩을 파악합니다.</div>
               <textarea value={envLog} onChange={(e) => onEnvLog(e.target.value)} spellCheck={false}
                 placeholder="ComfyUI 시작 콘솔 로그 전체를 붙여넣으세요. GPU·경로·설치된 노드를 자동으로 읽습니다."
                 style={{ width: "100%", minHeight: 110, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 10, padding: "10px 13px", color: C.text, fontFamily: MONO, fontSize: 13, lineHeight: 1.6, resize: "vertical", boxSizing: "border-box" }} />
@@ -1812,11 +1816,32 @@ export default function Teardown() {
                   로그가 시작 단계에서 잘린 것 같습니다. ComfyUI가 완전히 켜진 뒤 전체를 다시 복사하면 설치된 노드까지 판정해 드립니다.
                 </div>
               )}
-              <div style={{ fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>콘솔에서 복사가 안 되면 아래에서 직접 선택하세요</div>
+              {/* 작업1-3: 로그 파일 대안 — 로그에서 실경로 확보(env.logPath) 시에만. 추상 안내 금지. 텍스트 파일 드래그 수용은 드롭존 JSON 전용이라 이번 범위 밖(경로+복사행만). */}
+              {env.logPath && (
+                <div style={{ marginTop: 10 }}>
+                  <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.5, marginBottom: 5 }}>로그 파일로 대신하기</div>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "8px 11px" }}>
+                    <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, flex: 1, minWidth: 0, overflowWrap: "anywhere" }}>{env.logPath}</code>
+                    <button onClick={() => copy(env.logPath, "logpath")} title="경로 복사" style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: C.point, flexShrink: 0 }}>{copiedKey === "logpath" ? <Check size={14} /> : <Copy size={14} />}</button>
+                  </div>
+                </div>
+              )}
 
-              {/* ② 직접 선택 */}
-              <div style={{ marginTop: 18, paddingTop: 16, borderTop: `1px solid ${C.divider}` }}>
-                <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 10 }}>또는 직접 선택</div>
+              {/* 작업1-2: 직접 선택·폴더 대조는 '다른 방법으로 입력' 접이로. 기본 경로(로그)와 시각 분리(marginTop 20 + 구분선). 기존 접기 문법. */}
+              <div style={{ marginTop: 20, borderTop: `1px solid ${C.divider}`, paddingTop: 14 }}>
+                <button onClick={() => setAltOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, width: "100%", textAlign: "left" }}>
+                  {altOpen ? <Minus size={15} color={C.dim} style={{ flexShrink: 0 }} /> : <Plus size={15} color={C.dim} style={{ flexShrink: 0 }} />}
+                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>다른 방법으로 입력</span>
+                  <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>직접 선택 · 폴더 대조</span>
+                </button>
+                {altOpen && (<div className="td-fade" style={{ marginTop: 14 }}>
+
+              {/* ② 직접 선택 (슬라이더 아이콘 섹션) */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+                  <SlidersHorizontal size={15} color={C.dim} style={{ flexShrink: 0 }} />
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>직접 선택</div>
+                </div>
                 <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
                   <div style={{ flex: "1 1 160px", minWidth: 140 }}>
                     <label style={{ fontSize: 13, color: C.dim, marginBottom: 4, display: "block" }}>GPU</label>
@@ -1870,8 +1895,13 @@ export default function Teardown() {
                 </div>
               )}
 
+              {/* 작업1-2: 폴더 대조 구획 헤더(좌측 폴더 아이콘). OS 토글·모델 폴더 경로·대조가 이 헤더 아래로. */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.divider}`, marginBottom: 4 }}>
+                <FolderOpen size={15} color={C.dim} style={{ flexShrink: 0 }} />
+                <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>폴더 대조</div>
+              </div>
               {/* 1: OS 토글 승격 — '내 PC 환경' 독립 줄. 경로 placeholder·드라이브 조립·대조 스니펫이 이 값(scanOs)을 상속(위치만 이동, 로직 무변). ②-c에서 이설. */}
-              <div style={{ marginTop: 16, paddingTop: 14, borderTop: `1px solid ${C.divider}` }}>
+              <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>내 PC 환경</div>
                 <div style={{ display: "flex", gap: 6 }}>
                   {[{ k: "win", l: "Windows" }, { k: "unix", l: "Mac · Linux" }].map((o) => (
@@ -1970,6 +2000,9 @@ export default function Teardown() {
               </div>
 
               {/* ③ 명령어 안내는 소형1(4차)에서 '또는 직접 선택' 바로 아래로 이설. */}
+                </div>
+              )}
+              </div>
               </div>
             )}
           </div>

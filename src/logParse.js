@@ -13,7 +13,7 @@ export function tokenSim(a, b) {
 
 // ComfyUI 콘솔 로그 → GPU/torch/CUDA + Import times 블록에서 설치 팩·로드 실패 팩(경로 마지막 폴더명, 소문자).
 export function parseComfyLog(text) {
-  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", vramGB: null, basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], platform: "" };
+  const out = { gpu: "", torch: "", cuda: "", comfyVersion: "", vramGB: null, basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], platform: "", logPath: "" };
   // u(1): Mac(Darwin) 감지 → CUDA/NVIDIA 부재 환경. GPU·torch·CUDA 추출을 스킵해 오탐(버전 해시 파편이 GPU로 잡히는 등)을 원천 차단. gpu_rules는 미적용(env.gpu 공란).
   const isMac = /Platform:\s*Darwin/i.test(text) || /\bdevice\s*[:=]\s*mps\b/i.test(text) || /Total VRAM[^\n]*\bmps\b/i.test(text);
   if (isMac) out.platform = "mac";
@@ -30,6 +30,9 @@ export function parseComfyLog(text) {
   // custom_nodes 경로 (설치 스크립트·브리핑 clone 대상). Import/Prestartup 경로의 custom_nodes 디렉터리.
   const cn = text.match(/([A-Za-z]:[\\/][^\n]*?[\\/]custom_nodes)[\\/]/i) || text.match(/(\/[^\n]*?\/custom_nodes)\//);
   if (cn) out.customNodesPath = cn[1];
+  // 작업1: 로그 파일 경로 (최신 ComfyUI "** Log path: ...comfyui.log"). 로그 파일 대안 안내에 실경로 노출용(추상 안내 금지).
+  const lp = text.match(/^\s*(?:\*\*\s*)?Log path:\s*(.+?)\s*$/im);
+  if (lp) out.logPath = lp[1].trim();
   // u(2): GPU 오탐 차단. RTX/GTX 명시 모델만 확정. 데이터센터/워크스테이션(A/H/L/T/V 시리즈)은 "NVIDIA" 문맥 + 화이트리스트 동반 시에만. 미충족은 공란(오탐보다 공란). Mac은 위에서 스킵.
   if (!isMac) {
     const rtx = text.match(/(?:NVIDIA\s*)?(?:GeForce\s*)?(RTX|GTX)\s*(A?\d{3,5})\s*(Ti|Super)?/i);
