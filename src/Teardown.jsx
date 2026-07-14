@@ -1207,6 +1207,8 @@ export default function Teardown() {
   const toggleDetail = () => { const next = !detailOpen; setDetailOpen(next); setTimeout(() => document.getElementById(next ? "detail-toggle" : "solution-header")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   // 4(4차): 전체 현황 집계 1줄 → Bypassed 섹션 상세로. bp1 펼침 + #bypassed-section 스크롤(같은 detail 블록 내).
   const openBypassed = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, bp1: true })); setTimeout(() => document.getElementById("bypassed-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
+  // B: Solution 헤더 환경 칩 '지금 채우기' — 입력 존 단계2로 스크롤 + 환경정보 펼침.
+  const goFillEnv = (e) => { if (e) e.preventDefault(); setEnvOpen(true); setTimeout(() => document.getElementById("env-step")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1981,19 +1983,29 @@ export default function Teardown() {
               <div style={{ minWidth: 0 }}>
                 <h2 id="solution-header" style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1, scrollMarginTop: 16 }}>Solution</h2>
               </div>
-              <button className="td-btn td-outline-w" onClick={saveReport} title="처방전을 Markdown(.md) 파일로 저장"
-                style={{ display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 999, padding: "8px 16px", fontFamily: SANS, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
-                <Download size={15} /> 처방전 저장 (.md)</button>
+              {/* B: 제목 행 우측 · 처방전 버튼 왼쪽 = 진단 기준 환경 칩(evidenceBg 라운드박스). 입력=요약 강조(경로부터 말줄임) / 미입력=amber '지금 채우기'(→ 입력 존 단계2). */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0 }}>
+                {(() => {
+                  const spec = [env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`].filter(Boolean).join(" · ");
+                  const p = env.modelRoot;
+                  return (spec || p) ? (
+                    <div title="이 진단의 기준 환경" style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0, background: C.evidenceBg, borderRadius: 8, padding: "6px 12px", fontFamily: SANS, fontSize: 13.5, lineHeight: 1.4 }}>
+                      {spec && <span style={{ color: C.point, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>{spec}</span>}
+                      {p && <span style={{ color: C.point, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{spec ? " · " : ""}{p}</span>}
+                    </div>
+                  ) : (
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 5, flexWrap: "wrap", background: C.evidenceBg, borderRadius: 8, padding: "6px 12px", fontFamily: SANS, fontSize: 13.5, lineHeight: 1.4 }}>
+                      <span style={{ color: C.amber }}>환경 미입력 · 보유 대조 생략됨 ·</span>
+                      <span onClick={goFillEnv} style={{ ...ANCHOR_LINK }}>지금 채우기</span>
+                    </div>
+                  );
+                })()}
+                <button className="td-btn td-outline-w" onClick={saveReport} title="처방전을 Markdown(.md) 파일로 저장"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 7, borderRadius: 999, padding: "8px 16px", fontFamily: SANS, fontSize: 13, fontWeight: 700, cursor: "pointer", flexShrink: 0 }}>
+                  <Download size={15} /> 처방전 저장 (.md)</button>
+              </div>
             </div>
             )}
-
-            {/* 2b: 진단 기준 환경 요약 한 줄 재노출(환경정보 헤더와 동일 요약). 미입력이면 보유 대조 생략 안내. */}
-            {rxTodos.length > 0 && (() => { const summary = [env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot].filter(Boolean).join(" · "); return (
-              <div style={{ marginBottom: 16, fontSize: 15, lineHeight: 1.55 }}>
-                {summary
-                  ? <span style={{ color: C.dim }}>이 진단은 아래 환경 기준입니다: <span style={{ color: C.point, fontWeight: 600 }}>{summary}</span></span>
-                  : <span style={{ color: C.dim }}>환경정보가 없어 보유 대조를 건너뛰었습니다. 입력하면 이미 가진 파일을 체크로 걸러드립니다.</span>}
-              </div>); })()}
 
             {/* 당장 할 일. 액션 테이블(동사 선행). 근거는 각 행 "근거" 접이. 총론은 아래 판단 기준 안내. 5: 처방 다시 보기 토글 제거 → 상시 노출. */}
             {rxTodos.length > 0 && (
