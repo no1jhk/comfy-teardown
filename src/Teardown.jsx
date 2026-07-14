@@ -1986,18 +1986,18 @@ export default function Teardown() {
               <div style={{ minWidth: 0 }}>
                 <h2 id="solution-header" style={{ fontFamily: DISPLAY, fontSize: 32, fontWeight: 600, color: C.text, letterSpacing: "-0.02em", margin: 0, lineHeight: 1.1, scrollMarginTop: 16 }}>Solution</h2>
               </div>
-              {/* B: 제목 행 우측 · 처방전 버튼 왼쪽 = 진단 기준 환경 칩(evidenceBg 라운드박스). 입력=요약 강조(경로부터 말줄임) / 미입력=amber '지금 채우기'(→ 입력 존 단계2). */}
+              {/* B: 제목 행 우측 · 처방전 버튼 왼쪽 = 진단 기준 환경 요약. 배경·테두리 없이 텍스트만(입력=C.point 요약·경로부터 말줄임 / 미입력=amber '지금 채우기'→ 입력 존 단계2). */}
               <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", justifyContent: "flex-end", minWidth: 0 }}>
                 {(() => {
                   const spec = [env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`].filter(Boolean).join(" · ");
                   const p = env.modelRoot;
                   return (spec || p) ? (
-                    <div title="이 진단의 기준 환경" style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0, background: C.evidenceBg, borderRadius: 8, padding: "6px 12px", fontFamily: SANS, fontSize: 13.5, lineHeight: 1.4 }}>
+                    <div title="이 진단의 기준 환경" style={{ display: "inline-flex", alignItems: "center", maxWidth: "100%", minWidth: 0, fontFamily: SANS, fontSize: 13.5, lineHeight: 1.4 }}>
                       {spec && <span style={{ color: C.point, fontWeight: 600, whiteSpace: "nowrap", flexShrink: 0 }}>{spec}</span>}
                       {p && <span style={{ color: C.point, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{spec ? " · " : ""}{p}</span>}
                     </div>
                   ) : (
-                    <div style={{ display: "inline-flex", alignItems: "center", gap: 5, flexWrap: "wrap", background: C.evidenceBg, borderRadius: 8, padding: "6px 12px", fontFamily: SANS, fontSize: 13.5, lineHeight: 1.4 }}>
+                    <div style={{ display: "inline-flex", alignItems: "center", gap: 5, flexWrap: "wrap", fontFamily: SANS, fontSize: 13.5, lineHeight: 1.4 }}>
                       <span style={{ color: C.amber }}>환경 미입력 · 보유 대조 생략됨 ·</span>
                       <span onClick={goFillEnv} style={{ ...ANCHOR_LINK }}>지금 채우기</span>
                     </div>
