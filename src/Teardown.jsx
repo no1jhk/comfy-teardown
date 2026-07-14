@@ -931,9 +931,9 @@ function BlockHead({ num, label, count, role, open, onToggle }) {
 // 순번 원형 배지 — 단일 컴포넌트. variant로 fill(행동 구역=Solution)/line(근거·참고·접기 구역) 분기. 크기·타이포 동일(30px·15·800).
 // n==null → 완료(✓). muted=완료·충족(회색 토큰). onClick 있으면 완료 토글(클릭 가능). 상단 정렬(marginTop 1)로 제목 첫 줄 광학 정렬.
 // line 스트록 확정값 = 2px: fill(솔리드)과 병렬 렌더 시 30px 원에서 2px가 fill 대비 가독 유지하며 3px는 과중(테두리가 숫자를 압박). 화면 검수에서 여전히 얇으면 3px로 상향.
-function NumBadge({ n, variant = "fill", muted = false, onClick, title, mt = 1 }) {
+function NumBadge({ n, variant = "fill", muted = false, accent: accentColor, onClick, title, mt = 1 }) {
   const line = variant === "line";
-  const accent = muted ? C.line : C.point;
+  const accent = accentColor || (muted ? C.line : C.point);
   return (
     <div onClick={onClick} title={title}
       style={{ width: 30, height: 30, borderRadius: 15, boxSizing: "border-box", background: line ? "transparent" : accent, border: line ? `2px solid ${accent}` : "none", color: line ? accent : INK, fontFamily: SANS, fontSize: 15, fontWeight: 800, display: "grid", placeItems: "center", flexShrink: 0, marginTop: mt, cursor: onClick ? "pointer" : undefined }}>
@@ -1693,49 +1693,63 @@ export default function Teardown() {
         <img src={LOGO} alt="Comfy Teardown" style={{ height: 50, width: "auto", display: "block", marginBottom: 16 }} />
         <p style={{ color: C.dim, fontSize: 16, margin: "0 0 28px", lineHeight: 1.6 }}>실행에 문제 있는 JSON 파일을 첨부하면, 모든 노드를 분석해서 문제점을 진단하고 해결법을 제시합니다.</p>
 
-        {/* B안 1차 입력. JSON 드롭존(주인공, 노란 점선 단독). 드래그&드롭으로 넣는 공간임을 명확히. */}
-        <div className="td-drop"
-          onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
-          onDragLeave={() => setDrag(false)}
-          onDrop={(e) => { e.preventDefault(); setDrag(false); onFile(e.dataTransfer.files?.[0]); }}
-          style={{ border: `2px dashed ${C.point}`, background: drag ? C.surfaceHi : C.surface,
-            borderRadius: 16, padding: "26px 22px", display: "flex", alignItems: "center", gap: 18, flexWrap: "wrap", position: "relative", zIndex: 1 }}>
-          <div style={{ width: 44, height: 44, borderRadius: 12, background: C.surfaceHi, display: "grid", placeItems: "center", border: `1px solid ${C.line}`, flexShrink: 0 }}>
-            <Upload size={19} color={C.point} strokeWidth={1.9} /></div>
-          <div style={{ flex: 1, minWidth: 200 }}>
-            {report ? (<>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text, overflowWrap: "anywhere" }}>{report.source}</div>
-              <div style={{ fontSize: 13, color: C.dim, marginTop: 3 }}>분석 완료 · {report.format} 포맷 · 다른 파일을 올리면 다시 분석합니다</div>
-            </>) : (<>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>workflow.json을 끌어다 놓기</div>
-              <div style={{ fontSize: 13, color: C.dim, marginTop: 3 }}>ComfyUI에서 내보낸 UI/API 포맷 모두 지원</div>
-            </>)}
+        {/* A: 2단계 입력 존. 드롭존(단계1)+환경정보(단계2)를 하나의 라운드박스로 묶고 연번 원형 배지(NumBadge)로 단계 표시. */}
+        <div style={{ border: `1px solid ${C.line}`, borderRadius: 16, background: C.surface, overflow: "hidden", position: "relative", zIndex: 1 }}>
+          {/* 단계 1: 워크플로우 JSON. 미투입=배지 1 / 분석완료=배지 ✓ + 파일명·분석완료 요약. */}
+          <div style={{ padding: "20px 22px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
+              <NumBadge n={report ? null : 1} mt={0} />
+              <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.text }}>워크플로우 JSON</span>
+              {report && <span style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, overflowWrap: "anywhere", minWidth: 0 }}>{report.source} · 분석 완료</span>}
+            </div>
+            {/* 드롭존: 미투입=현행 크기(도구 첫 문장) / 분석완료=1행 축소판(클릭·드롭으로 다른 파일 재분석, '다른 파일' 버튼 통합). */}
+            <div className="td-drop"
+              onDragOver={(e) => { e.preventDefault(); setDrag(true); }}
+              onDragLeave={() => setDrag(false)}
+              onDrop={(e) => { e.preventDefault(); setDrag(false); onFile(e.dataTransfer.files?.[0]); }}
+              onClick={report ? () => fileRef.current?.click() : undefined}
+              style={{ border: `2px dashed ${C.point}`, background: drag ? C.surfaceHi : C.bg,
+                borderRadius: 12, padding: report ? "13px 16px" : "26px 22px", display: "flex", alignItems: "center", gap: report ? 12 : 18, flexWrap: "wrap", cursor: report ? "pointer" : "default" }}>
+              <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={(e) => onFile(e.target.files?.[0])} />
+              <div style={{ width: report ? 34 : 44, height: report ? 34 : 44, borderRadius: report ? 9 : 12, background: C.surfaceHi, display: "grid", placeItems: "center", border: `1px solid ${C.line}`, flexShrink: 0 }}>
+                <Upload size={report ? 16 : 19} color={C.point} strokeWidth={1.9} /></div>
+              {report ? (
+                <div style={{ flex: 1, minWidth: 160, fontSize: 15, color: C.dim }}>다른 파일을 올리면 다시 분석합니다</div>
+              ) : (<>
+                <div style={{ flex: 1, minWidth: 200 }}>
+                  <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>workflow.json을 끌어다 놓기</div>
+                  <div style={{ fontSize: 13, color: C.dim, marginTop: 3 }}>ComfyUI에서 내보낸 UI/API 포맷 모두 지원</div>
+                </div>
+                {/* 두 버튼은 별도 래퍼로 묶어 gap 13(기존 26의 절반)만 적용. 부모 gap 18과 분리 */}
+                <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
+                  <button className="td-btn td-outline" onClick={() => fileRef.current?.click()}
+                    style={{ borderRadius: 999, padding: "10px 20px", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>파일 선택</button>
+                  <button className="td-btn td-outline-w" onClick={() => run(JSON.stringify(SAMPLE_WORKFLOW), "샘플 · Rig+Anim 파이프라인")}
+                    style={{ borderRadius: 999, padding: "10px 18px", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>샘플 보기</button>
+                </div>
+              </>)}
+            </div>
           </div>
-          <input ref={fileRef} type="file" accept=".json,application/json" style={{ display: "none" }} onChange={(e) => onFile(e.target.files?.[0])} />
-          {/* 두 버튼은 별도 래퍼로 묶어 gap 13(기존 26의 절반)만 적용. 부모 gap 18과 분리 */}
-          <div style={{ display: "flex", alignItems: "center", gap: 13 }}>
-            <button className="td-btn td-outline" onClick={() => fileRef.current?.click()}
-              style={{ borderRadius: 999, padding: "10px 20px", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>{report ? "다른 파일" : "파일 선택"}</button>
-            <button className="td-btn td-outline-w" onClick={() => run(JSON.stringify(SAMPLE_WORKFLOW), "샘플 · Rig+Anim 파이프라인")}
-              style={{ borderRadius: 999, padding: "10px 18px", fontFamily: SANS, fontSize: 14, fontWeight: 700, cursor: "pointer" }}>샘플 보기</button>
-          </div>
-        </div>
-
-        {/* 환경 정보. 접이식. JSON 드롭존 아래, 결과 위. 선택사항. */}
-        <div style={{ marginTop: 14 }}>
-          {/* 2: 접힌 헤더를 상태 표시기로 승격. '(선택)' 삭제. 미입력=완화 경고(amber, 신규 토큰 없음)·입력=환경 요약을 헤더 본문 크기(15)로 강조. */}
-          <button onClick={() => setEnvOpen((v) => !v)} style={{ display: "flex", alignItems: "flex-start", gap: 8, background: "none", border: "none", cursor: "pointer", padding: "6px 0", width: "100%", textAlign: "left", flexWrap: "wrap" }}>
-            {envOpen ? <Minus size={15} color={C.dim} style={{ flexShrink: 0, marginTop: 3 }} /> : <Plus size={15} color={C.dim} style={{ flexShrink: 0, marginTop: 3 }} />}
-            {envOpen ? (
-              <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>내 환경 정보</span>
-            ) : (env.gpu || env.torch || env.cuda || env.modelRoot) ? (
-              <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.5, minWidth: 0, overflowWrap: "anywhere" }}>내 환경 정보 <span style={{ color: C.point }}>{[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot].filter(Boolean).join(" · ")}</span></span>
-            ) : (
-              <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.amber, lineHeight: 1.5, minWidth: 0 }}>내 환경 정보 미입력 <span style={{ color: C.dim, fontWeight: 400 }}>· 보유 파일 대조를 건너뜁니다. 입력하면 이미 가진 파일을 걸러 드립니다.</span></span>
-            )}
-          </button>
-          {envOpen && (
-            <div className="td-fade" style={{ background: C.surface, border: `1px solid ${C.line}`, borderRadius: 16, padding: "20px 22px", marginTop: 6 }}>
+          {/* 단계 2: 내 환경 정보. 배지 좌·토글 우(NumRow 문법). 미입력=배지 2 amber톤+완화 경고 / 입력=배지 ✓+환경 요약 강조(어제 승격 표기). */}
+          <div id="env-step" style={{ borderTop: `1px solid ${C.divider}`, padding: "20px 22px", scrollMarginTop: 16 }}>
+            <div onClick={() => setEnvOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 14, cursor: "pointer" }}>
+              {(() => { const hasEnv = !!(env.gpu || env.torch || env.cuda || env.modelRoot); return <NumBadge n={hasEnv ? null : 2} accent={hasEnv ? undefined : C.amber} mt={0} />; })()}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                {envOpen ? (
+                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>내 환경 정보</span>
+                ) : (env.gpu || env.torch || env.cuda || env.modelRoot) ? (
+                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.5, overflowWrap: "anywhere" }}>내 환경 정보 <span style={{ color: C.point }}>{[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot].filter(Boolean).join(" · ")}</span></span>
+                ) : (
+                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.amber, lineHeight: 1.5 }}>내 환경 정보 미입력 <span style={{ color: C.dim, fontWeight: 400 }}>· 보유 파일 대조를 건너뜁니다. 입력하면 이미 가진 파일을 걸러 드립니다.</span></span>
+                )}
+              </div>
+              <button className="td-acc" onClick={(e) => { e.stopPropagation(); setEnvOpen((v) => !v); }} aria-label="펼치기/접기"
+                style={{ background: "transparent", border: "none", color: C.point, padding: 2, cursor: "pointer", display: "grid", placeItems: "center", flexShrink: 0, lineHeight: 0 }}>
+                {envOpen ? <Minus size={26} strokeWidth={2.25} /> : <Plus size={26} strokeWidth={2.25} />}
+              </button>
+            </div>
+            {envOpen && (
+              <div className="td-fade" style={{ marginTop: 16 }}>
               {/* ① ComfyUI 로그 붙여넣기 */}
               <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 6 }}>ComfyUI 로그 붙여넣기</div>
               <div style={{ fontSize: 13, color: C.dim, marginBottom: 8, lineHeight: 1.55 }}>ComfyUI를 실행한 터미널(서버 콘솔)의 내용을 처음부터 끝까지 전체 복사해 붙여넣어 주세요. GPU·torch·CUDA는 시작 직후에 출력되므로, 뒤늦게 일부만 복사하면 앞부분이 유실됩니다. 브라우저 F12 콘솔이 아닙니다.</div>
@@ -1917,8 +1931,9 @@ export default function Teardown() {
               </div>
 
               {/* ③ 명령어 안내는 소형1(4차)에서 '또는 직접 선택' 바로 아래로 이설. */}
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </div>
 
         {err && (<div className="td-fade" style={{ marginTop: 16, background: "rgba(239,83,80,0.08)", border: `1px solid ${C.red}55`, borderRadius: 12, padding: "13px 16px", display: "flex", gap: 10, alignItems: "flex-start" }}>
