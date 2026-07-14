@@ -1437,7 +1437,10 @@ export default function Teardown() {
     if (coreCheck?.state === "outdated") rows.push({ rid: ++rid, verb: "확인", text: `이 워크플로우는 ComfyUI ${coreCheck.required} 이상이 필요합니다. 본체를 업데이트한 뒤 다시 열어 주세요.`, sub: `현재 로그의 버전: ${coreCheck.current}`, kind: "coreversion" });
     else if (report?.savedVersion) rows.push({ rid: ++rid, verb: "안내", text: `이 워크플로우는 comfy-core ${report.savedVersion.core} 기준으로 저장되었습니다${report.savedVersion.coreNode ? ` (${report.savedVersion.coreNode} 등)` : ""}.`, sub: coreCheck?.state === "ok" ? `로그의 설치 버전(${coreCheck.current})이 요건을 충족합니다.` : "로그를 붙여넣으면 설치된 버전과 대조해 드립니다.", kind: "gpuhint" });
     else if (coreCheck?.state === "unknown") rows.push({ rid: ++rid, verb: "안내", text: "이 워크플로우는 최신 ComfyUI 기능을 사용합니다. 로그를 붙여넣으면 버전 적합 여부를 판정해 드립니다.", kind: "gpuhint" });
-    const inst = rxTodos.filter((t) => t.kind === "nodegroup" && !packInstalled(t.g.repo || t.g.clone_url, logEnv.installedPacks));
+    const nodeGroups = rxTodos.filter((t) => t.kind === "nodegroup");
+    const inst = nodeGroups.filter((t) => !packInstalled(t.g.repo || t.g.clone_url, logEnv.installedPacks));
+    // 작업2: 로그로 확인돼 설치 행에서 제외된 팩 — 제거 대신 dim 부속 줄로 노출(모델 '이미 있음' 문법 통일).
+    const installedNames = nodeGroups.filter((t) => packInstalled(t.g.repo || t.g.clone_url, logEnv.installedPacks)).map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop()).filter(Boolean);
     if (inst.length) {
       const nm = inst.map((t) => (t.g.repo || t.g.clone_url || "").replace(/\.git$/, "").split("/").pop());
       const noReg = inst.filter((t) => t.g.registry === false).length;
@@ -1446,7 +1449,7 @@ export default function Teardown() {
       const noRegMsg = noReg ? ` ${noReg}개는 Manager에 없는 팩이라 install.bat로 직접 설치해 주세요.` : "";
       // clone 인라인 뷰(보조 동선): 각 nodegroup의 git clone 전문. install.bat 다운로드가 주 동선.
       const clones = inst.map((t) => { const g = t.g; const cloneUrl = g.clone_url || (g.repo ? (g.repo.startsWith("https://") ? g.repo.replace(/\/?$/, ".git") : `https://github.com/${g.repo}.git`) : null); return { name: (g.repo || g.clone_url || "").replace(/\.git$/, "").split("/").pop(), cloneUrl }; }).filter((c) => c.cloneUrl);
-      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install", clones, file: "install.bat" });
+      rows.push({ rid: ++rid, verb: "설치", text: nm[0] + (nm.length > 1 ? ` 외 ${nm.length - 1}개` : ""), sub: runLoc + noRegMsg, kind: "install", clones, file: "install.bat", logHint: !logEnv.installedPacks.length, installedNames });
     }
     // 확인 — 로그의 missing_node_type. 결함6: node_id→class_type 역조회 후 팩 소속이면 크로스링크(설치 행 최종 연번은 rxGroups에서 해소).
     const wfTypes2 = new Set((report?.nodeTypes || []).map((t) => t.toLowerCase())), wfIds2 = new Set(report?.nodeIds || []);
@@ -1545,6 +1548,10 @@ export default function Teardown() {
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
         {(r.file || r.sub) && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.file && <span style={{ fontFamily: MONO }}>{r.file}</span>}{r.file && r.sub ? " · " : ""}{r.sub}</div>}
+        {/* 작업2: 로그로 확인된 설치 팩(설치 행에서 제외) — dim 부속 줄. 모델 '이미 있음' 문법과 동일 톤. */}
+        {r.kind === "install" && r.installedNames?.length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>이미 설치됨: {r.installedNames.map((n, i) => <span key={i}>{i > 0 ? ", " : ""}<span style={{ fontFamily: MONO }}>{n}</span></span>)}</div>}
+        {/* 작업1: 로그 미유입 시 노드 대조 유도(모델 폴더 스캔 유도와 평행 톤). */}
+        {r.kind === "install" && r.logHint && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>ComfyUI 시작 로그를 붙여넣으면 이미 설치된 노드팩은 걸러 드립니다.</div>}
         {/* 2c: 확인 필요 항목 공통 부속 — 다음 행동(LLM 진단) 안내. */}
         {r.kind === "model" && r.badge === "확인 필요" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>LLM 진단받기로 넘기면 출처를 함께 찾아드립니다.</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.5 }}>파일은 있으나 위치가 다릅니다. 현재 <span style={{ fontFamily: MONO }}>{mis.current}</span>에 있습니다. <span style={{ fontFamily: MONO }}>{mis.required}</span> 폴더로 이동해 주세요.</div>}
