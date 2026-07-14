@@ -109,7 +109,12 @@ export function buildModelPlan(report, env) {
       confidence = "confirmed"; placeholder = true; size = ph.size; sourceRepo = ph.alt_repo;
       downloadUrl = hfUrl(ph.alt_repo, ph.alt_repo_path);
       reason = ph.note || "자리표시자 파일명입니다. 아래 확정 대체를 받아 로더 드롭다운에서 직접 선택해 주세요.";
-    } else if (db) {
+    } else if (db && db.confidence === "unsourced") {
+      // z-image fp8 등: 확정 출처 미상 배포 변형 → 확정 대체(alt_of)로 안내(promoted). 자체 다운로드 없음 → 추정 후보 뱃지.
+      confidence = "inferred";
+      reason = db.note || "확정 출처를 찾지 못한 배포 변형입니다. 아래 공식 확정 대체를 받아 주세요.";
+    } else if (db && !(db.weak && noteLink)) {
+      // weak 엔트리(ae 등 generic 파일명)는 워크플로우 제작자 노트가 있으면 양보(아래 noteLink 분기). 노트 없으면 confirmed.
       confidence = "confirmed"; sourceRepo = db.repo; sourcePath = db.repo_path; size = db.size;
       // 결함7: repo_filename(repo 실파일명) 확인 시에만 파일 직링크. 미확인은 repo 트리 링크(파일 직링크 날조 금지).
       const repoFn = db.repo_filename || (db.repo_path && !db.repo_path.endsWith("/") ? db.repo_path.split("/").pop() : null);
@@ -137,7 +142,9 @@ export function buildModelPlan(report, env) {
     const vramWarning = vramTooBig ? `이 GPU(${profile.vram}GB)에서 ${b}(${size})은 실행이 어렵습니다.` : null;
     const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, vramTooBig, renameHint, nodeSelection: m.file, reason, placeholder };
     // 3-2 alias: 확정 대체를 promoted로(기존 렌더 재사용). 원 지정값=자리표시자 이름.
-    if (ph?.kind === "alias") item.promoted = { filename: ph.alt_filename, size: ph.size, downloadUrl, folder, fullPath, node: m.node, reason: "자리표시자 대신 받을 확정 대체", originalFile: m.file, originalSize: null };
+    if (ph?.kind === "alias") item.promoted = { filename: ph.alt_filename, size: ph.size, downloadUrl, folder, fullPath, node: m.node, reason: "자리표시자 대신 받을 확정 대체", originalFile: m.file, originalSize: null, originLabel: "워크플로우 자리표시자 이름" };
+    // unsourced(z-image fp8 등): 확정 대체(alt_of 형제 파일)를 promoted로. 자체 다운로드 없음.
+    if (db?.confidence === "unsourced" && db.alt_of) { const a = fileDbLookup(db.alt_of); if (a) item.promoted = { filename: a.filename, size: a.size || null, downloadUrl: hfUrl(a.repo, a.repo_path), folder: `models/${a.folder}`, fullPath: basePath ? joinPath(basePath, a.folder) : null, node: m.node, reason: "공식 확정 대체", originalFile: m.file, originalSize: null, originLabel: "워크플로우 지정 변형(출처 미상)" }; }
     (confidence === "unknown" ? unknowns : items).push(item);
   }
   // 대체 후보 / 제외(주 모델). files DB + note 제외 지시 기준. "추천" 아니라 "OOM 시 대체 후보".

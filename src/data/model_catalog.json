@@ -90,6 +90,25 @@
         { "filename": "seedvr2_ema_3b_fp8_e4m3fn.safetensors", "role": "main_model", "variant": "3b", "quant": "fp8_e4m3fn", "repo": "numz/SeedVR2_comfyUI", "repo_path": "seedvr2_ema_3b_fp8_e4m3fn.safetensors", "folder": "SEEDVR2", "size": "3.39GB", "confidence": "confirmed" },
         { "filename": "ema_vae_fp16.safetensors", "role": "vae", "variant": null, "quant": "fp16", "repo": "numz/SeedVR2_comfyUI", "repo_path": "ema_vae_fp16.safetensors", "folder": "SEEDVR2", "size": "501MB", "confidence": "confirmed" }
       ]
+    },
+    "zimage": {
+      "label": "Z-Image",
+      "detect": { "filename": ["z_image", "z-image", "zimage"], "nodeType": [] },
+      "folders": { "main_model": "diffusion_models", "text_encoder": "text_encoders", "vae": "vae" },
+      "variants": [
+        { "match": "turbo_bf16", "quant": "bf16", "kind": "turbo" },
+        { "match": "turbo_fp8_e4m3fn", "quant": "fp8_e4m3fn", "kind": "turbo" },
+        { "match": "q3_k_m", "quant": "gguf", "kind": "base" }
+      ],
+      "source": "Comfy-Org/z_image_turbo",
+      "_files_note": "웹 실측(2026-07). bf16·qwen_3_4b·ae는 Comfy-Org/z_image_turbo split_files 확정. Q3_K_M gguf는 unsloth/Z-Image-GGUF(무증류 base). fp8_e4m3fn은 원 배포처 미상(unsourced) → 확정 대체 bf16으로 안내. 하이픈·언더스코어 두 표기 유통(정규화 매칭은 별도 기능).",
+      "files": [
+        { "filename": "z_image_turbo_bf16.safetensors", "role": "main_model", "variant": "turbo", "quant": "bf16", "repo": "Comfy-Org/z_image_turbo", "repo_path": "split_files/diffusion_models/z_image_turbo_bf16.safetensors", "folder": "diffusion_models", "confidence": "confirmed" },
+        { "filename": "z_image_turbo_fp8_e4m3fn.safetensors", "role": "main_model", "variant": "turbo", "quant": "fp8_e4m3fn", "folder": "diffusion_models", "confidence": "unsourced", "alt_of": "z_image_turbo_bf16.safetensors", "note": "확정 출처를 찾지 못한 배포 변형입니다(하이픈·언더스코어 두 표기 유통, 2026-07 실측). 아래 공식 확정 대체(z_image_turbo_bf16)를 받아 주세요. 이미 가지고 있으면 로더 드롭다운에서 다시 선택하면 됩니다. Ampere(RTX 30xx)에서는 fp8 변환 로드가 되더라도 출력 글리치가 확인돼 bf16 또는 GGUF를 권장합니다." },
+        { "filename": "qwen_3_4b.safetensors", "role": "text_encoder", "variant": null, "quant": null, "repo": "Comfy-Org/z_image_turbo", "repo_path": "split_files/text_encoders/qwen_3_4b.safetensors", "folder": "text_encoders", "size": "7.49GB", "confidence": "confirmed" },
+        { "filename": "ae.safetensors", "role": "vae", "variant": null, "quant": null, "repo": "Comfy-Org/z_image_turbo", "repo_path": "split_files/vae/ae.safetensors", "folder": "vae", "size": "335MB", "confidence": "confirmed", "weak": true, "note": "Flux ae와 동일 파일로 실측했습니다. 이미 Flux ae를 가지고 있으면 새로 받지 않고 재사용할 수 있습니다. 하위 폴더에 보관 중이면 로더 드롭다운에서 경로를 선택해 주세요." },
+        { "filename": "z-image-Q3_K_M.gguf", "role": "main_model", "variant": "base", "quant": "gguf", "repo": "unsloth/Z-Image-GGUF", "repo_path": "z-image-Q3_K_M.gguf", "folder": "diffusion_models", "confidence": "confirmed", "note": "무증류 base 계열입니다(turbo 아님). 변형 표기 z_image_turbo-Q3_K_M.gguf도 유통됩니다. GGUF 로드에는 ComfyUI-GGUF 커스텀 노드가 필요합니다." }
+      ]
     }
   },
   "_placeholders_note": "자리표시자 파일명(제작자 지정 · 실배포 파일 아님) 완전일치 등재. families(confirmed)와 분리. kind=alias는 확정 대체로 해소(promoted), kind=user_asset은 본인 자산(다운로드 대상 아님). note에 근거 명기 · UI 발화로 직접 노출.",
