@@ -1066,7 +1066,7 @@ export default function Teardown() {
   const onEnvLog = (text) => {
     setEnvLog(text);
     const parsed = parseComfyLog(text);
-    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, vram: parsed.vramGB ?? prev.vram, basePath: parsed.basePath || prev.basePath, customNodesPath: parsed.customNodesPath || prev.customNodesPath, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed, platform: parsed.platform || prev.platform, logPath: parsed.logPath || prev.logPath }));
+    setEnv((prev) => ({ ...prev, gpu: parsed.gpu || prev.gpu, torch: parsed.torch || prev.torch, cuda: parsed.cuda || prev.cuda, vram: parsed.vramGB ?? prev.vram, basePath: parsed.basePath || prev.basePath, customNodesPath: parsed.customNodesPath || prev.customNodesPath, installedPacks: parsed.installedPacks, importFailed: parsed.importFailed, platform: parsed.platform || prev.platform, logPath: parsed.logPath }));
   };
   const toggle = (k) => setOpen((o) => ({ ...o, [k]: !o[k] }));
   const fileRef = useRef(null);
@@ -1217,7 +1217,8 @@ export default function Teardown() {
   // 4(4차): 전체 현황 집계 1줄 → Bypassed 섹션 상세로. bp1 펼침 + #bypassed-section 스크롤(같은 detail 블록 내).
   const openBypassed = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, bp1: true })); setTimeout(() => document.getElementById("bypassed-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   // B: Solution 헤더 환경 칩 '지금 채우기' — 입력 존 단계2로 스크롤 + 환경정보 펼침.
-  const goFillEnv = (e) => { if (e) e.preventDefault(); setEnvOpen(true); setTimeout(() => document.getElementById("env-step")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
+  // 수리3: 폴더 대조·직접 선택이 altOpen 접이 안이므로, '지금 채우기'는 envOpen + altOpen 둘 다 열어 대조 지점까지 도달 보장.
+  const goFillEnv = (e) => { if (e) e.preventDefault(); setEnvOpen(true); setAltOpen(true); setTimeout(() => document.getElementById("env-step")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1494,8 +1495,8 @@ export default function Teardown() {
     // 받기 — modelPlan.items(단일 진실 공급원). 근거 4단계 뱃지. 넣기=fullPath(절대) 또는 folder(상대), 용량·직링크·근거는 planItem에.
     for (const it of plan?.items || []) rows.push({ rid: ++rid, verb: "받기", text: it.workflowValue, folders: it.fullPath ? [it.fullPath] : (it.folder ? [it.folder] : []), badge: it.badge, selects: it.node ? [{ nodeType: it.node, value: it.nodeSelection }] : [], planItem: it, kind: "model" });
     // 3: 일괄 받기 스크립트 카운트·노출·bat 모두 미보유(heldSet 제외) 기준. 직링크 확정 미보유 3개 이상일 때만(1~2개는 각 행 개별 받기로 충분·미노출). 대조 전(heldSet 없음)이면 전량. 파인딩 m: 경로 입력 시 절대, 미입력 시 루트 실행.
-    const heldSet = reconcile?.heldSet;
-    const dlEligible = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !heldSet?.has(it.selectedFile));
+    const noDlSet = reconcile?.noDownloadSet;
+    const dlEligible = (plan?.items || []).filter((it) => (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !/\/tree\//.test((it.promoted?.downloadUrl || it.downloadUrl) || "") && !noDlSet?.has(it.selectedFile));
     if (dlEligible.length >= 3) rows.push({ rid: ++rid, verb: "받기", text: "모델 일괄 받기 스크립트", sub: `미보유 받기 항목 ${dlEligible.length}개를 한 번에 내려받습니다. ` + ((env.modelRoot || env.basePath) ? "받기 위치가 입력한 모델 폴더 경로로 지정됩니다." : "경로 미입력이면 ComfyUI 루트(models 폴더의 상위)에서 실행해 주세요."), kind: "dlscript", file: "download.bat" });
     // 대체 후보 / 제외(주 모델) — "OOM 시 대체 후보" 톤(추천 아님). 별도 1행.
     if ((plan?.alternatives?.length || 0) + (plan?.exclusions?.length || 0) > 0) rows.push({ rid: ++rid, verb: "참고", text: "메인 모델 대체·제외 안내", kind: "altexcl", alternatives: plan.alternatives, exclusions: plan.exclusions });
@@ -1509,7 +1510,7 @@ export default function Teardown() {
     // o: 실행 행 완결화 — 재시작 안내 각주·에러 로그 링크를 이 행의 부속 줄로 편입(별도 각주·배너 링크 제거).
     rows.push({ rid: ++rid, verb: "실행", text: "큐를 실행해 주세요.", kind: "run", restartNote: "모든 항목을 마쳤다면 ComfyUI를 완전히 재시작한 뒤 워크플로우를 다시 열어 주세요. 빨간 노드가 남아 있지 않으면 정상입니다.", diagLink: true });
     return rows;
-  }, [rxTodos, logEnv.installedPacks, logEnv.logProvided, logEnv.hasImportBlock, errlog, plan, coreCheck, report, env.modelRoot, env.basePath, env.customNodesPath, reconcile?.heldSet]);
+  }, [rxTodos, logEnv.installedPacks, logEnv.logProvided, logEnv.hasImportBlock, errlog, plan, coreCheck, report, env.modelRoot, env.basePath, env.customNodesPath, reconcile?.heldSet, reconcile?.noDownloadSet]);
 
   // UX2 솔루션 필터링 + 넘버링 최종 부여.
   // 주노출(실행 차단): 로그 거부값·깨진 노드·설치·디스크·버전 + 대조 미보유 받기. 이미 있음(dim ✓, 하단) / 참고·미확정(접기2). 판정 근거 없으면 전량 순서 노출(현행).
@@ -1578,7 +1579,8 @@ export default function Teardown() {
         {mis && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.5 }}>파일은 있으나 위치가 다릅니다. 현재 <span style={{ fontFamily: MONO }}>{mis.current}</span>에 있습니다. <span style={{ fontFamily: MONO }}>{mis.required}</span> 폴더로 이동해 주세요.</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 3, lineHeight: 1.5 }}>이름이 같은 다른 모델일 수 있습니다. 이동 전 용량·출처를 확인해 주세요.</div>}
         {/* 표기 변형 후보(하이픈/언더스코어만 다른 보유 파일). 확정 금지·후보 제시, 다운로드 처방과 병기. 에러로그 'PC에 있는 후보'와 톤 통일. */}
-        {r.kind === "model" && (() => { const rr = reconcile?.byFile?.get(r.planItem?.selectedFile); const vcs = [...(rr?.variantCandidates || []), ...(rr?.altVariantCandidates || [])]; return vcs.length ? <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>보유 파일 중 표기만 다른 후보가 있습니다: {vcs.map((v, i) => <span key={i}>{i > 0 ? ", " : ""}<span style={{ fontFamily: MONO, color: C.point }}>{v}</span></span>)}. 같은 모델이면 로더 드롭다운에서 이 파일을 선택해 주세요.</div> : null; })()}
+        {/* 수리4: 원본 변형(variantCandidates)과 대체 변형(altVariantCandidates) 분리. promoted(대체 안내) 있으면 원본 변형 억제(대체 권장과 모순) → 대체 변형만. 없으면 원본 변형. */}
+        {r.kind === "model" && (() => { const rr = reconcile?.byFile?.get(r.planItem?.selectedFile); const cands = r.planItem?.promoted ? (rr?.altVariantCandidates || []) : (rr?.variantCandidates || []); return cands.length ? <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>보유 파일 중 표기만 다른 후보가 있습니다: {cands.map((v, i) => <span key={i}>{i > 0 ? ", " : ""}<span style={{ fontFamily: MONO, color: C.point }}>{v}</span></span>)}. 같은 모델이면 로더 드롭다운에서 이 파일을 선택해 주세요.</div> : null; })()}
         {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
         {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
         {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
@@ -1586,7 +1588,8 @@ export default function Teardown() {
         {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
         {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>{r.planItem.promoted.originLabel || "워크플로우 원 지정값(상위 VRAM용)"}: <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
         {/* 작업2: 확정 대체를 이미 보유(altHeld) 시 다운로드 대신 드롭다운 재선택 안내(보유 파일명 명시). 그 외 promoted는 현행. */}
-        {r.kind === "model" && r.planItem?.promoted && (() => { const ah = reconcile?.byFile?.get(r.planItem?.selectedFile)?.altHeld; return <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{ah ? <>선택: {r.planItem.promoted.node}에서 <span style={{ fontFamily: MONO }}>{ah}</span>으로 바꿔 주세요.</> : `${r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.`}</div>; })()}
+        {/* 수리1: 확정 대체 이미 보유(altHeld)면 재선택 대기(활성·memoBright, dim 아님). 그 외 promoted는 현행 안내. */}
+        {r.kind === "model" && r.planItem?.promoted && (() => { const ah = reconcile?.byFile?.get(r.planItem?.selectedFile)?.altHeld; return <div style={{ fontFamily: SANS, fontSize: 14, color: ah ? C.memoBright : C.dim, marginTop: 4, lineHeight: 1.5 }}>{ah ? <>이미 있음 · 선택: {r.planItem.promoted.node}에서 <span style={{ fontFamily: MONO }}>{ah}</span>으로 바꿔 주세요.</> : `${r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.`}</div>; })()}
         {/* 2(판단근거 흡수): 별도 리스트 폐지 → 각 행 1층 접이. 등급·근거·출처만(링크 텍스트, 버튼 중복 0). evidenceBg 계승. */}
         {r.kind === "model" && r.planItem?.reason && (
           <details style={{ marginTop: 8 }}>
@@ -1659,8 +1662,9 @@ export default function Teardown() {
         {/* bat 버튼 A/B 실물 비교용 임시 배치(확정 시 단일 토큰 통일 예정). 기존 다운로드 버튼(td-hf)과 동일 line 형식, 색만 SAND(A)·LIME(B)로 분리. 화살표 없음. */}
         {/* 라벨은 행동 언어(사용자 확정), 파일명은 부속 dim 줄(r.file). 버튼 형식·A/B 색은 6823048 유지. */}
         {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> 노드 한 번에 설치</button>}
-        {r.kind === "dlscript" && <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 한 번에 받기</button>}
-        {r.kind === "model" && !dim && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
+        {r.kind === "dlscript" && <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.noDownloadSet))}><Download size={15} /> 모델 한 번에 받기</button>}
+        {/* 수리1: 확정 대체를 이미 보유(altHeld)면 받기 불필요 → 다운로드·검색 버튼 억제(재선택 안내만 활성). */}
+        {r.kind === "model" && !dim && !reconcile?.byFile?.get(r.planItem?.selectedFile)?.altHeld && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
             : <a className="td-hf td-outline-w" href={rawUrl} target="_blank" rel="noopener noreferrer">링크 ↗</a>; }
@@ -1980,16 +1984,19 @@ export default function Teardown() {
                   const total = reconcile.results.length;
                   const found = reconcile.heldSet.size;
                   const misN = reconcile.results.filter((r) => r.misplaced).length;
-                  const corruptFiles = reconcile.results.filter((r) => r.corrupt);
+                  const altN = reconcile.results.filter((r) => r.altHeld).length; // 수리1: 대체 보유·재선택 대기(확인됨 아님)
+                  // 수리2: 원본 corrupt + 대체 corrupt(altCorrupt) 통합 명시.
+                  const corruptFiles = [...reconcile.results.filter((r) => r.corrupt).map((r) => ({ file: r.file, parsedSize: r.parsedSize, expected: r.expected })), ...reconcile.results.filter((r) => r.altCorrupt).map((r) => r.altCorrupt)];
                   const corrN = corruptFiles.length;
                   let msg;
                   if (reconcile.complete) msg = `${found}/${total}개 확인됨.${summary?.envComplete ? "" : " 필요한 모델을 모두 가지고 있습니다."}`;
-                  else if (found === 0 && misN === 0) msg = `0/${total}개 확인됨. 필요한 모델이 목록에 없습니다. 아래 받기 항목을 진행해 주세요.`;
+                  else if (found === 0 && misN === 0 && altN === 0) msg = `0/${total}개 확인됨. 필요한 모델이 목록에 없습니다. 아래 받기 항목을 진행해 주세요.`;
                   else msg = `${found}/${total}개 확인됨. 아래 목록에서 이미 있음 표시(✓)를 확인해 주세요. 나머지는 받기 항목에 있습니다.`;
                   return (<>
                     <div style={{ fontSize: 13, marginTop: 7, lineHeight: 1.5, color: reconcile.complete ? C.green : C.point }}>
                       {msg}
                       {misN > 0 && <span style={{ color: C.memoBright }}> · 위치 다름 {misN}개(아래 이동 안내 참고)</span>}
+                      {altN > 0 && <span style={{ color: C.memoBright }}> · 재선택 필요 {altN}개(대체 파일 보유·로더에서 선택)</span>}
                       {corrN > 0 && <span style={{ color: C.red }}> · 크기 이상(파일 깨짐 의심) {corrN}개</span>}
                     </div>
                     {/* 수리2: 크기 이상 파일 명시(개수만 → 파일별 보유/기대 용량 + 행동). 복수면 전부. */}
@@ -2380,7 +2387,7 @@ export default function Teardown() {
                 <NumRow num={n} first={!quantStep} title="한 번에 받기" open={open.md2} onToggle={() => toggle("md2")}>
                   <div style={{ fontSize: 14, color: C.dim, marginBottom: 14, lineHeight: 1.6 }}>출처가 확인된 파일입니다. 각 파일을 받아 지정 폴더에 넣거나, 아래 스크립트로 한 번에 받으세요.</div>
                   <div style={{ display: "flex", justifyContent: "center", marginBottom: 66 }}>
-                    <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.heldSet))}><Download size={15} /> 모델 한 번에 받기</button>
+                    <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.noDownloadSet))}><Download size={15} /> 모델 한 번에 받기</button>
                   </div>
                   <div style={{ borderTop: `1px solid ${C.divider}` }}>
                     <div style={{ display: "grid", gridTemplateColumns: "minmax(0,1.7fr) minmax(0,1.3fr) minmax(0,0.7fr) 110px", gap: 14, padding: "11px 0", borderBottom: `1px solid ${C.divider}` }}>

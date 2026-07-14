@@ -72,7 +72,7 @@ export function scanInputDiagnosis(rawText, parsedCount) {
 
 // 워크플로우 참조 모델 전체와 붙여넣은 목록 대조.
 // models: report.models(참조 모델 전체, 미등재 포함) = 대조 분모. plan: 기대 용량·요구 폴더 lookup(카탈로그).
-// 반환: results[{file, held, corrupt, misplaced, parsedSize, expected}] · heldSet(보유+제자리) · byFile · complete · scanned.
+// 반환: results[{file, held, corrupt, misplaced, variantCandidates, altHeld, altVariantCandidates, altCorrupt, parsedSize, expected}] · heldSet(완전일치 보유+제자리=dim·complete) · noDownloadSet(heldSet + altHeld=받기 제외) · byFile · complete · scanned.
 // corrupt(137KB 사태): 크기 파싱됨 + 기대 용량 10% 미만. misplaced: basename 일치 + 폴더 불일치(요구 폴더 알 때만).
 export function reconcileInventory(models, invMap, plan) {
   const scanned = invMap.size > 0;
@@ -91,7 +91,7 @@ export function reconcileInventory(models, invMap, plan) {
   for (const fn of invMap.keys()) { const vk = variantKey(fn); if (!invByVariant.has(vk)) invByVariant.set(vk, []); invByVariant.get(vk).push(fn); }
   // 작업2: 확정 대체(promoted) 파일명 → 원본 basename 매핑. 대체 파일 보유 시 원본을 '이미 있음' 처리(다운로드 대신 드롭다운 재선택).
   const altByBase = new Map();
-  for (const it of (plan?.items || [])) if (it.promoted?.filename) altByBase.set(baseName(it.selectedFile || it.workflowValue), baseName(it.promoted.filename));
+  for (const it of (plan?.items || [])) if (it.promoted?.filename) altByBase.set(baseName(it.selectedFile || it.workflowValue), { file: baseName(it.promoted.filename), size: it.promoted.size || null });
   const seen = new Set(); const results = [];
   for (const m of (models || [])) {
     const key = baseName(m.file);
@@ -102,12 +102,17 @@ export function reconcileInventory(models, invMap, plan) {
     // 표기 변형 후보: 완전일치 아닐 때만. 확정 처리 금지·후보 제시(복수면 전부). 다운로드 처방과 병기.
     let variantCandidates = null;
     if (!held) { const cands = (invByVariant.get(variantKey(key)) || []).filter((fn) => fn !== key); if (cands.length) variantCandidates = cands; }
-    // 작업2: 확정 대체 파일 보유 대조. 완전일치=altHeld(원본을 '이미 있음' 처리) / 표기 변형=altVariantCandidates(후보 제시).
-    let altHeld = null, altVariantCandidates = null;
-    const altBase = altByBase.get(key);
-    if (altBase) {
-      if (invMap.get(altBase)) altHeld = altBase;
-      else { const ac = (invByVariant.get(variantKey(altBase)) || []).filter((fn) => fn !== altBase); if (ac.length) altVariantCandidates = ac; }
+    // 작업2/수리1·2: 확정 대체 파일 보유 대조. 완전일치+크기정상=altHeld(재선택 대기) / 크기 이상=altCorrupt / 표기 변형=altVariantCandidates.
+    let altHeld = null, altVariantCandidates = null, altCorrupt = null;
+    const altEntry = altByBase.get(key);
+    if (altEntry) {
+      const altHit = invMap.get(altEntry.file);
+      if (altHit) {
+        // 수리2: 대체 파일도 크기 대조(기대 용량 10% 미만이면 corrupt → altHeld 성립 안 함).
+        const altExp = (sizeToGB(altEntry.size) || 0) * 1e9;
+        if (altExp && altHit.size && altHit.size < altExp * 0.1) altCorrupt = { file: altEntry.file, parsedSize: altHit.size, expected: altEntry.size };
+        else altHeld = altEntry.file;
+      } else { const ac = (invByVariant.get(variantKey(altEntry.file)) || []).filter((fn) => fn !== altEntry.file); if (ac.length) altVariantCandidates = ac; }
     }
     let corrupt = false;
     if (hit && hit.size && info.size) { const expBytes = (sizeToGB(info.size) || 0) * 1e9; if (expBytes && hit.size < expBytes * 0.1) corrupt = true; }
@@ -120,12 +125,14 @@ export function reconcileInventory(models, invMap, plan) {
         misplaced = { current: hit.folder, required: String(info.folder).replace(/^models[\\/]/i, "") };
       }
     }
-    results.push({ file: key, held, corrupt, misplaced, variantCandidates, altHeld, altVariantCandidates, parsedSize: hit ? hit.size : null, expected: info.size || null });
+    results.push({ file: key, held, corrupt, misplaced, variantCandidates, altHeld, altVariantCandidates, altCorrupt, parsedSize: hit ? hit.size : null, expected: info.size || null });
   }
-  const heldSet = new Set(results.filter((r) => (r.held && !r.misplaced) || r.altHeld).map((r) => r.file));
+  // 수리1: 이미 있음(dim·complete)=완전일치만. altHeld는 '재선택 대기'(활성)라 dim·complete 제외. 받기 제외(noDownloadSet)에는 altHeld 포함(대체 파일 보유).
+  const heldSet = new Set(results.filter((r) => r.held && !r.misplaced).map((r) => r.file));
+  const noDownloadSet = new Set(results.filter((r) => (r.held && !r.misplaced) || r.altHeld).map((r) => r.file));
   const byFile = new Map(results.map((r) => [r.file, r]));
-  const complete = scanned && results.length > 0 && results.every((r) => (r.held || r.altHeld) && !r.corrupt && !r.misplaced);
-  return { results, heldSet, byFile, complete, scanned };
+  const complete = scanned && results.length > 0 && results.every((r) => r.held && !r.corrupt && !r.misplaced);
+  return { results, heldSet, noDownloadSet, byFile, complete, scanned };
 }
 
 // 파인딩 s: 모델 종류 폴더명(이걸 선택하면 상위 폴더를 골라야 함). 하위 폴더 오선택 방어용.
