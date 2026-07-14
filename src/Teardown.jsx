@@ -1553,7 +1553,9 @@ export default function Teardown() {
         {/* 작업1: 로그 미유입 시 노드 대조 유도(모델 폴더 스캔 유도와 평행 톤). */}
         {r.kind === "install" && r.logHint && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>ComfyUI 시작 로그를 붙여넣으면 이미 설치된 노드팩은 걸러 드립니다.</div>}
         {/* 2c: 확인 필요 항목 공통 부속 — 다음 행동(LLM 진단) 안내. */}
-        {r.kind === "model" && r.badge === "확인 필요" && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>LLM 진단받기로 넘기면 출처를 함께 찾아드립니다.</div>}
+        {r.kind === "model" && r.badge === "확인 필요" && !r.planItem?.placeholder && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>LLM 진단받기로 넘기면 출처를 함께 찾아드립니다.</div>}
+        {/* 작업3-1·3-2: 자리표시자 발화(휴리스틱 또는 카탈로그 note). 웹검색 대신 계열 안내·드롭다운 직접 선택 유도. */}
+        {r.kind === "model" && r.planItem?.placeholder && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.planItem.reason}</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.5 }}>파일은 있으나 위치가 다릅니다. 현재 <span style={{ fontFamily: MONO }}>{mis.current}</span>에 있습니다. <span style={{ fontFamily: MONO }}>{mis.required}</span> 폴더로 이동해 주세요.</div>}
         {mis && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 3, lineHeight: 1.5 }}>이름이 같은 다른 모델일 수 있습니다. 이동 전 용량·출처를 확인해 주세요.</div>}
         {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
@@ -1561,7 +1563,7 @@ export default function Teardown() {
         {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
         {r.kind === "model" && r.planItem?.vramWarning && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.point, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.vramWarning}{r.planItem.noConfirmedAlt && <a className="td-hf td-outline-w" href={searchUrl((r.planItem.selectedFile || "").replace(/\.[^.]+$/, "") + " gguf")} target="_blank" rel="noopener noreferrer" style={{ padding: "1px 8px", fontSize: 12, marginLeft: 8 }}>저용량 버전 검색 ↗</a>}</div>}
         {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
-        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>워크플로우 원 지정값(상위 VRAM용): <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
+        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>{r.planItem?.placeholder ? "워크플로우 자리표시자 이름" : "워크플로우 원 지정값(상위 VRAM용)"}: <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
         {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.</div>}
         {/* 2(판단근거 흡수): 별도 리스트 폐지 → 각 행 1층 접이. 등급·근거·출처만(링크 텍스트, 버튼 중복 0). evidenceBg 계승. */}
         {r.kind === "model" && r.planItem?.reason && (
@@ -1640,7 +1642,7 @@ export default function Teardown() {
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
             : <a className="td-hf td-outline-w" href={rawUrl} target="_blank" rel="noopener noreferrer">링크 ↗</a>; }
-          return q ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a> : null; })()}
+          return q && !r.planItem?.placeholder ? <a className="td-hf td-outline-w" href={searchUrl(r.planItem?.selectedFile || r.text)} target="_blank" rel="noopener noreferrer">웹에서 검색 ↗</a> : null; })()}
       </div>
       </div>
     </React.Fragment>

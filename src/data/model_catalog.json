@@ -91,5 +91,11 @@
         { "filename": "ema_vae_fp16.safetensors", "role": "vae", "variant": null, "quant": "fp16", "repo": "numz/SeedVR2_comfyUI", "repo_path": "ema_vae_fp16.safetensors", "folder": "SEEDVR2", "size": "501MB", "confidence": "confirmed" }
       ]
     }
+  },
+  "_placeholders_note": "자리표시자 파일명(제작자 지정 · 실배포 파일 아님) 완전일치 등재. families(confirmed)와 분리. kind=alias는 확정 대체로 해소(promoted), kind=user_asset은 본인 자산(다운로드 대상 아님). note에 근거 명기 · UI 발화로 직접 노출.",
+  "placeholders": {
+    "text_실사모델.safetensors": { "kind": "alias", "role": "main_model", "folder": "checkpoints", "alt_filename": "Realistic_Vision_V5.1_fp16-no-ema.safetensors", "alt_repo": "SG161222/Realistic_Vision_V5.1_noVAE", "alt_repo_path": "Realistic_Vision_V5.1_fp16-no-ema.safetensors", "size": "2.13GB", "note": "책 예제(344p) 실측. 동반 control_v11p_sd15_canny로 SD1.5 계열로 확정했습니다. 자리표시자 파일명이라, 아래 확정 대체를 받아 로더 드롭다운에서 직접 선택해 주세요(개명 불필요)." },
+    "스프라이트시트넣는곳.safetensors": { "kind": "user_asset", "role": "lora", "folder": "loras", "note": "본인이 학습한 LoRA 자리입니다. 학습한 LoRA 파일을 loras 폴더에 넣고 로더 드롭다운에서 선택해 주세요. 대체 다운로드 대상이 아닙니다. (책 예제 363p 실측)" },
+    "캐릭터이펙트로라넣는곳.safetensors": { "kind": "user_asset", "role": "lora", "folder": "loras", "note": "본인이 학습한 LoRA 자리입니다. 학습한 LoRA 파일을 loras 폴더에 넣고 로더 드롭다운에서 선택해 주세요. 대체 다운로드 대상이 아닙니다. (책 예제 363p 실측)" }
   }
 }

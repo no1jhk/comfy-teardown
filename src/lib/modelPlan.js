@@ -31,6 +31,28 @@ function quantStance(quant, profile) {
 // 근거 등급 → 사용자 표시 뱃지(4단계).
 export const BADGE = { confirmed: "확정", workflow_author: "워크플로우 안내", inferred: "추정 후보", unknown: "확인 필요" };
 
+// 3-2: 자리표시자 카탈로그 조회(파일명 완전일치). families(confirmed)와 분리 — 대체(alias)·사용자자산(user_asset) 지침 전용.
+function placeholderLookup(filename) { return catalog.placeholders?.[baseName(filename)] || null; }
+// 3-1: 자리표시자 파일명 휴리스틱. 한글·CJK·공백 등 배포 파일명에 안 쓰는 문자 or ASCII 자리표시자 키워드 → 자리표시자. 순수 ASCII 미확인은 실모델일 수 있어 제외(웹검색 유지).
+function isPlaceholderName(base) {
+  const stem = String(base || "").replace(/\.[^.]+$/, "");
+  if (!stem) return false;
+  if (/[^A-Za-z0-9._\-]/.test(stem)) return true;
+  if (/\b(put|place|your|here|slot|todo|example|placeholder)\b/i.test(stem)) return true;
+  return false;
+}
+// 3-1: 자리표시자 발화 + 로더 문맥·동반 모델로 계열 추정(가능할 때만 병기).
+function placeholderVerdict(m, models) {
+  const base = "제작자가 지정한 자리표시자 파일명으로 보입니다. 같은 계열 모델을 받아 로더 드롭다운에서 직접 선택해 주세요.";
+  const node = m.node || "";
+  const roleKo = /checkpoint/i.test(node) ? "체크포인트" : /lora/i.test(node) ? "LoRA" : /vae/i.test(node) ? "VAE" : /control/i.test(node) ? "컨트롤넷" : /clip|text.?encoder/i.test(node) ? "텍스트 인코더" : /upscal/i.test(node) ? "업스케일 모델" : null;
+  const all = (models || []).map((x) => (x.file || "").toLowerCase()).join(" ");
+  const fam = /sd15|sd_15|v1-5|control_v11p_sd15/.test(all) ? "SD1.5" : /sdxl|xl_base|xl_refiner/.test(all) ? "SDXL" : /flux/.test(all) ? "FLUX" : /(^|[^a-z0-9])sd3/.test(all) ? "SD3" : null;
+  if (fam && roleKo) return `${base} ${fam} 계열 ${roleKo}로 보입니다.`;
+  if (roleKo) return `${base} ${roleKo} 자리로 보입니다.`;
+  return base;
+}
+
 // "26.3GB"/"484MB" → GB 숫자. 모르면 null.
 function sizeToGB(s) {
   if (!s) return null;
@@ -63,21 +85,31 @@ export function buildModelPlan(report, env) {
     const b = baseName(m.file);
     if (seen.has(b)) continue; seen.add(b);
     const db = fileDbLookup(m.file);
+    const ph = placeholderLookup(m.file);
     const recSlot = recByBase.get(b);
     const noteLink = noteByBase.get(b);
-    const role = db?.role || recSlot?.slotType || null;
+    const role = db?.role || ph?.role || recSlot?.slotType || null;
     const norm = m.file.replace(/\\/g, "/");
     const sub = norm.includes("/") ? norm.slice(0, norm.lastIndexOf("/")) : ""; // 워크플로우 값의 서브폴더(케이스 보존)
     // 파인딩 #3: 폴더 우선순위 = 확정 카탈로그(db) > 노트(제작자 지정) > 추론 슬롯(recSlot) > 로더 타입 폴백(m.folder).
     // (노트 폴더가 추론 슬롯·로더 폴백을 이기게 → UNETLoader가 note diffusion_models/boogu를 models/unet로 덮던 소실 수리.)
     const noteFolderBase = noteLink?.folder ? noteLink.folder.replace(/^models[\/\\]/i, "").replace(/\\/g, "/").replace(/\/+$/, "") : null; // 하위 경로 포함(예 diffusion_models/boogu)
     const recFolderBase = recSlot ? recSlot.folder.replace(/^models\//, "").split("/")[0] : null;
-    const folderBase = db?.folder || noteFolderBase || recFolderBase;
+    const folderBase = db?.folder || ph?.folder || noteFolderBase || recFolderBase;
     const usesNoteFolder = !db?.folder && !!noteFolderBase; // 노트 폴더 사용 시 전체 경로 → 워크플로우 sub 중복 append 안 함
     const folder = folderBase ? `models/${folderBase}` + (!usesNoteFolder && sub ? `/${sub}` : "") : (m.folder || null);
     const fullPath = basePath && folderBase ? (usesNoteFolder ? joinPath(basePath, folderBase) : joinPath(basePath, folderBase, sub)) : null;
-    let confidence, sourceRepo = null, sourcePath = null, size = null, downloadUrl = null, reason = "", renameHint = null;
-    if (db) {
+    let confidence, sourceRepo = null, sourcePath = null, size = null, downloadUrl = null, reason = "", renameHint = null, placeholder = false;
+    if (ph && ph.kind === "user_asset") {
+      // 3-2: 자리표시자 · 사용자 자산(본인 학습 LoRA 등). 대체 다운로드 대상 아님 → 확인 필요 + 지침 note.
+      confidence = "unknown"; placeholder = true;
+      reason = ph.note || "제작자가 지정한 자리표시자 파일명입니다. 본인 파일을 넣고 로더에서 선택해 주세요.";
+    } else if (ph && ph.kind === "alias") {
+      // 3-2: 자리표시자 · 확정 대체로 해소(promoted로 노출). repo/path는 대체 파일 기준.
+      confidence = "confirmed"; placeholder = true; size = ph.size; sourceRepo = ph.alt_repo;
+      downloadUrl = hfUrl(ph.alt_repo, ph.alt_repo_path);
+      reason = ph.note || "자리표시자 파일명입니다. 아래 확정 대체를 받아 로더 드롭다운에서 직접 선택해 주세요.";
+    } else if (db) {
       confidence = "confirmed"; sourceRepo = db.repo; sourcePath = db.repo_path; size = db.size;
       // 결함7: repo_filename(repo 실파일명) 확인 시에만 파일 직링크. 미확인은 repo 트리 링크(파일 직링크 날조 금지).
       const repoFn = db.repo_filename || (db.repo_path && !db.repo_path.endsWith("/") ? db.repo_path.split("/").pop() : null);
@@ -95,13 +127,17 @@ export function buildModelPlan(report, env) {
       reason = `파일명·노드 패턴으로 ${rec.label} 구성요소로 보이는 추정 후보입니다. 공식 카탈로그 확인이 필요합니다.`;
     } else {
       confidence = "unknown";
-      reason = `출처를 확인하지 못했습니다.`;
+      // 3-1: 자리표시자 판정 휴리스틱 — 한글/CJK 포함 or 배포 파일명 패턴 실패 → 자리표시자 발화(웹검색 제외). 그 외 미확인은 현행(웹검색 유지).
+      if (isPlaceholderName(b)) { placeholder = true; reason = placeholderVerdict(m, models); }
+      else reason = `출처를 확인하지 못했습니다.`;
     }
     // 4: VRAM 초과(용량 > VRAM*1.5) 판정. 메시지는 확정형("실행이 어렵습니다"). 하위 양자화 목록/미확인은 alternatives 계산 후 확정.
     const gb = sizeToGB(size);
     const vramTooBig = !!(gb && profile?.vram && gb > profile.vram * 1.5); // 실측 정합: 3090 24GB에서 26.3GB<36 무경고, 8GB 경고.
     const vramWarning = vramTooBig ? `이 GPU(${profile.vram}GB)에서 ${b}(${size})은 실행이 어렵습니다.` : null;
-    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, vramTooBig, renameHint, nodeSelection: m.file, reason };
+    const item = { role, workflowValue: m.file, selectedFile: b, node: m.node, folder, fullPath, size, sourceRepo, sourcePath, downloadUrl, confidence, badge: BADGE[confidence], vramWarning, vramTooBig, renameHint, nodeSelection: m.file, reason, placeholder };
+    // 3-2 alias: 확정 대체를 promoted로(기존 렌더 재사용). 원 지정값=자리표시자 이름.
+    if (ph?.kind === "alias") item.promoted = { filename: ph.alt_filename, size: ph.size, downloadUrl, folder, fullPath, node: m.node, reason: "자리표시자 대신 받을 확정 대체", originalFile: m.file, originalSize: null };
     (confidence === "unknown" ? unknowns : items).push(item);
   }
   // 대체 후보 / 제외(주 모델). files DB + note 제외 지시 기준. "추천" 아니라 "OOM 시 대체 후보".
