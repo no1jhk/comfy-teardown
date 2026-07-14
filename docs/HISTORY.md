@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-07-14 (z-image 계열 등재 + 파일명 표기 변형 정규화 매칭)
+**한 일** — 커밋 2건 분리.
+- **커밋① 71d8c27 (z-image 등재)**: model_catalog에 `zimage` family 5파일. bf16·qwen_3_4b·ae는 Comfy-Org/z_image_turbo split_files 확정, z-image-Q3_K_M.gguf는 unsloth/Z-Image-GGUF(무증류 base·ComfyUI-GGUF 필요). fp8_e4m3fn은 원 배포처 미상 → `confidence:"unsourced"` + `alt_of` 신설: 확정 대체 bf16을 promoted로 안내(추정 후보 뱃지·자체 다운로드 없음), Ampere fp8 출력 글리치 실측 note. ae는 generic 파일명(Flux 공유) → `weak` 플래그로 워크플로우 제작자 노트 있으면 양보(회귀 'r ae workflow_author' 수리), 없으면 confirmed. modelPlan: unsourced·weak 분기 + promoted `originLabel`(자리표시자/출처 미상/VRAM 구분) → 렌더 통일.
+- **커밋② 4bc7cc3 (정규화 후보 매칭)**: 동일 모델 하이픈/언더스코어 혼용 유통 오탐 해소(보유인데 미보유 판정). `inventoryMatch.variantKey`(basename 소문자 + 하이픈·언더스코어를 단일 구분자 통일, 확장자 무변) + reconcileInventory 2차 패스(1차 완전일치 우선). 판정 3단계: 완전일치=이미 있음 / 정규화 일치=신규 '표기 변형 후보'(held·heldSet 미포함·확정 금지, 복수 전부 나열) / 불일치=무변. 하위 폴더 basename 비교. 렌더: 모델 행에 '보유 파일 중 표기만 다른 후보가 있습니다: {파일명}' + 다운로드 처방 병기(에러로그 'PC에 있는 후보' 톤). 신규 배지·행 형태 0.
+**검증** — build 0 · smoke · e2e 15/15 · regression(ae weak 회귀 수리 포함). 하네스: z-image 20/20(family 감지·bf16/qwen/ae/gguf confirmed·fp8 promoted·렌더), 변형 매칭 17/17(정규화·판정3단계·복수·하위폴더·렌더 병기). em dash UI 0.
+**판단·미결** — 표기 변형 정규화는 하이픈/언더스코어 '단일 구분자 통일'까지만(스펙 준수). z-image-Q3 vs z_image_turbo-Q3처럼 토큰(turbo) 유무 차이는 순수 구분자 정규화 밖이라 미매칭(과잉 매칭 오탐 방지). 필요 시 별도 판단.
+**다음 할 일** — 화면 검수 후 push(사용자 전용).
+
 ## 2026-07-14 (노드 대조 A+B 수리 + 자리표시자 휴리스틱·카탈로그 3건)
 **한 일**
 - **작업1+2 커밋 797f1b5 (노드 보유 대조)**: 조사 보고 수리안 A·B 구현. A — installedPacks 비었고 설치 todo 있을 때 설치 행에 dim 힌트 "ComfyUI 시작 로그를 붙여넣으면 이미 설치된 노드팩은 걸러 드립니다"(모델 폴더 스캔 유도와 평행). B — 로그로 확인돼 제외된 팩을 제거 대신 dim 부속 줄 "이미 설치됨: {팩명…}"으로 노출(모델 '이미 있음' 문법 통일). 집계 1행 유지·제외 로직 무변·표시층 전용. actionRows에 nodeGroups/installedNames 계산, renderActionRow에 install 부속 2줄 추가.
