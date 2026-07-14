@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-14 (환경 칩 배경 제거 + 노드 보유 대조 조사)
+**한 일**
+- **작업1 커밋 ba803df**: Solution 헤더 환경 요약 칩의 evidenceBg 배경·라운드박스·패딩 제거 → 텍스트만(입력=C.point, 미입력=amber '지금 채우기'). 위치·클릭 동작 무변. build 0·smoke·e2e 15/15.
+- **작업2 조사(수리 미착수, 판정 대기)**: "설치된 노드팩(rgthree-comfy)이 매번 '설치'로 등장" 증상 원인 규명.
+**조사 결과(실증 probe)** — `logParse.parseComfyLog`는 Import/Prestartup times 블록을 파싱함(installedPacks=폴더명 소문자). `packInstalled`는 rgthree를 owner/repo·https·.git·bare 전 형태에서 매칭. 엔드투엔드(analyze→groupNodesByRepo→packInstalled)에서 rgthree 노드가 설치 행에서 정상 제외됨. **즉 매칭 버그 아님.**
+- **근본 원인 = 데이터 유입 비대칭**: 모델 dim은 폴더 스캔(`dir` 출력, folderScan→reconcileInventory) 소스, 노드 제외는 시작 로그의 Import times 블록(installedPacks) 소스. 사용자가 모델용 폴더 스캔만 붙여넣고 시작 콘솔 로그(또는 그 Import 블록)를 안 주면 installedPacks가 비어 노드가 안 걸러짐. 안내도 없음.
+- **부차 = 문법 불일치**: 설치된 노드팩은 dim '이미 있음'이 아니라 설치 행에서 조용히 제거(Teardown.jsx:1440). 모델(dim ✓)과 그램마 다름. 게다가 설치 행은 팩을 1행에 집계(모델은 슬롯당 1행)라 '팩당 dim'이 구조상 바로 안 맞음.
+**수리안(판정 대기)** — A(저비용·UX): installedPacks 비었고 설치 todo 있으면 설치 행에 dim 힌트 "ComfyUI 시작 로그를 붙여넣으면 이미 설치된 노드팩은 걸러 드립니다"(모델 폴더 스캔 유도와 평행). B(중비용·문법 통일): 설치된 팩을 제거 대신 dim '이미 있음' 노출 — 집계 1행 구조상 dim 부속 줄 "이미 설치됨: {팩…}"이 최소 변경, 팩당 행 분해는 설치 행 그램마 재설계(고비용). 둘 다 표시층 전용(파서·매칭 무변). 권장: A 우선 → 필요 시 B.
+**다음 할 일** — 작업2 수리안 A/B 판정 받기. 작업1 화면 검수 후 push.
+
 ## 2026-07-14 (미세 2건: 환경 요약 간격 + 축소판 파일명 선행)
 **한 일** — 커밋 752fb5f. 직전 입력 존(A) 화면 후속 미세 조정.
 - **수리1 환경 요약 간격**: 단계2 접힘 헤더 '내 환경 정보' 라벨과 point 요약 사이 밀착 해소. 마크업 공백을 제거하고 요약 span에 `marginLeft: 8`(스타일 간격). GPU명이 첫눈에 분리.
