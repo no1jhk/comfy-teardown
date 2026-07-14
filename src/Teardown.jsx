@@ -1702,7 +1702,7 @@ export default function Teardown() {
             <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 14, flexWrap: "wrap" }}>
               <NumBadge n={report ? null : 1} mt={0} />
               <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 700, color: C.text }}>워크플로우 JSON</span>
-              {report && <span style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, overflowWrap: "anywhere", minWidth: 0 }}>{report.source} · 분석 완료</span>}
+              {report && <span style={{ fontFamily: SANS, fontSize: 13.5, color: C.dim, minWidth: 0 }}>분석 완료</span>}
             </div>
             {/* 드롭존: 미투입=현행 크기(도구 첫 문장) / 분석완료=1행 축소판(클릭·드롭으로 다른 파일 재분석, '다른 파일' 버튼 통합). */}
             <div className="td-drop"
@@ -1716,7 +1716,10 @@ export default function Teardown() {
               <div style={{ width: report ? 34 : 44, height: report ? 34 : 44, borderRadius: report ? 9 : 12, background: C.surfaceHi, display: "grid", placeItems: "center", border: `1px solid ${C.line}`, flexShrink: 0 }}>
                 <Upload size={report ? 16 : 19} color={C.point} strokeWidth={1.9} /></div>
               {report ? (
-                <div style={{ flex: 1, minWidth: 160, fontSize: 15, color: C.dim }}>다른 파일을 올리면 다시 분석합니다</div>
+                <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 7, fontSize: 15 }}>
+                  <span style={{ color: C.text, fontWeight: 600, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 }}>{report.source}</span>
+                  <span style={{ color: C.dim, whiteSpace: "nowrap", flexShrink: 0 }}>· 다른 파일을 올리면 다시 분석합니다</span>
+                </div>
               ) : (<>
                 <div style={{ flex: 1, minWidth: 200 }}>
                   <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>workflow.json을 끌어다 놓기</div>
@@ -1740,7 +1743,7 @@ export default function Teardown() {
                 {envOpen ? (
                   <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>내 환경 정보</span>
                 ) : (env.gpu || env.torch || env.cuda || env.modelRoot) ? (
-                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.5, overflowWrap: "anywhere" }}>내 환경 정보 <span style={{ color: C.point }}>{[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot].filter(Boolean).join(" · ")}</span></span>
+                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1.5, overflowWrap: "anywhere" }}>내 환경 정보<span style={{ color: C.point, marginLeft: 8 }}>{[env.gpu, env.torch && `torch ${env.torch}`, env.cuda && `CUDA ${env.cuda}`, env.modelRoot].filter(Boolean).join(" · ")}</span></span>
                 ) : (
                   <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.amber, lineHeight: 1.5 }}>내 환경 정보 미입력 <span style={{ color: C.dim, fontWeight: 400 }}>· 보유 파일 대조를 건너뜁니다. 입력하면 이미 가진 파일을 걸러 드립니다.</span></span>
                 )}
