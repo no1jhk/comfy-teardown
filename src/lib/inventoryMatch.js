@@ -89,6 +89,9 @@ export function reconcileInventory(models, invMap, plan) {
   // 표기 변형 2차 패스 인덱스: 붙여넣은 목록을 variantKey로 묶음(하이픈/언더스코어만 다른 보유 후보 탐색).
   const invByVariant = new Map();
   for (const fn of invMap.keys()) { const vk = variantKey(fn); if (!invByVariant.has(vk)) invByVariant.set(vk, []); invByVariant.get(vk).push(fn); }
+  // 작업2: 확정 대체(promoted) 파일명 → 원본 basename 매핑. 대체 파일 보유 시 원본을 '이미 있음' 처리(다운로드 대신 드롭다운 재선택).
+  const altByBase = new Map();
+  for (const it of (plan?.items || [])) if (it.promoted?.filename) altByBase.set(baseName(it.selectedFile || it.workflowValue), baseName(it.promoted.filename));
   const seen = new Set(); const results = [];
   for (const m of (models || [])) {
     const key = baseName(m.file);
@@ -99,6 +102,13 @@ export function reconcileInventory(models, invMap, plan) {
     // 표기 변형 후보: 완전일치 아닐 때만. 확정 처리 금지·후보 제시(복수면 전부). 다운로드 처방과 병기.
     let variantCandidates = null;
     if (!held) { const cands = (invByVariant.get(variantKey(key)) || []).filter((fn) => fn !== key); if (cands.length) variantCandidates = cands; }
+    // 작업2: 확정 대체 파일 보유 대조. 완전일치=altHeld(원본을 '이미 있음' 처리) / 표기 변형=altVariantCandidates(후보 제시).
+    let altHeld = null, altVariantCandidates = null;
+    const altBase = altByBase.get(key);
+    if (altBase) {
+      if (invMap.get(altBase)) altHeld = altBase;
+      else { const ac = (invByVariant.get(variantKey(altBase)) || []).filter((fn) => fn !== altBase); if (ac.length) altVariantCandidates = ac; }
+    }
     let corrupt = false;
     if (hit && hit.size && info.size) { const expBytes = (sizeToGB(info.size) || 0) * 1e9; if (expBytes && hit.size < expBytes * 0.1) corrupt = true; }
     // 위치 불일치: basename 일치 + 폴더 불일치. 요구 폴더 모르면 판정 생략(오판보다 관대가 안전, 날조 금지).
@@ -110,11 +120,11 @@ export function reconcileInventory(models, invMap, plan) {
         misplaced = { current: hit.folder, required: String(info.folder).replace(/^models[\\/]/i, "") };
       }
     }
-    results.push({ file: key, held, corrupt, misplaced, variantCandidates, parsedSize: hit ? hit.size : null, expected: info.size || null });
+    results.push({ file: key, held, corrupt, misplaced, variantCandidates, altHeld, altVariantCandidates, parsedSize: hit ? hit.size : null, expected: info.size || null });
   }
-  const heldSet = new Set(results.filter((r) => r.held && !r.misplaced).map((r) => r.file));
+  const heldSet = new Set(results.filter((r) => (r.held && !r.misplaced) || r.altHeld).map((r) => r.file));
   const byFile = new Map(results.map((r) => [r.file, r]));
-  const complete = scanned && results.length > 0 && results.every((r) => r.held && !r.corrupt && !r.misplaced);
+  const complete = scanned && results.length > 0 && results.every((r) => (r.held || r.altHeld) && !r.corrupt && !r.misplaced);
   return { results, heldSet, byFile, complete, scanned };
 }
 
