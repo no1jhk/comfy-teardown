@@ -6,6 +6,8 @@
 // 경로 구분자 3종 동치: 백슬래시(\) · 슬래시(/) · 원화기호(₩ U+20A9, 한글 Windows에서 \가 ₩로 표시).
 const SEP = /[\\₩]/g;
 const baseName = (v) => (v || "").replace(SEP, "/").split("/").pop().toLowerCase();
+// 표기 변형 비교 키(2차 패스): basename 소문자 + 하이픈·언더스코어를 단일 구분자(_)로 통일. 확장자 무변. 자동 확정 금지·후보 제시용.
+export const variantKey = (v) => baseName(v).replace(/[-_]+/g, "_");
 // 폴더명 정규화(위치 비교용): 소문자 + 공백·구분자·언더스코어·점·하이픈 제거.
 const normFolder = (s) => String(s || "").toLowerCase().replace(/[\s_.\-/\\₩]/g, "");
 
@@ -82,6 +84,9 @@ export function reconcileInventory(models, invMap, plan) {
     const wf = norm.includes("/") ? norm.slice(0, norm.lastIndexOf("/")) : "";
     if (wf && !(meta.get(b) && meta.get(b).folder)) put(b, undefined, wf);
   }
+  // 표기 변형 2차 패스 인덱스: 붙여넣은 목록을 variantKey로 묶음(하이픈/언더스코어만 다른 보유 후보 탐색).
+  const invByVariant = new Map();
+  for (const fn of invMap.keys()) { const vk = variantKey(fn); if (!invByVariant.has(vk)) invByVariant.set(vk, []); invByVariant.get(vk).push(fn); }
   const seen = new Set(); const results = [];
   for (const m of (models || [])) {
     const key = baseName(m.file);
@@ -89,6 +94,9 @@ export function reconcileInventory(models, invMap, plan) {
     const info = meta.get(key) || {};
     const hit = invMap.get(key);
     const held = !!hit;
+    // 표기 변형 후보: 완전일치 아닐 때만. 확정 처리 금지·후보 제시(복수면 전부). 다운로드 처방과 병기.
+    let variantCandidates = null;
+    if (!held) { const cands = (invByVariant.get(variantKey(key)) || []).filter((fn) => fn !== key); if (cands.length) variantCandidates = cands; }
     let corrupt = false;
     if (hit && hit.size && info.size) { const expBytes = (sizeToGB(info.size) || 0) * 1e9; if (expBytes && hit.size < expBytes * 0.1) corrupt = true; }
     // 위치 불일치: basename 일치 + 폴더 불일치. 요구 폴더 모르면 판정 생략(오판보다 관대가 안전, 날조 금지).
@@ -100,7 +108,7 @@ export function reconcileInventory(models, invMap, plan) {
         misplaced = { current: hit.folder, required: String(info.folder).replace(/^models[\\/]/i, "") };
       }
     }
-    results.push({ file: key, held, corrupt, misplaced, parsedSize: hit ? hit.size : null, expected: info.size || null });
+    results.push({ file: key, held, corrupt, misplaced, variantCandidates, parsedSize: hit ? hit.size : null, expected: info.size || null });
   }
   const heldSet = new Set(results.filter((r) => r.held && !r.misplaced).map((r) => r.file));
   const byFile = new Map(results.map((r) => [r.file, r]));
