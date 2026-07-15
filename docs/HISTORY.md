@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-15 (작업 2건: 환경정보 입력 재분류 + 노드 번호 병기 + 감사 수리 3건)
+**한 일** — 커밋 264f581(작업1)·9ba7f8d(작업2)·70a35ca(감사 수리). 별도 커밋 3개, push 미실행(사용자 전용).
+- **작업1 폴더 대조 독립 분리(264f581)**: 폴더 대조는 로그의 대체재가 아니라 추가 입력(보유 모델 목록)이므로 "다른 방법으로 입력"(altOpen) 접이 밖 독립 접이(scanOpen)로 승격. 환경 펼침 세로 순서 = 로그 붙여넣기 → 내 모델 폴더 대조(dim 유도 한 줄 상시 + 접이) → 다른 방법으로 입력(직접 선택만). 아이콘 로그=Terminal·폴더대조=FolderOpen·직접선택=SlidersHorizontal. goFillEnv를 setScanOpen + #scan-block 스크롤로 재지정. 슬라이드·캐러셀·완료 버튼 미도입. smoke Part D/E 폴더 대조 진입 경로 갱신 + Part F(goFillEnv durable).
+- **작업2 노드 번호·제목 병기(9ba7f8d)**: 같은 타입 로더가 복수면 "로더에서 바꿔 주세요"로 캔버스 노드 특정 불가. analyzeWorkflow에 normalizeNode.title(캔버스 표시명) + report.nodeRefs(노드가 참조하는 모델 basename→{id,type,title}). nodeLocStr(파일명)로 "#109, #130 확산 모델 로드" 역추적(title 우선·복수 전부). Solution "선택:"(selects·altHeld·promoted)·에러 진단부("거부한 값")에 노드 위치 병기. 캡션 화면당 1회. 캔버스 미니맵·좌표 렌더링 미도입. durable: regression nodeRefs, smoke Part D/E/G.
+- **code-auditor 감사 1회(264f581·9ba7f8d) → 상·중 실 gap 3건 수리(70a35ca)**: (1)[중] altHeld/promoted 행 이중 "선택:" 모순(원 지정값 fp8 "선택:" + 대체 bf16 "바꿔 주세요" 동시) → selects에 !promoted 가드 / (2)[중] API 포맷 UUID 노드 키가 nodeLocStr "#<uuid>"로 노출(CLAUDE.md UUID 금지) → 숫자 id만 배지·비숫자는 라벨만 / (3)[중] bypass 행 식별자 혼재(활성 "#id 라벨" vs bypass "타입:") → nodeRefs에 bypass 노드 포함(표시 전용). +API 노드 title(_meta.title) 추출. durable: regression(bypass 포함·API title·UUID키 보존)·smoke Part D(fp8 "선택:" 억제).
+**검증** — build 0 · smoke(D·E·F·G) · e2e 15/15 · regression(nodeRefs 포함). 신규 UI 카피 em dash 0·"워크플로우" 표기. 임시 하네스 0.
+**판단 필요(미구현·보고)** — goFillEnv 착지: 감사 [중]는 #scan-block 착지가 로그(GPU/torch 소스)를 뷰 위로 밀어 부분 입력 유발 우려 지적. 그러나 작업1 스펙이 "폴더 대조 지점으로 스크롤"을 명시(CTA "환경 미입력·보유 대조 생략됨")하고 로그는 envOpen로 렌더(스크롤 접근 가능)라, 스펙 변경으로 판단해 일방 수정 대신 보고. 유지(현행) vs #env-step 복귀 판정 요청.
+**이월(ROADMAP 단기)** — 노드 병기 후속 [하] 3건: display_name 불일치·3+노드 라벨 비대·dim 유도 줄 stale·#env-step 고아 앵커. 실발화 낮아 정련 대상.
+**다음 할 일** — 화면 검수 후 push(미푸시 커밋 3개). goFillEnv 착지 판정 받기.
+
 ## 2026-07-15 (감사 루프 마감: 실 gap 2건 수리 + 잠재 이월)
 **한 일** — 재재감사 잔여(중4·하1) 중 실사용자 영향 있는 실 gap 2건 + 문구 정정. code-auditor 루프 종결(재감사 없음).
 - **#1 폴더 요약 혼재 카피(중·실 gap)**: `found>0 && altN>0`(z-image 재선택 해피패스)에서 "나머지는 받기 항목"이 altHeld를 받기로 오지칭하던 것 해소. found·altN(재선택 대기=altHeld && !held)·dlN(받기)로 분해, 합 found+altN+dlN+misN=total 불변. altN 부속 span은 msg로 흡수(중복 제거). regression에 수치 합 불변 durable 고정.
