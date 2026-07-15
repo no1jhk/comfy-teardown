@@ -6,6 +6,18 @@
 
 ---
 
+## 2026-07-15 (재감사 대응 수리 5건 + 재재감사: flagship [상] 해소)
+**한 일** — 커밋 738c733.
+- **수리 5건(재감사 발견 대응)**: (1)[상] altHeld 성립에 기대 용량 미등재(size null/0) 가드=altUnsized(확정 차단·확인 필요 발화) + 카탈로그 z_image_turbo_bf16 실측 size **12.3GB** 등재(Comfy-Org/z_image_turbo 공시 12,309,866,400 bytes, HF `hf_fs stat` 확인) → 깨진(137KB) bf16이 이제 altCorrupt로 잡혀 flagship 우회 차단 / (2)[중하] altHeld 행 verb '받기'→'선택'·'넣기:' 억제 / (3)[중하] Models '한 번에 받기' 표 dlEligible에 noDownloadSet 필터(3면 통일) / (4)[하] 폴더 요약 found=0·altN>0 카피 / (5)[중] durable: regression(altUnsized·깨진 bf16 altCorrupt·정상 altHeld)·smoke Part D(verb·넣기).
+**재재감사(738c733, code-auditor 에이전트 등록 후 직접 호출) — flagship 해소, 잔여 중4·하1(판정 대기)**:
+- **[상] 0건 — 직전 [상] 실제 해소 확인**: bf16 12.3GB 등재로 137KB→altCorrupt(regression 실측), altUnsized 가드도 heldSet·noDownloadSet·complete 정확 차단. size 12.3GB는 실측 정합(날조 아님) 판정.
+- **[중] 폴더 요약 혼재 미해소**: 수리4가 found=0만 고쳐, `found>0 && altN>0`(z-image 재선택 해피패스: bf16·qwen·ae 보유) 시 else 분기 "나머지는 받기 항목"이 altHeld를 받기로 오지칭.
+- **[중] altUnsized 렌더 미완(잠재)**: verb '받기'+다운로드+'넣기:' 잔존한 채 메시지만 '확인'이라 상충. 단 현 카탈로그에 promoted.size null 실경로 0건(alias 2.13GB·bf16 12.3GB) → 실발화 0·안전측(받으라) 오류. 방어 전용.
+- **[중] Models 표 필터 렌더 검증 0**: smoke 픽스처 fp8=inferred라 confidence 필터가 noDownloadSet 이전에 배제 → 필터 삭제해도 smoke 통과(CLAUDE.md 2b 저촉). confirmed+altHeld(alias) 픽스처 필요.
+- **[하] altUnsized 문구 '기대 용량 미등재'(내부 용어)·smoke 로그 'Models 표 공통' 과잉 표기**.
+**막힌 점** — 재재감사 기준(0/하)에 중4로 미달. 잔여는 실 gap 2건(요약 혼재 카피·Models 표 렌더 검증)과 altUnsized 방어전용 3건.
+**다음 할 일** — 잔여 중4·하1 수리 판정 받기(요약 혼재 카피 분리 + confirmed+altHeld smoke 픽스처 + altUnsized 렌더 일원화 또는 방어전용 명시 + 문구/로그 정정).
+
 ## 2026-07-15 (code-auditor 신설 + 첫 감사 → 수리 5건 + 게이트 보강 + 재감사)
 **한 일** — 커밋 6991354(에이전트)·dbd6a2f(수리)·f926027(게이트).
 - **code-auditor 서브에이전트 신설**(`.claude/agents/code-auditor.md`): 구현 완료분의 적대적 검수자(지시 밖 결함 탐색). 3질문 프레임(실사용자 잔여 문제/인접 결함/검증 사각), read-only 권한(Read·Grep·Glob·Bash), 출력 [심각도·표면·재현·수리 제안], 카피 규칙 검수 포함. 커스텀 에이전트는 다음 세션부터 `subagent_type: code-auditor`로 호출(이번 세션 생성분은 미등록이라 첫 감사·재감사는 정의 주입 general-purpose로 동등 실행).
