@@ -6,6 +6,14 @@
 
 ---
 
+## 2026-07-15 (착지 수정 1건: goFillEnv 로그 우선 착지 복귀 · 판정 완료)
+**한 일** — 커밋 9ddb782. 직전 라운드의 "판단 필요"(goFillEnv 착지) 사용자 판정 채택 반영.
+- **판정**: 감사 [중] 채택. CTA "환경 미입력 · 보유 대조 생략됨"의 앞 절(환경=로그)이 착지에서 밀리면 폴더 대조만 채우고 종료하는 구조라, 작업1 스펙(폴더 대조 착지)을 수정.
+- **수리**: goFillEnv 스크롤 타깃 #scan-block → #env-step(로그 입력). envOpen·scanOpen 둘 다 펼침 유지(로그 뷰 상단, 폴더 대조 열린 채 아래). 재지정으로 미참조가 된 #scan-block id 제거(scanOpen div·유도 줄 유지, 스크롤 속성만) → 이월분 "#env-step 고아 앵커" 동반 해소(#env-step 참조·실존 정합).
+- **durable**: smoke Part F를 로그 우선 착지(#env-step 스크롤 + logTA·scanTA 둘 다 펼침 + #scan-block 미스크롤 네거티브 가드)로 갱신.
+**검증** — build 0 · smoke(F) · e2e 15/15 · regression. 신규 UI 카피 0(로직·앵커·테스트만). em dash UI 0.
+**다음 할 일** — 화면 검수 후 push(미푸시 커밋 6개). 노드 병기 후속 [하] 3건은 ROADMAP 단기 잔류.
+
 ## 2026-07-15 (작업 2건: 환경정보 입력 재분류 + 노드 번호 병기 + 감사 수리 3건)
 **한 일** — 커밋 264f581(작업1)·9ba7f8d(작업2)·70a35ca(감사 수리). 별도 커밋 3개, push 미실행(사용자 전용).
 - **작업1 폴더 대조 독립 분리(264f581)**: 폴더 대조는 로그의 대체재가 아니라 추가 입력(보유 모델 목록)이므로 "다른 방법으로 입력"(altOpen) 접이 밖 독립 접이(scanOpen)로 승격. 환경 펼침 세로 순서 = 로그 붙여넣기 → 내 모델 폴더 대조(dim 유도 한 줄 상시 + 접이) → 다른 방법으로 입력(직접 선택만). 아이콘 로그=Terminal·폴더대조=FolderOpen·직접선택=SlidersHorizontal. goFillEnv를 setScanOpen + #scan-block 스크롤로 재지정. 슬라이드·캐러셀·완료 버튼 미도입. smoke Part D/E 폴더 대조 진입 경로 갱신 + Part F(goFillEnv durable).
