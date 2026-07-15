@@ -1553,7 +1553,10 @@ export default function Teardown() {
   const rowMultiLine = (r) => r.kind === "model" || !!(r.sub || r.guides?.length || r.alternatives?.length || r.exclusions?.length || r.links?.length || r.nodes?.length || r.diagLink);
   const renderActionRow = (r, first, dim, variant = "fill") => {
     const align = alignMode === "auto" ? (rowMultiLine(r) ? "top" : "center") : alignMode;
-    const mis = r.kind === "model" ? reconcile?.byFile?.get(r.planItem?.selectedFile)?.misplaced : null; // 6-3 위치 불일치
+    const rr = r.kind === "model" ? reconcile?.byFile?.get(r.planItem?.selectedFile) : null;
+    const mis = rr?.misplaced || null; // 6-3 위치 불일치
+    const altHeld = rr?.altHeld || null;       // 수리(재감사): 확정 대체 보유·재선택 대기
+    const altUnsized = rr?.altUnsized || null;  // 수리(재감사): 대체 존재하나 기대 용량 미등재로 검증 불가
     return (
     <React.Fragment key={r.rid}>
       {/* 구분선: 판단근거 체계와 동일 — 라운드 박스 좌우 여백 인셋(100% 가로지르기 금지), 색·두께 동일 토큰 */}
@@ -1562,7 +1565,7 @@ export default function Teardown() {
       <div style={{ display: "grid", gridTemplateColumns: "34px 50px minmax(0,1fr) auto", gap: 12, alignItems: align === "center" ? "center" : "start", padding: first ? "24px 18px 14px" : "14px 18px", opacity: dim ? 0.55 : 1 }}>
       <NumBadge n={r.n} variant={variant} mt={align === "center" ? 0 : 1} />
       {/* #2 라벨 정렬: 라벨(verb)을 배지와 한 몸으로 — 배지 높이(30px)와 같은 lineHeight 밴드 + 동일 mt(광학 보정). 다행 top·단행 center에서 배지·라벨이 제목 첫 줄과 동일 기준선. */}
-      <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text, lineHeight: "30px", marginTop: align === "center" ? 0 : 1 }}>{r.verb}</span>
+      <span style={{ fontFamily: SANS, fontSize: 14, fontWeight: 700, color: C.text, lineHeight: "30px", marginTop: align === "center" ? 0 : 1 }}>{altHeld ? "선택" : r.verb}</span>
       <div style={{ minWidth: 0 }}>
         <div style={{ fontFamily: SANS, fontSize: 23, fontWeight: 650, letterSpacing: "-0.01em", color: r.kind === "gpuhint" ? C.faint : C.text, overflowWrap: "anywhere", lineHeight: 1.3 }}>{r.kind === "model" && r.planItem?.promoted ? <><span style={{ fontFamily: MONO }}>{r.planItem.promoted.filename}</span><span style={{ fontSize: 13, color: C.point, marginLeft: 8 }}>[확정]</span> <span style={{ fontSize: 13, color: C.point }}>· {r.planItem.promoted.reason}</span></> : <>{r.text}{r.kind === "model" && r.badge && <span style={{ fontSize: 13, color: r.badge === "확정" ? C.point : r.badge === "워크플로우 안내" ? C.memoBright : r.badge === "추정 후보" ? C.dim : C.faint, marginLeft: 8 }}>[{r.badge}]</span>}</>}{dim && <span style={{ fontSize: 13, color: C.green, marginLeft: 8 }}>이미 있음</span>}</div>
         {(r.file || r.sub) && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>{r.file && <span style={{ fontFamily: MONO }}>{r.file}</span>}{r.file && r.sub ? " · " : ""}{r.sub}</div>}
@@ -1581,15 +1584,15 @@ export default function Teardown() {
         {/* 표기 변형 후보(하이픈/언더스코어만 다른 보유 파일). 확정 금지·후보 제시, 다운로드 처방과 병기. 에러로그 'PC에 있는 후보'와 톤 통일. */}
         {/* 수리4: 원본 변형(variantCandidates)과 대체 변형(altVariantCandidates) 분리. promoted(대체 안내) 있으면 원본 변형 억제(대체 권장과 모순) → 대체 변형만. 없으면 원본 변형. */}
         {r.kind === "model" && (() => { const rr = reconcile?.byFile?.get(r.planItem?.selectedFile); const cands = r.planItem?.promoted ? (rr?.altVariantCandidates || []) : (rr?.variantCandidates || []); return cands.length ? <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>보유 파일 중 표기만 다른 후보가 있습니다: {cands.map((v, i) => <span key={i}>{i > 0 ? ", " : ""}<span style={{ fontFamily: MONO, color: C.point }}>{v}</span></span>)}. 같은 모델이면 로더 드롭다운에서 이 파일을 선택해 주세요.</div> : null; })()}
-        {r.kind === "model" && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
+        {/* 수리2(재감사): 대체 이미 보유(altHeld)면 '넣기' 억제 — 받으라는 언어와 '이미 있음·선택'이 충돌하므로. */}
+        {r.kind === "model" && !altHeld && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
         {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
         {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
         {r.kind === "model" && r.planItem?.vramWarning && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.point, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.vramWarning}{r.planItem.noConfirmedAlt && <a className="td-hf td-outline-w" href={searchUrl((r.planItem.selectedFile || "").replace(/\.[^.]+$/, "") + " gguf")} target="_blank" rel="noopener noreferrer" style={{ padding: "1px 8px", fontSize: 12, marginLeft: 8 }}>저용량 버전 검색 ↗</a>}</div>}
         {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
         {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>{r.planItem.promoted.originLabel || "워크플로우 원 지정값(상위 VRAM용)"}: <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
-        {/* 작업2: 확정 대체를 이미 보유(altHeld) 시 다운로드 대신 드롭다운 재선택 안내(보유 파일명 명시). 그 외 promoted는 현행. */}
-        {/* 수리1: 확정 대체 이미 보유(altHeld)면 재선택 대기(활성·memoBright, dim 아님). 그 외 promoted는 현행 안내. */}
-        {r.kind === "model" && r.planItem?.promoted && (() => { const ah = reconcile?.byFile?.get(r.planItem?.selectedFile)?.altHeld; return <div style={{ fontFamily: SANS, fontSize: 14, color: ah ? C.memoBright : C.dim, marginTop: 4, lineHeight: 1.5 }}>{ah ? <>이미 있음 · 선택: {r.planItem.promoted.node}에서 <span style={{ fontFamily: MONO }}>{ah}</span>으로 바꿔 주세요.</> : `${r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.`}</div>; })()}
+        {/* 수리1·2(재감사): altHeld=재선택 대기(활성·memoBright) / altUnsized=기대 용량 미등재로 검증 불가(확인 필요·point) / 그 외 promoted=현행 안내. */}
+        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: altHeld ? C.memoBright : altUnsized ? C.point : C.dim, marginTop: 4, lineHeight: 1.5 }}>{altHeld ? <>이미 있음 · 선택: {r.planItem.promoted.node}에서 <span style={{ fontFamily: MONO }}>{altHeld}</span>으로 바꿔 주세요.</> : altUnsized ? <>파일은 있으나 크기 검증을 할 수 없습니다(기대 용량 미등재). <span style={{ fontFamily: MONO }}>{altUnsized}</span>이 정상인지 확인해 주세요.</> : `${r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.`}</div>}
         {/* 2(판단근거 흡수): 별도 리스트 폐지 → 각 행 1층 접이. 등급·근거·출처만(링크 텍스트, 버튼 중복 0). evidenceBg 계승. */}
         {r.kind === "model" && r.planItem?.reason && (
           <details style={{ marginTop: 8 }}>
@@ -1664,7 +1667,7 @@ export default function Teardown() {
         {r.kind === "install" && <button className="td-hf-sand" onClick={() => downloadText("install.bat", buildInstallScript(report, "bat", env))}><Download size={15} /> 노드 한 번에 설치</button>}
         {r.kind === "dlscript" && <button className="td-hf-sand" onClick={() => downloadText("download.bat", buildDownloadScript(plan, env, reconcile?.noDownloadSet))}><Download size={15} /> 모델 한 번에 받기</button>}
         {/* 수리1: 확정 대체를 이미 보유(altHeld)면 받기 불필요 → 다운로드·검색 버튼 억제(재선택 안내만 활성). */}
-        {r.kind === "model" && !dim && !reconcile?.byFile?.get(r.planItem?.selectedFile)?.altHeld && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
+        {r.kind === "model" && !dim && !altHeld && (() => { const rawUrl = r.planItem?.promoted?.downloadUrl || r.planItem?.downloadUrl; const q = (r.planItem?.selectedFile || r.text || "").replace(/\.[^.]+$/, "").trim();
           if (rawUrl) { const isFile = !/\/tree\//.test(rawUrl); const dlUrl = isFile ? rawUrl.replace("/blob/", "/resolve/") : rawUrl; return isFile
             ? <a className="td-hf" href={dlUrl} target="_blank" rel="noopener noreferrer">다운로드</a>
             : <a className="td-hf td-outline-w" href={rawUrl} target="_blank" rel="noopener noreferrer">링크 ↗</a>; }
@@ -1991,6 +1994,8 @@ export default function Teardown() {
                   let msg;
                   if (reconcile.complete) msg = `${found}/${total}개 확인됨.${summary?.envComplete ? "" : " 필요한 모델을 모두 가지고 있습니다."}`;
                   else if (found === 0 && misN === 0 && altN === 0) msg = `0/${total}개 확인됨. 필요한 모델이 목록에 없습니다. 아래 받기 항목을 진행해 주세요.`;
+                  // 수리4(재감사): found=0인데 대체 보유(altN>0)면 '✓ 확인·받기'가 아니라 재선택 중심 카피.
+                  else if (found === 0 && misN === 0 && altN > 0) msg = `0/${total}개 확인됨. 확정 대체 파일을 이미 가지고 있어, 새로 받지 않고 아래 '재선택' 안내대로 로더에서 선택하면 됩니다.`;
                   else msg = `${found}/${total}개 확인됨. 아래 목록에서 이미 있음 표시(✓)를 확인해 주세요. 나머지는 받기 항목에 있습니다.`;
                   return (<>
                     <div style={{ fontSize: 13, marginTop: 7, lineHeight: 1.5, color: reconcile.complete ? C.green : C.point }}>
@@ -2343,7 +2348,7 @@ export default function Teardown() {
           {/* ══ Models — GPU 점검·양자화 안내(1회) + 한 번에 받기 표(plan 기반·버튼 여기만) + 모델 맞추기 슬롯 표(참조·버튼 0). 고정 헤더(SectionTitle) + 라운드박스 + 번호 행(우측 +/- · 기본 닫힘). ══ */}
           {(() => {
             const quantStep = rx.find((s) => s.key === "quant");
-            const dlEligible = (plan?.items || []).filter((it) => { const url = (it.promoted?.downloadUrl || it.downloadUrl) || ""; return (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test(url) && !/\/tree\//.test(url); });
+            const dlEligible = (plan?.items || []).filter((it) => { const url = (it.promoted?.downloadUrl || it.downloadUrl) || ""; return (it.confidence === "confirmed" || it.confidence === "workflow_author") && /^https?:\/\//.test(url) && !/\/tree\//.test(url) && !reconcile?.noDownloadSet?.has(it.selectedFile); });
             if (!quantStep && dlEligible.length === 0 && recipesEnriched.length === 0) return null;
             return (
             <div style={{ marginTop: 29, paddingBottom: 48 }}>

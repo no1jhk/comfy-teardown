@@ -855,7 +855,18 @@ console.log("\n" + "=".repeat(70) + "\n감사 대응: altHeld·altCorrupt·altVa
   // 4) logPath 추출/클리어(sticky 제거 근거: 무경로 로그는 공란)
   if (parseComfyLog("** Log path: C:\\Users\\me\\ComfyUI\\user\\comfyui.log\nStarting").logPath !== "C:\\Users\\me\\ComfyUI\\user\\comfyui.log") { console.log("  ❌ logPath 추출 실패"); fail++; ok = false; }
   if (parseComfyLog("Total VRAM 8192 MB").logPath !== "") { console.log("  ❌ Log path 없는 로그에서 logPath 공란이어야(클리어 근거)"); fail++; ok = false; }
-  if (ok) console.log("  ✅ altHeld(heldSet제외·noDownloadSet포함·complete false)·altVariant분리·altCorrupt(크기대조)·logPath(추출/공란) 전부 충족");
+  // 5) 재재감사: 대체 size 미등재 → altUnsized(altHeld 확정 차단·noDownloadSet 미포함·complete false). 합성 plan(promoted.size=null).
+  const recU = reconcileInventory([{ file: "orig.safetensors" }], parseFolderScan("cp\\alt.safetensors\t137000"), { items: [{ selectedFile: "orig.safetensors", promoted: { filename: "alt.safetensors", size: null } }] });
+  const bU = recU.byFile.get("orig.safetensors");
+  if (bU?.altHeld || bU?.altCorrupt || bU?.altUnsized !== "alt.safetensors") { console.log(`  ❌ null-size 대체 altUnsized 실패: altHeld=${bU?.altHeld} altCorrupt=${JSON.stringify(bU?.altCorrupt)} altUnsized=${bU?.altUnsized}`); fail++; ok = false; }
+  if (recU.noDownloadSet.has("orig.safetensors") || recU.complete) { console.log("  ❌ altUnsized인데 noDownloadSet 포함/complete(확정 차단 실패)"); fail++; ok = false; }
+  // 6) 재재감사 flagship: z-image bf16 size 등재(12.3GB) → 깨진(137KB) bf16이 이제 altCorrupt로 잡힘(altHeld 우회 차단). 정상 크기는 altUnsized 아님.
+  if (zItem?.promoted?.size == null) { console.log("  ❌ z-image bf16 promoted.size 미등재(카탈로그 size 누락)"); fail++; ok = false; }
+  const recZB = reconcileInventory(zRep.models, parseFolderScan("diffusion_models\\z_image_turbo_bf16.safetensors\t137000"), zPlan);
+  const bZB = recZB.byFile.get("z_image_turbo_fp8_e4m3fn.safetensors");
+  if (bZB?.altHeld || bZB?.altUnsized || bZB?.altCorrupt?.parsedSize !== 137000) { console.log(`  ❌ 깨진 z-image bf16 altCorrupt 실패(size 등재 후): altHeld=${bZB?.altHeld} altUnsized=${bZB?.altUnsized} altCorrupt=${JSON.stringify(bZB?.altCorrupt)}`); fail++; ok = false; }
+  if (recAlt.byFile.get("z_image_turbo_fp8_e4m3fn.safetensors")?.altUnsized) { console.log("  ❌ 정상 크기 bf16인데 altUnsized(크기 대조 미작동)"); fail++; ok = false; }
+  if (ok) console.log("  ✅ altHeld·altVariant분리·altCorrupt·altUnsized(size미등재 차단)·z-image bf16(12.3GB 등재→깨짐 탐지)·logPath 전부 충족");
 }
 
 console.log("\n" + "=".repeat(70));

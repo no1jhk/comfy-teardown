@@ -207,8 +207,14 @@ async function bundleEntry(entry, tmpName) {
     else { console.log("  ❌ altHeld 재선택 안내 미렌더"); fail++; }
     if (!/구조상 실행 준비 완료/.test(txt) && !/필요한 모델을 모두 가지고 있습니다/.test(txt)) console.log("  ✅ 대체 보유 시 '실행 준비 완료' 오배너 금지");
     else { console.log("  ❌ 재선택 대기인데 실행 준비 완료 오배너"); fail++; }
-    if (![...root.querySelectorAll("a")].some((a) => /z_image_turbo_bf16/.test(a.href))) console.log("  ✅ altHeld → 대체 다운로드 링크 제거");
+    if (![...root.querySelectorAll("a")].some((a) => /z_image_turbo_bf16/.test(a.href))) console.log("  ✅ altHeld → 대체 다운로드 링크 제거(처방·Models 표 공통)");
     else { console.log("  ❌ altHeld인데 대체 다운로드 링크 잔존"); fail++; }
+    // 수리2(재감사) 렌더: altHeld 행 verb "선택"(받기 아님) + "넣기:" 억제
+    const gridRow = [...root.querySelectorAll("div")].find((d) => d.style.display === "grid" && /z_image_turbo_bf16\.safetensors/.test(d.textContent) && /이미 있음 · 선택/.test(d.textContent));
+    if (gridRow?.children?.[1]?.textContent === "선택") console.log("  ✅ altHeld 행 verb '선택'(받기 아님)");
+    else { console.log(`  ❌ altHeld 행 verb 기대 '선택', 실제 '${gridRow?.children?.[1]?.textContent}'`); fail++; }
+    if (!/넣기:/.test(txt)) console.log("  ✅ altHeld 행 '넣기:' 억제");
+    else { console.log("  ❌ altHeld 행 '넣기:' 잔존(받으라 언어 충돌)"); fail++; }
   } catch (e) { console.log(`  ❌ 감사 대응 렌더 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
 }

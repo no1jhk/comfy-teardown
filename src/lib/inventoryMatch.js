@@ -102,15 +102,16 @@ export function reconcileInventory(models, invMap, plan) {
     // 표기 변형 후보: 완전일치 아닐 때만. 확정 처리 금지·후보 제시(복수면 전부). 다운로드 처방과 병기.
     let variantCandidates = null;
     if (!held) { const cands = (invByVariant.get(variantKey(key)) || []).filter((fn) => fn !== key); if (cands.length) variantCandidates = cands; }
-    // 작업2/수리1·2: 확정 대체 파일 보유 대조. 완전일치+크기정상=altHeld(재선택 대기) / 크기 이상=altCorrupt / 표기 변형=altVariantCandidates.
-    let altHeld = null, altVariantCandidates = null, altCorrupt = null;
+    // 작업2/수리1·2: 확정 대체 파일 보유 대조. 완전일치+크기정상=altHeld(재선택 대기) / 크기 이상=altCorrupt / 기대 용량 미등재=altUnsized(검증 불가·확정 차단) / 표기 변형=altVariantCandidates.
+    let altHeld = null, altVariantCandidates = null, altCorrupt = null, altUnsized = null;
     const altEntry = altByBase.get(key);
     if (altEntry) {
       const altHit = invMap.get(altEntry.file);
       if (altHit) {
-        // 수리2: 대체 파일도 크기 대조(기대 용량 10% 미만이면 corrupt → altHeld 성립 안 함).
         const altExp = (sizeToGB(altEntry.size) || 0) * 1e9;
-        if (altExp && altHit.size && altHit.size < altExp * 0.1) altCorrupt = { file: altEntry.file, parsedSize: altHit.size, expected: altEntry.size };
+        // 수리1(재감사): 기대 용량 미등재(size null/0)면 크기 검증 불가 → altHeld 확정 차단(altUnsized·확인 필요). 등재 시만 corrupt/held.
+        if (!altExp) altUnsized = altEntry.file;
+        else if (altHit.size && altHit.size < altExp * 0.1) altCorrupt = { file: altEntry.file, parsedSize: altHit.size, expected: altEntry.size };
         else altHeld = altEntry.file;
       } else { const ac = (invByVariant.get(variantKey(altEntry.file)) || []).filter((fn) => fn !== altEntry.file); if (ac.length) altVariantCandidates = ac; }
     }
@@ -125,7 +126,7 @@ export function reconcileInventory(models, invMap, plan) {
         misplaced = { current: hit.folder, required: String(info.folder).replace(/^models[\\/]/i, "") };
       }
     }
-    results.push({ file: key, held, corrupt, misplaced, variantCandidates, altHeld, altVariantCandidates, altCorrupt, parsedSize: hit ? hit.size : null, expected: info.size || null });
+    results.push({ file: key, held, corrupt, misplaced, variantCandidates, altHeld, altVariantCandidates, altCorrupt, altUnsized, parsedSize: hit ? hit.size : null, expected: info.size || null });
   }
   // 수리1: 이미 있음(dim·complete)=완전일치만. altHeld는 '재선택 대기'(활성)라 dim·complete 제외. 받기 제외(noDownloadSet)에는 altHeld 포함(대체 파일 보유).
   const heldSet = new Set(results.filter((r) => r.held && !r.misplaced).map((r) => r.file));
