@@ -1592,7 +1592,7 @@ export default function Teardown() {
         {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
         {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>{r.planItem.promoted.originLabel || "워크플로우 원 지정값(상위 VRAM용)"}: <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
         {/* 수리1·2(재감사): altHeld=재선택 대기(활성·memoBright) / altUnsized=기대 용량 미등재로 검증 불가(확인 필요·point) / 그 외 promoted=현행 안내. */}
-        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: altHeld ? C.memoBright : altUnsized ? C.point : C.dim, marginTop: 4, lineHeight: 1.5 }}>{altHeld ? <>이미 있음 · 선택: {r.planItem.promoted.node}에서 <span style={{ fontFamily: MONO }}>{altHeld}</span>으로 바꿔 주세요.</> : altUnsized ? <>파일은 있으나 크기 검증을 할 수 없습니다(기대 용량 미등재). <span style={{ fontFamily: MONO }}>{altUnsized}</span>이 정상인지 확인해 주세요.</> : `${r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.`}</div>}
+        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: altHeld ? C.memoBright : altUnsized ? C.point : C.dim, marginTop: 4, lineHeight: 1.5 }}>{altHeld ? <>이미 있음 · 선택: {r.planItem.promoted.node}에서 <span style={{ fontFamily: MONO }}>{altHeld}</span>으로 바꿔 주세요.</> : altUnsized ? <>파일은 있으나 이 파일의 정상 용량 정보가 아직 없어 크기 확인을 할 수 없습니다. <span style={{ fontFamily: MONO }}>{altUnsized}</span>이 정상인지 확인해 주세요.</> : `${r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.`}</div>}
         {/* 2(판단근거 흡수): 별도 리스트 폐지 → 각 행 1층 접이. 등급·근거·출처만(링크 텍스트, 버튼 중복 0). evidenceBg 계승. */}
         {r.kind === "model" && r.planItem?.reason && (
           <details style={{ marginTop: 8 }}>
@@ -1987,21 +1987,21 @@ export default function Teardown() {
                   const total = reconcile.results.length;
                   const found = reconcile.heldSet.size;
                   const misN = reconcile.results.filter((r) => r.misplaced).length;
-                  const altN = reconcile.results.filter((r) => r.altHeld).length; // 수리1: 대체 보유·재선택 대기(확인됨 아님)
+                  // 수리#1(재재감사): 재선택 대기 = 워크플로우 파일 미보유 + 대체 보유(altHeld && !held). 받기(dlN)=나머지. 합 found+altN+dlN+misN=total.
+                  const altN = reconcile.results.filter((r) => r.altHeld && !r.held).length;
+                  const dlN = Math.max(0, total - found - misN - altN);
                   // 수리2: 원본 corrupt + 대체 corrupt(altCorrupt) 통합 명시.
                   const corruptFiles = [...reconcile.results.filter((r) => r.corrupt).map((r) => ({ file: r.file, parsedSize: r.parsedSize, expected: r.expected })), ...reconcile.results.filter((r) => r.altCorrupt).map((r) => r.altCorrupt)];
                   const corrN = corruptFiles.length;
                   let msg;
                   if (reconcile.complete) msg = `${found}/${total}개 확인됨.${summary?.envComplete ? "" : " 필요한 모델을 모두 가지고 있습니다."}`;
                   else if (found === 0 && misN === 0 && altN === 0) msg = `0/${total}개 확인됨. 필요한 모델이 목록에 없습니다. 아래 받기 항목을 진행해 주세요.`;
-                  // 수리4(재감사): found=0인데 대체 보유(altN>0)면 '✓ 확인·받기'가 아니라 재선택 중심 카피.
-                  else if (found === 0 && misN === 0 && altN > 0) msg = `0/${total}개 확인됨. 확정 대체 파일을 이미 가지고 있어, 새로 받지 않고 아래 '재선택' 안내대로 로더에서 선택하면 됩니다.`;
-                  else msg = `${found}/${total}개 확인됨. 아래 목록에서 이미 있음 표시(✓)를 확인해 주세요. 나머지는 받기 항목에 있습니다.`;
+                  // 수리#1(재재감사): found·altN·dlN 분해 — altHeld 재선택분을 '받기'로 오지칭하지 않음. found>0·altN>0 혼재 포함.
+                  else { const segs = [`${found}/${total}개 확인됨`]; if (altN > 0) segs.push(`재선택 대기 ${altN}개(대체 보유)`); if (dlN > 0) segs.push(`받기 ${dlN}개`); msg = segs.join(" · ") + "."; }
                   return (<>
                     <div style={{ fontSize: 13, marginTop: 7, lineHeight: 1.5, color: reconcile.complete ? C.green : C.point }}>
                       {msg}
                       {misN > 0 && <span style={{ color: C.memoBright }}> · 위치 다름 {misN}개(아래 이동 안내 참고)</span>}
-                      {altN > 0 && <span style={{ color: C.memoBright }}> · 재선택 필요 {altN}개(대체 파일 보유·로더에서 선택)</span>}
                       {corrN > 0 && <span style={{ color: C.red }}> · 크기 이상(파일 깨짐 의심) {corrN}개</span>}
                     </div>
                     {/* 수리2: 크기 이상 파일 명시(개수만 → 파일별 보유/기대 용량 + 행동). 복수면 전부. */}

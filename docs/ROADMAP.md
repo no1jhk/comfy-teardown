@@ -9,6 +9,9 @@
 - **로그 파일 경로(`** Log path:`) 형식 실측 확인 (확인 필요)**
   근거: "로그 파일로 대신하기" 안내(커밋 64570fc)가 `parseComfyLog`의 `** Log path: ...comfyui.log` 추출에 의존한다. 저장소 대표 실로그 픽스처(RTX3090 Windows standalone)에 이 라인이 없어, 최신 ComfyUI가 실제로 이 형식을 출력하는지·다수 사용자(수동 설치·구버전)에게 실제로 뜨는지 미확인. 최신 ComfyUI 실로그로 형식을 실측 확인한 뒤 유지/일반 힌트 전환을 판단한다(CLAUDE.md 규칙3 미확인 형식). code-auditor 첫 감사 [하·추정] 이월.
 
+- **altUnsized 렌더 일원화 + regression 실경로 커버 (카탈로그 size 미상 항목 등재 시 필수 선행)**
+  근거: 확정 대체(promoted)의 기대 용량이 카탈로그에 없으면 altHeld를 차단하고 altUnsized("정상 용량 정보가 아직 없어 크기 확인 불가")로 발화한다(커밋 738c733·감사 대응). 현재 모든 alt(alias 2.13GB·z-image bf16 12.3GB)에 size가 있어 altUnsized는 **실발화 0인 방어 전용**이라, 렌더가 altHeld처럼 6표면 일원화(verb·넣기·다운로드) 안 됐고(메시지만 특수) regression도 합성 plan만 커버한다. 향후 카탈로그에 **size 미상 alt_of/alias를 등재하는 시점**에, altUnsized 행 렌더 일원화(verb·넣기·다운로드 정리)와 실 buildModelPlan 경로 durable 커버를 **선행**해야 한다. code-auditor 재재감사 [중]×2(Q2·Q3b) 이월.
+
 - **서버리스 프록시 (Vercel Functions · Anthropic 호출 서버 이전)**
   근거: 현재 AI 진단(v1.1)은 클라이언트에서 API 키를 못 쓴다(Vite `VITE_` 키는 빌드 번들에 평문 인라인 → 배포본 노출). 키·CORS를 서버 함수에서 처리해야 배포본에서 AI를 안전하게 켤 수 있다. (현행 `AI_KEY` 가드는 PROD 시 키를 비워 dev 전용 — 프록시가 이 제약의 정식 해소책.)
 

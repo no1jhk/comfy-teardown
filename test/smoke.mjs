@@ -207,8 +207,8 @@ async function bundleEntry(entry, tmpName) {
     else { console.log("  ❌ altHeld 재선택 안내 미렌더"); fail++; }
     if (!/구조상 실행 준비 완료/.test(txt) && !/필요한 모델을 모두 가지고 있습니다/.test(txt)) console.log("  ✅ 대체 보유 시 '실행 준비 완료' 오배너 금지");
     else { console.log("  ❌ 재선택 대기인데 실행 준비 완료 오배너"); fail++; }
-    if (![...root.querySelectorAll("a")].some((a) => /z_image_turbo_bf16/.test(a.href))) console.log("  ✅ altHeld → 대체 다운로드 링크 제거(처방·Models 표 공통)");
-    else { console.log("  ❌ altHeld인데 대체 다운로드 링크 잔존"); fail++; }
+    if (![...root.querySelectorAll("a")].some((a) => /z_image_turbo_bf16/.test(a.href))) console.log("  ✅ altHeld → 처방 다운로드 억제(Solution 행)");
+    else { console.log("  ❌ altHeld인데 처방 다운로드 링크 잔존"); fail++; }
     // 수리2(재감사) 렌더: altHeld 행 verb "선택"(받기 아님) + "넣기:" 억제
     const gridRow = [...root.querySelectorAll("div")].find((d) => d.style.display === "grid" && /z_image_turbo_bf16\.safetensors/.test(d.textContent) && /이미 있음 · 선택/.test(d.textContent));
     if (gridRow?.children?.[1]?.textContent === "선택") console.log("  ✅ altHeld 행 verb '선택'(받기 아님)");
@@ -216,6 +216,68 @@ async function bundleEntry(entry, tmpName) {
     if (!/넣기:/.test(txt)) console.log("  ✅ altHeld 행 '넣기:' 억제");
     else { console.log("  ❌ altHeld 행 '넣기:' 잔존(받으라 언어 충돌)"); fail++; }
   } catch (e) { console.log(`  ❌ 감사 대응 렌더 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
+  finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
+}
+
+// ── E. Models '한 번에 받기' 표 noDownloadSet 필터 — confirmed+altHeld(자리표시자 alias) 실경로(수리#2 재재감사). fp8=inferred는 confidence 필터가 먼저 배제하므로 confirmed 픽스처로 표 필터를 직접 밟는다. ──
+{
+  const { JSDOM, VirtualConsole } = await import("jsdom");
+  let caught = null;
+  const vc = new VirtualConsole(); vc.on("jsdomError", (e) => { caught = (e && e.detail) || e; });
+  const dom = new JSDOM(`<!DOCTYPE html><body><div id="root"></div></body>`, { url: "http://localhost/", pretendToBeVisual: true, virtualConsole: vc });
+  const w = dom.window;
+  w.Element.prototype.scrollIntoView = function () {};
+  try { Object.defineProperty(globalThis.navigator, "clipboard", { value: { writeText: () => Promise.resolve() }, configurable: true }); } catch { /* noop */ }
+  w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  globalThis.window = w; globalThis.document = w.document; globalThis.location = w.location;
+  globalThis.localStorage = w.localStorage; globalThis.matchMedia = w.matchMedia;
+  globalThis.FileReader = w.FileReader; globalThis.File = w.File; globalThis.Blob = w.Blob;
+  globalThis.Event = w.Event; globalThis.Node = w.Node; globalThis.HTMLElement = w.HTMLElement;
+  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
+  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+  const onErr = (e) => { caught = e && (e.error || e.reason || e); };
+  process.on("uncaughtException", onErr); process.on("unhandledRejection", onErr);
+  const setTA = (el, v) => { const s = Object.getOwnPropertyDescriptor(w.HTMLTextAreaElement.prototype, "value").set; s.call(el, v); el.dispatchEvent(new w.Event("input", { bubbles: true })); };
+  const nd = (id, type, file) => ({ id, type, pos: [0, 0], size: [1, 1], flags: {}, order: id, mode: 0, widgets_values: file != null ? [file] : [], properties: {}, inputs: [], outputs: [] });
+  // text_실사모델(alias→RV, 보유=altHeld) + qwen_3_4b(confirmed, 미보유=받기). 표는 qwen으로 렌더되고 RV(altHeld)만 noDownloadSet로 제외돼야.
+  const WF = JSON.stringify({ last_node_id: 9, last_link_id: 0, version: 0.4, groups: [], links: [], nodes: [nd(1, "CheckpointLoaderSimple", "text_실사모델.safetensors"), { id: 2, type: "CLIPLoader", pos: [0, 0], size: [1, 1], flags: {}, order: 2, mode: 0, widgets_values: ["qwen_3_4b.safetensors"], properties: {}, inputs: [], outputs: [] }, nd(9, "SaveImage", null)] });
+  let tmp;
+  try {
+    tmp = await bundleEntry(`import React from "react"; import { createRoot } from "react-dom/client"; import Teardown from "./src/Teardown.jsx"; createRoot(document.getElementById("root")).render(React.createElement(Teardown)); export const ok = true;`, ".smoke-audit-e.mjs");
+    await import("file://" + tmp);
+    await new Promise((r) => setTimeout(r, 60));
+    const root = w.document.getElementById("root");
+    const input = w.document.querySelector('input[type="file"]');
+    Object.defineProperty(input, "files", { value: [new w.File([WF], "ph.json", { type: "application/json" })], configurable: true });
+    input.dispatchEvent(new w.Event("change", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    if (caught) throw caught;
+    const envT = [...root.querySelectorAll('button[aria-label="펼치기/접기"]')].find((b) => { let p = b; for (let i = 0; i < 5 && p; i++) { if (/내 환경 정보/.test(p.textContent)) return true; p = p.parentElement; } return false; });
+    if (envT) envT.dispatchEvent(new w.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 80));
+    const altBtn = [...root.querySelectorAll("button")].find((b) => /다른 방법으로 입력/.test(b.textContent));
+    if (altBtn) altBtn.dispatchEvent(new w.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 80));
+    const scanTA = [...root.querySelectorAll("textarea")].find((t) => /실행 결과 전체를 여기에 붙여넣어/.test(t.placeholder || ""));
+    if (scanTA) setTA(scanTA, "checkpoints\\Realistic_Vision_V5.1_fp16-no-ema.safetensors\t2130000000");
+    await new Promise((r) => setTimeout(r, 150));
+    // Models '한 번에 받기' 표는 자세한 진단(detailOpen) → 표 NumRow(open.md2) 2단 접이 안. 둘 다 펼쳐야 표 필터를 실제로 밟는다.
+    const dt = w.document.getElementById("detail-toggle");
+    if (dt) dt.dispatchEvent(new w.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    let title = [...root.querySelectorAll("div")].find((d) => d.textContent === "한 번에 받기");
+    for (let cont = title, i = 0; i < 4 && cont; i++, cont = cont.parentElement) { const b = cont.querySelector?.('button[aria-label="펼치기/접기"]'); if (b) { b.dispatchEvent(new w.Event("click", { bubbles: true })); break; } }
+    await new Promise((r) => setTimeout(r, 150));
+    if (caught) throw caught;
+    const txt = root.textContent.replace(/\s+/g, " ");
+    if (/받을 파일/.test(txt) && [...root.querySelectorAll("a")].some((a) => /Comfy-Org\/z_image_turbo.*qwen_3_4b/.test(a.href))) console.log("  ✅ Models '한 번에 받기' 표 렌더(미보유 qwen 행 노출)");
+    else { console.log("  ❌ Models 표 미렌더/qwen 부재(변이 검증 성립 안 함)"); fail++; }
+    // 자리표시자 alias=confidence confirmed → 표 dlEligible의 confidence 필터 통과. altHeld면 noDownloadSet 필터가 표에서 RV 제거. 필터 삭제 시 표에 RV 앵커 재출현(변이 검증됨).
+    if (![...root.querySelectorAll("a")].some((a) => /Realistic_Vision_V5\.1_fp16-no-ema/.test(a.href))) console.log("  ✅ confirmed+altHeld → Models 표에서 RV 다운로드 링크 제외(noDownloadSet 필터 실경로)");
+    else { console.log("  ❌ confirmed+altHeld인데 Models 표에 RV 링크 잔존(표 필터 누락)"); fail++; }
+    if (/이미 있음 · 선택: CheckpointLoaderSimple에서/.test(txt)) console.log("  ✅ confirmed alias altHeld 처방 재선택 안내(활성)");
+    else { console.log("  ❌ confirmed alias altHeld 재선택 안내 미렌더"); fail++; }
+  } catch (e) { console.log(`  ❌ Models 표 필터 렌더 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
 }
 

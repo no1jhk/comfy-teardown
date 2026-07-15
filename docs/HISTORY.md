@@ -6,6 +6,16 @@
 
 ---
 
+## 2026-07-15 (감사 루프 마감: 실 gap 2건 수리 + 잠재 이월)
+**한 일** — 재재감사 잔여(중4·하1) 중 실사용자 영향 있는 실 gap 2건 + 문구 정정. code-auditor 루프 종결(재감사 없음).
+- **#1 폴더 요약 혼재 카피(중·실 gap)**: `found>0 && altN>0`(z-image 재선택 해피패스)에서 "나머지는 받기 항목"이 altHeld를 받기로 오지칭하던 것 해소. found·altN(재선택 대기=altHeld && !held)·dlN(받기)로 분해, 합 found+altN+dlN+misN=total 불변. altN 부속 span은 msg로 흡수(중복 제거). regression에 수치 합 불변 durable 고정.
+- **#2 Models 표 필터 렌더 검증(중·실 gap)**: smoke Part E 신설 — confirmed alias(text_실사모델→RV, altHeld) + 미보유 qwen. detailOpen→'한 번에 받기' NumRow 2단 펼침으로 표를 실제 렌더하고, RV(altHeld)가 noDownloadSet 필터로 표에서 제외됨을 검증. **변이 검증 실측**: 표 필터 제거 시 Part E가 실패(RV 링크 재출현) 확인 후 복원 → CLAUDE.md 2b(로직 제거 시 게이트 깨짐) 충족.
+- **#3 문구 정정(하)**: altUnsized 발화 "기대 용량 미등재"(내부 용어) → "이 파일의 정상 용량 정보가 아직 없어 크기 확인을 할 수 없습니다"(행동/사실 언어). smoke 로그 "Models 표 공통" 과잉 표기 → "처방 다운로드 억제(Solution 행)"로 축소.
+- **#3·#4 잠재 이월(코드 수리 아님)**: altUnsized 렌더 일원화 + regression 실경로 커버는 현재 실발화 0(방어 전용)이라 미착수. ROADMAP 단기에 "카탈로그 size 미상 항목 등재 시 필수 선행"으로 기재.
+**검증** — build 0 · smoke(Part D·E, 변이 검증) · e2e 15/15 · regression(수치 합 불변 포함). em dash UI 0. 임시 하네스 잔존 0.
+**루프 종결** — flagship [상] 해소 확인 + 실 gap 2건 소탕. 잔여는 altUnsized 방어 전용(실사용자 영향 0)으로 ROADMAP 이월. 재감사 없이 종결.
+**다음 할 일** — 화면 검수 후 push(사용자 전용·미푸시 커밋 다수). altUnsized는 size 미상 카탈로그 등재 시 선행 수리.
+
 ## 2026-07-15 (재감사 대응 수리 5건 + 재재감사: flagship [상] 해소)
 **한 일** — 커밋 738c733.
 - **수리 5건(재감사 발견 대응)**: (1)[상] altHeld 성립에 기대 용량 미등재(size null/0) 가드=altUnsized(확정 차단·확인 필요 발화) + 카탈로그 z_image_turbo_bf16 실측 size **12.3GB** 등재(Comfy-Org/z_image_turbo 공시 12,309,866,400 bytes, HF `hf_fs stat` 확인) → 깨진(137KB) bf16이 이제 altCorrupt로 잡혀 flagship 우회 차단 / (2)[중하] altHeld 행 verb '받기'→'선택'·'넣기:' 억제 / (3)[중하] Models '한 번에 받기' 표 dlEligible에 noDownloadSet 필터(3면 통일) / (4)[하] 폴더 요약 found=0·altN>0 카피 / (5)[중] durable: regression(altUnsized·깨진 bf16 altCorrupt·정상 altHeld)·smoke Part D(verb·넣기).

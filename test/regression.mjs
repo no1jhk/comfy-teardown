@@ -866,7 +866,14 @@ console.log("\n" + "=".repeat(70) + "\n감사 대응: altHeld·altCorrupt·altVa
   const bZB = recZB.byFile.get("z_image_turbo_fp8_e4m3fn.safetensors");
   if (bZB?.altHeld || bZB?.altUnsized || bZB?.altCorrupt?.parsedSize !== 137000) { console.log(`  ❌ 깨진 z-image bf16 altCorrupt 실패(size 등재 후): altHeld=${bZB?.altHeld} altUnsized=${bZB?.altUnsized} altCorrupt=${JSON.stringify(bZB?.altCorrupt)}`); fail++; ok = false; }
   if (recAlt.byFile.get("z_image_turbo_fp8_e4m3fn.safetensors")?.altUnsized) { console.log("  ❌ 정상 크기 bf16인데 altUnsized(크기 대조 미작동)"); fail++; ok = false; }
-  if (ok) console.log("  ✅ altHeld·altVariant분리·altCorrupt·altUnsized(size미등재 차단)·z-image bf16(12.3GB 등재→깨짐 탐지)·logPath 전부 충족");
+  // 7) 재재감사 #1: 폴더 요약 수치 합 불변(found+altN+dlN+misN=total). 혼재: fp8(→bf16 altHeld)·qwen(보유)·ae(미보유).
+  const mixRep = analyze(normalize(wfa([nd(1, "UNETLoader", "z_image_turbo_fp8_e4m3fn.safetensors"), nd(2, "CLIPLoader", "qwen_3_4b.safetensors"), nd(3, "VAELoader", "ae.safetensors"), nd(9, "SaveImage", null)])), null);
+  const mixPlan = buildModelPlan(mixRep, { gpu: "", torch: "", cuda: "", modelRoot: "" });
+  const mixRec = reconcileInventory(mixRep.models, parseFolderScan("diffusion_models\\z_image_turbo_bf16.safetensors\t12000000000\ntext_encoders\\qwen_3_4b.safetensors\t7490000000"), mixPlan);
+  const mTotal = mixRec.results.length, mFound = mixRec.heldSet.size, mMis = mixRec.results.filter((r) => r.misplaced).length, mAlt = mixRec.results.filter((r) => r.altHeld && !r.held).length, mDl = Math.max(0, mTotal - mFound - mMis - mAlt);
+  if (mFound + mAlt + mDl + mMis !== mTotal) { console.log(`  ❌ 요약 수치 합 불일치: found${mFound}+alt${mAlt}+dl${mDl}+mis${mMis} ≠ total${mTotal}`); fail++; ok = false; }
+  if (!(mFound >= 1 && mAlt >= 1 && mDl >= 1)) { console.log(`  ❌ 혼재 전제 실패(found·alt·dl 각 1+ 기대): found${mFound}/alt${mAlt}/dl${mDl}/total${mTotal}`); fail++; ok = false; }
+  if (ok) console.log("  ✅ altHeld·altVariant분리·altCorrupt·altUnsized(size미등재 차단)·z-image bf16(12.3GB→깨짐 탐지)·요약 수치합=total·logPath 전부 충족");
 }
 
 console.log("\n" + "=".repeat(70));
