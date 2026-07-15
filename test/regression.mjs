@@ -884,8 +884,15 @@ console.log("\n" + "=".repeat(70) + "\n감사 대응: altHeld·altCorrupt·altVa
   if (fp8Refs.length !== 2 || !fp8Refs.some((r) => r.id === 109 && r.title === "확산 모델 로드") || !fp8Refs.some((r) => r.id === 130 && r.title == null)) { console.log(`  ❌ nodeRefs 복수·title 분기 실패: ${JSON.stringify(fp8Refs)}`); fail++; ok = false; }
   const clipRef = (nrRep.nodeRefs || []).find((r) => r.files.includes("clip.safetensors"));
   if (!clipRef || clipRef.id !== 42 || clipRef.title !== "내 클립") { console.log(`  ❌ nodeRefs title 사용 실패: ${JSON.stringify(clipRef)}`); fail++; ok = false; }
-  if ((nrRep.nodeRefs || []).some((r) => r.files.includes("muted_vae.safetensors"))) { console.log("  ❌ 비활성(muted) 노드가 nodeRefs에 포함(활성만이어야)"); fail++; ok = false; }
-  if (ok) console.log("  ✅ altHeld·altVariant·altCorrupt·altUnsized·bf16(12.3GB)·요약합=total·logPath·nodeRefs(복수109/130·title유무·muted제외) 전부 충족");
+  // 감사 수리: bypass(muted) 노드도 포함 — 활성/bypass 행이 한 화면에서 식별자 형태 일관(#id). 이전엔 제외라 bypass 행만 '타입:'으로 폴백해 혼재.
+  if (!(nrRep.nodeRefs || []).some((r) => r.id === 7 && r.files.includes("muted_vae.safetensors"))) { console.log("  ❌ bypass(muted) 노드가 nodeRefs에 미포함(식별자 일관 위해 포함이어야)"); fail++; ok = false; }
+  // 감사 수리: API 포맷(prompt JSON) — 노드 title은 _meta.title에서. 비숫자 키(UUID)는 nodeRefs.id로 보존하되 nodeLocStr가 '#' 억제(UUID 노출 금지, 렌더층). 여기선 데이터층 검증.
+  const apiRep = analyze(normalize({ "12": { class_type: "UNETLoader", _meta: { title: "내 유넷" }, inputs: { unet_name: "api_unet.safetensors" } }, "9f2e-uuid-x": { class_type: "VAELoader", inputs: { vae_name: "api_vae.safetensors" } } }), null);
+  const apiUnet = (apiRep.nodeRefs || []).find((r) => r.files.includes("api_unet.safetensors"));
+  const apiVae = (apiRep.nodeRefs || []).find((r) => r.files.includes("api_vae.safetensors"));
+  if (!apiUnet || apiUnet.id !== "12" || apiUnet.title !== "내 유넷") { console.log(`  ❌ API nodeRefs _meta.title 추출 실패: ${JSON.stringify(apiUnet)}`); fail++; ok = false; }
+  if (!apiVae || apiVae.id !== "9f2e-uuid-x" || apiVae.title !== null) { console.log(`  ❌ API nodeRefs UUID 키 보존/무제목 실패: ${JSON.stringify(apiVae)}`); fail++; ok = false; }
+  if (ok) console.log("  ✅ altHeld·altVariant·altCorrupt·altUnsized·bf16(12.3GB)·요약합=total·logPath·nodeRefs(복수109/130·title유무·bypass포함·API _meta.title·UUID키보존) 전부 충족");
 }
 
 console.log("\n" + "=".repeat(70));

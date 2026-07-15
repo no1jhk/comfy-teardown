@@ -205,6 +205,9 @@ async function bundleEntry(entry, tmpName) {
     const txt = root.textContent.replace(/\s+/g, " ");
     if (/이미 있음 · 선택: #1 UNETLoader에서 z_image_turbo_bf16\.safetensors으로 바꿔 주세요/.test(txt)) console.log("  ✅ altHeld 재선택 안내(활성) + 노드 번호 병기(#1 UNETLoader)");
     else { console.log("  ❌ altHeld 재선택 안내/노드 번호 미렌더"); fail++; }
+    // 감사 수리 durable: promoted 행은 '바꿔 주세요'만 — 원 지정값(fp8)을 가리키는 '선택:' 줄이 함께 뜨면 이중·모순. 억제 확인.
+    if (/선택: #1 UNETLoader에서 z_image_turbo_fp8_e4m3fn\.safetensors/.test(txt)) { console.log("  ❌ promoted 행에 원 지정값(fp8) '선택:' 잔존(이중·모순)"); fail++; }
+    else console.log("  ✅ promoted 행 원 지정값(fp8) '선택:' 억제(바꿔 주세요만)");
     if (/노드 번호는 ComfyUI 설정에서 노드 ID 배지를 켜면 캔버스에 표시됩니다/.test(txt)) console.log("  ✅ 노드 번호 안내 캡션 노출(화면당 1회)");
     else { console.log("  ❌ 노드 번호 안내 캡션 부재"); fail++; }
     if (!/구조상 실행 준비 완료/.test(txt) && !/필요한 모델을 모두 가지고 있습니다/.test(txt)) console.log("  ✅ 대체 보유 시 '실행 준비 완료' 오배너 금지");

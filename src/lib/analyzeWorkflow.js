@@ -195,6 +195,7 @@ export function normalize(wf) {
     const e = Object.entries(wf).filter(([, v]) => v && typeof v === "object");
     if (e.length && e.some(([, v]) => v.class_type)) return { format: "API", nodes: e.map(([id, v]) => ({
       id, type: v.class_type || null, cnr_id: null, ver: null, mode: 0,
+      title: (typeof v._meta?.title === "string" && v._meta.title.trim()) ? v._meta.title.trim() : null, // 작업2 감사 수리: API 포맷 노드 제목(_meta.title) — nodeRefs 라벨용
       widgets: Object.values(v.inputs || {}).filter((x) => typeof x === "string"),
       subgraph: null })) };
   }
@@ -453,8 +454,9 @@ export function analyze(norm, mgrMap) {
     nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)
     nodeIds: norm.nodes.map((n) => String(n.id)),
     nodeIdType: Object.fromEntries(norm.nodes.filter((n) => n.type).map((n) => [String(n.id), n.type])), // missing_node_type 크로스링크용(id→class_type)
-    // 작업2: 노드 번호 병기용 — 활성 노드가 widgets로 참조하는 모델 파일(basename 소문자) → {id, type, title}. Solution '선택:'·에러 진단 위치 특정.
-    nodeRefs: norm.nodes.filter((n) => !isMuted(n)).map((n) => ({ id: n.id, type: n.type, title: n.title || null, files: (n.widgets || []).filter((w) => typeof w === "string" && MODEL_EXTS.some((e) => w.toLowerCase().endsWith(e))).map((w) => w.replace(/\\/g, "/").split("/").pop().toLowerCase()) })).filter((r) => r.files.length > 0),
+    // 작업2: 노드 번호 병기용 — 노드가 widgets로 참조하는 모델 파일(basename 소문자) → {id, type, title}. Solution '선택:'·에러 진단 위치 특정.
+    // 감사 수리: bypass 노드도 포함(활성/비활성 행이 한 화면에서 식별자 형태 일관 — 활성 '#id 라벨', bypass도 '#id 라벨'). 표시 전용이라 로직 영향 없음.
+    nodeRefs: norm.nodes.map((n) => ({ id: n.id, type: n.type, title: n.title || null, files: (n.widgets || []).filter((w) => typeof w === "string" && MODEL_EXTS.some((e) => w.toLowerCase().endsWith(e))).map((w) => w.replace(/\\/g, "/").split("/").pop().toLowerCase()) })).filter((r) => r.files.length > 0),
     autoDownloadNodes: [...new Set(norm.nodes.filter((n) => n.autoDownload && n.type).map((n) => n.type))], // 결함h: 실행 시 모델 자동 다운로드 노드
     authorNotes,
   };

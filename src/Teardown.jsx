@@ -1552,14 +1552,17 @@ export default function Teardown() {
   }, []);
   // 다행 판정: 부속 줄(sub·넣기·용량·가이드·대체·링크·노드·이동안내)이 하나라도 있으면 다행. 모델 행은 항상 다행.
   const rowMultiLine = (r) => r.kind === "model" || !!(r.sub || r.guides?.length || r.alternatives?.length || r.exclusions?.length || r.links?.length || r.nodes?.length || r.diagLink);
-  // 작업2: 파일명을 widgets로 참조하는 활성 노드 위치 문자열. "#109, #130 확산 모델 로드"(같은 라벨) 또는 "#109 A, #130 B". title(캔버스 표시명) 우선·없으면 타입. 참조 0이면 null.
+  // 작업2: 파일명을 widgets로 참조하는 노드 위치 문자열. "#109, #130 확산 모델 로드"(같은 라벨) 또는 "#109 A, #130 B". title(캔버스 표시명) 우선·없으면 타입. 참조 0이면 null.
+  // 감사 수리: 숫자 id만 배지(#) 부여 — API 포맷의 비숫자 노드 키(UUID 등)를 사용자에게 노출하지 않는다(CLAUDE.md UUID 노출 금지). 비숫자면 라벨만.
   const nodeLocStr = (filename) => {
     const base = String(filename || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
     if (!base || !report?.nodeRefs?.length) return null;
     const refs = report.nodeRefs.filter((r) => r.files.includes(base));
     if (!refs.length) return null;
+    const tag = (r) => (/^\d+$/.test(String(r.id)) ? `#${r.id}` : "");
     const labels = new Set(refs.map((r) => r.title || r.type || "노드"));
-    return labels.size === 1 ? `#${refs.map((r) => r.id).join(", #")} ${[...labels][0]}` : refs.map((r) => `#${r.id} ${r.title || r.type || "노드"}`).join(", ");
+    if (labels.size === 1 && refs.every((r) => tag(r))) return `${refs.map((r) => tag(r)).join(", ")} ${[...labels][0]}`;
+    return refs.map((r) => `${tag(r) ? tag(r) + " " : ""}${r.title || r.type || "노드"}`).join(", ");
   };
   // 화면당 1회 캡션 노출 여부 — 모델 행 또는 에러 진단 중 하나라도 노드 위치가 잡히면.
   const hasNodeLoc = !!(report?.nodeRefs?.length) && ([...(plan?.items || []), ...(plan?.unknowns || [])].some((it) => nodeLocStr(it.selectedFile || it.workflowValue)) || (summary?.valueFindings || []).some((f) => nodeLocStr(f.required)));
@@ -1599,7 +1602,8 @@ export default function Teardown() {
         {/* 수리2(재감사): 대체 이미 보유(altHeld)면 '넣기' 억제 — 받으라는 언어와 '이미 있음·선택'이 충돌하므로. */}
         {r.kind === "model" && !altHeld && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
         {/* 작업2: '선택:' 안내에 노드 번호·제목 병기(파일명 역추적). 캔버스에서 어느 노드인지 특정. loc 없으면 현행(타입명). */}
-        {r.kind === "model" && r.selects.map((sel, si) => { const loc = nodeLocStr(sel.value); return <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {loc ? <>{loc}에서 <span style={{ fontFamily: MONO }}>{sel.value}</span></> : <>{sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></>}</div>; })}
+        {/* 감사 수리: promoted(대체 안내) 행은 아래 '…으로 바꿔 주세요'가 정답 파일을 지정하므로, 원 지정값(버릴 파일)을 가리키는 '선택:' 줄을 억제(이중·모순 방지). */}
+        {r.kind === "model" && !r.planItem?.promoted && r.selects.map((sel, si) => { const loc = nodeLocStr(sel.value); return <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {loc ? <>{loc}에서 <span style={{ fontFamily: MONO }}>{sel.value}</span></> : <>{sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></>}</div>; })}
         {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
         {r.kind === "model" && r.planItem?.vramWarning && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.point, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.vramWarning}{r.planItem.noConfirmedAlt && <a className="td-hf td-outline-w" href={searchUrl((r.planItem.selectedFile || "").replace(/\.[^.]+$/, "") + " gguf")} target="_blank" rel="noopener noreferrer" style={{ padding: "1px 8px", fontSize: 12, marginLeft: 8 }}>저용량 버전 검색 ↗</a>}</div>}
         {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
