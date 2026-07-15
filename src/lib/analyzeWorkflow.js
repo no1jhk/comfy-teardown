@@ -167,6 +167,7 @@ export function normalizeNode(n, subgraph) {
   const wv = Array.isArray(n.widgets_values) ? n.widgets_values : [];
   return { id: n.id, type: n.type, cnr_id: n.properties?.cnr_id ?? null,
     ver: n.properties?.ver ?? null, mode: n.mode ?? 0,
+    title: (typeof n.title === "string" && n.title.trim()) ? n.title.trim() : null, // 작업2: 사용자 지정 제목(캔버스 표시명). 없으면 타입명 폴백.
     widgets: wv,
     autoDownload: n.properties?.auto_download === true, // 결함h: 실행 시 모델 자동 다운로드 위젯(BOOLEAN true)
     noteText: extractNoteText(n, wv),
@@ -452,6 +453,8 @@ export function analyze(norm, mgrMap) {
     nodeTypes: [...new Set(norm.nodes.map((n) => n.type).filter(Boolean))], // 로그 혼입 대조용(현재 워크플로우 노드 타입)
     nodeIds: norm.nodes.map((n) => String(n.id)),
     nodeIdType: Object.fromEntries(norm.nodes.filter((n) => n.type).map((n) => [String(n.id), n.type])), // missing_node_type 크로스링크용(id→class_type)
+    // 작업2: 노드 번호 병기용 — 활성 노드가 widgets로 참조하는 모델 파일(basename 소문자) → {id, type, title}. Solution '선택:'·에러 진단 위치 특정.
+    nodeRefs: norm.nodes.filter((n) => !isMuted(n)).map((n) => ({ id: n.id, type: n.type, title: n.title || null, files: (n.widgets || []).filter((w) => typeof w === "string" && MODEL_EXTS.some((e) => w.toLowerCase().endsWith(e))).map((w) => w.replace(/\\/g, "/").split("/").pop().toLowerCase()) })).filter((r) => r.files.length > 0),
     autoDownloadNodes: [...new Set(norm.nodes.filter((n) => n.autoDownload && n.type).map((n) => n.type))], // 결함h: 실행 시 모델 자동 다운로드 노드
     authorNotes,
   };

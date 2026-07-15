@@ -203,8 +203,10 @@ async function bundleEntry(entry, tmpName) {
     await new Promise((r) => setTimeout(r, 150));
     if (caught) throw caught;
     const txt = root.textContent.replace(/\s+/g, " ");
-    if (/이미 있음 · 선택: UNETLoader에서 z_image_turbo_bf16\.safetensors으로 바꿔 주세요/.test(txt)) console.log("  ✅ altHeld 재선택 안내(활성) 렌더");
-    else { console.log("  ❌ altHeld 재선택 안내 미렌더"); fail++; }
+    if (/이미 있음 · 선택: #1 UNETLoader에서 z_image_turbo_bf16\.safetensors으로 바꿔 주세요/.test(txt)) console.log("  ✅ altHeld 재선택 안내(활성) + 노드 번호 병기(#1 UNETLoader)");
+    else { console.log("  ❌ altHeld 재선택 안내/노드 번호 미렌더"); fail++; }
+    if (/노드 번호는 ComfyUI 설정에서 노드 ID 배지를 켜면 캔버스에 표시됩니다/.test(txt)) console.log("  ✅ 노드 번호 안내 캡션 노출(화면당 1회)");
+    else { console.log("  ❌ 노드 번호 안내 캡션 부재"); fail++; }
     if (!/구조상 실행 준비 완료/.test(txt) && !/필요한 모델을 모두 가지고 있습니다/.test(txt)) console.log("  ✅ 대체 보유 시 '실행 준비 완료' 오배너 금지");
     else { console.log("  ❌ 재선택 대기인데 실행 준비 완료 오배너"); fail++; }
     if (![...root.querySelectorAll("a")].some((a) => /z_image_turbo_bf16/.test(a.href))) console.log("  ✅ altHeld → 처방 다운로드 억제(Solution 행)");
@@ -275,8 +277,8 @@ async function bundleEntry(entry, tmpName) {
     // 자리표시자 alias=confidence confirmed → 표 dlEligible의 confidence 필터 통과. altHeld면 noDownloadSet 필터가 표에서 RV 제거. 필터 삭제 시 표에 RV 앵커 재출현(변이 검증됨).
     if (![...root.querySelectorAll("a")].some((a) => /Realistic_Vision_V5\.1_fp16-no-ema/.test(a.href))) console.log("  ✅ confirmed+altHeld → Models 표에서 RV 다운로드 링크 제외(noDownloadSet 필터 실경로)");
     else { console.log("  ❌ confirmed+altHeld인데 Models 표에 RV 링크 잔존(표 필터 누락)"); fail++; }
-    if (/이미 있음 · 선택: CheckpointLoaderSimple에서/.test(txt)) console.log("  ✅ confirmed alias altHeld 처방 재선택 안내(활성)");
-    else { console.log("  ❌ confirmed alias altHeld 재선택 안내 미렌더"); fail++; }
+    if (/이미 있음 · 선택: #1 CheckpointLoaderSimple에서/.test(txt)) console.log("  ✅ confirmed alias altHeld 처방 재선택 안내 + 노드 번호(#1 CheckpointLoaderSimple)");
+    else { console.log("  ❌ confirmed alias altHeld 재선택/노드 번호 미렌더"); fail++; }
   } catch (e) { console.log(`  ❌ Models 표 필터 렌더 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
 }
@@ -329,6 +331,57 @@ async function bundleEntry(entry, tmpName) {
     if (altHeader && /직접 선택/.test(altHeader.textContent) && !/폴더 대조/.test(altHeader.textContent)) console.log("  ✅ '다른 방법으로 입력' 접이 부속 '직접 선택'으로 갱신(폴더 대조 제거)");
     else { console.log(`  ❌ '다른 방법으로 입력' 부속 갱신 실패: '${altHeader?.textContent}'`); fail++; }
   } catch (e) { console.log(`  ❌ goFillEnv 재분류 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
+  finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
+}
+
+// ── G. 작업2: 에러 진단부('ComfyUI가 거부한 값')에도 노드 위치 병기(required 파일명 역추적). "#42 내 유넷 · unet_name = ...". ──
+{
+  const { JSDOM, VirtualConsole } = await import("jsdom");
+  let caught = null;
+  const vc = new VirtualConsole(); vc.on("jsdomError", (e) => { caught = (e && e.detail) || e; });
+  const dom = new JSDOM(`<!DOCTYPE html><body><div id="root"></div></body>`, { url: "http://localhost/", pretendToBeVisual: true, virtualConsole: vc });
+  const w = dom.window;
+  w.Element.prototype.scrollIntoView = function () {};
+  try { Object.defineProperty(globalThis.navigator, "clipboard", { value: { writeText: () => Promise.resolve() }, configurable: true }); } catch { /* noop */ }
+  w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  globalThis.window = w; globalThis.document = w.document; globalThis.location = w.location;
+  globalThis.localStorage = w.localStorage; globalThis.matchMedia = w.matchMedia;
+  globalThis.FileReader = w.FileReader; globalThis.File = w.File; globalThis.Blob = w.Blob;
+  globalThis.Event = w.Event; globalThis.Node = w.Node; globalThis.HTMLElement = w.HTMLElement;
+  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
+  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+  const onErr = (e) => { caught = e && (e.error || e.reason || e); };
+  process.on("uncaughtException", onErr); process.on("unhandledRejection", onErr);
+  const setTA = (el, v) => { const s = Object.getOwnPropertyDescriptor(w.HTMLTextAreaElement.prototype, "value").set; s.call(el, v); el.dispatchEvent(new w.Event("input", { bubbles: true })); };
+  // 사용자 title '내 유넷'을 단 UNETLoader(id 42)가 target_model 참조. 에러 로그의 required = 그 파일 → 역추적으로 #42 내 유넷.
+  const WF = JSON.stringify({ last_node_id: 42, last_link_id: 0, version: 0.4, groups: [], links: [], nodes: [{ id: 42, type: "UNETLoader", title: "내 유넷", pos: [0, 0], size: [1, 1], flags: {}, order: 0, mode: 0, widgets_values: ["target_model.safetensors", "default"], properties: {}, inputs: [], outputs: [] }, { id: 9, type: "SaveImage", pos: [0, 0], size: [1, 1], flags: {}, order: 1, mode: 0, widgets_values: [], properties: {}, inputs: [], outputs: [] }] });
+  const ERR = "Prompt outputs failed validation:\nUNETLoader:\n  - Value not in list: unet_name: 'target_model.safetensors' not in ['other_a.safetensors', 'other_b.safetensors']";
+  let tmp;
+  try {
+    tmp = await bundleEntry(`import React from "react"; import { createRoot } from "react-dom/client"; import Teardown from "./src/Teardown.jsx"; createRoot(document.getElementById("root")).render(React.createElement(Teardown)); export const ok = true;`, ".smoke-errloc.mjs");
+    await import("file://" + tmp);
+    await new Promise((r) => setTimeout(r, 60));
+    const root = w.document.getElementById("root");
+    const input = w.document.querySelector('input[type="file"]');
+    Object.defineProperty(input, "files", { value: [new w.File([WF], "e.json", { type: "application/json" })], configurable: true });
+    input.dispatchEvent(new w.Event("change", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    const dt = w.document.getElementById("detail-toggle");
+    if (dt) dt.dispatchEvent(new w.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 200));
+    // 에러 로그 입력은 detailOpen + errAcc(에러 아코디언) 2단 뒤. errAcc 토글 펼침.
+    const errRow = [...root.querySelectorAll("div")].find((d) => d.textContent === "실행했는데 에러가 나면: 에러 로그 진단");
+    for (let cont = errRow, i = 0; i < 5 && cont; i++, cont = cont.parentElement) { const b = cont.querySelector?.('button[aria-label="펼치기/접기"]'); if (b) { b.dispatchEvent(new w.Event("click", { bubbles: true })); break; } }
+    await new Promise((r) => setTimeout(r, 150));
+    const errTA = [...root.querySelectorAll("textarea")].find((t) => /마지막 Traceback 블록/.test(t.placeholder || ""));
+    if (!errTA) { console.log("  ❌ 에러 로그 textarea 미도달(errAcc 펼침 실패)"); fail++; }
+    if (errTA) setTA(errTA, ERR);
+    await new Promise((r) => setTimeout(r, 250));
+    if (caught) throw caught;
+    const txt = root.textContent.replace(/\s+/g, " ");
+    if (/#42 내 유넷 · unet_name = target_model\.safetensors/.test(txt)) console.log("  ✅ 에러 진단부 노드 위치 병기(#42 내 유넷 · unet_name, title 사용)");
+    else { console.log(`  ❌ 에러 진단부 노드 병기 미렌더: ${(txt.match(/거부한 값[\s\S]{0,120}/) || [])[0]}`); fail++; }
+  } catch (e) { console.log(`  ❌ 에러 진단 노드 병기 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
 }
 

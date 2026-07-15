@@ -873,7 +873,19 @@ console.log("\n" + "=".repeat(70) + "\n감사 대응: altHeld·altCorrupt·altVa
   const mTotal = mixRec.results.length, mFound = mixRec.heldSet.size, mMis = mixRec.results.filter((r) => r.misplaced).length, mAlt = mixRec.results.filter((r) => r.altHeld && !r.held).length, mDl = Math.max(0, mTotal - mFound - mMis - mAlt);
   if (mFound + mAlt + mDl + mMis !== mTotal) { console.log(`  ❌ 요약 수치 합 불일치: found${mFound}+alt${mAlt}+dl${mDl}+mis${mMis} ≠ total${mTotal}`); fail++; ok = false; }
   if (!(mFound >= 1 && mAlt >= 1 && mDl >= 1)) { console.log(`  ❌ 혼재 전제 실패(found·alt·dl 각 1+ 기대): found${mFound}/alt${mAlt}/dl${mDl}/total${mTotal}`); fail++; ok = false; }
-  if (ok) console.log("  ✅ altHeld·altVariant분리·altCorrupt·altUnsized(size미등재 차단)·z-image bf16(12.3GB→깨짐 탐지)·요약 수치합=total·logPath 전부 충족");
+  // 8) 작업2: 노드 번호 역추적(report.nodeRefs) — 동일 파일 복수 노드(109·130)·title 유무 분기. Solution '선택:'·에러 진단 위치 특정의 데이터 층.
+  const nrRep = analyze(normalize({ last_node_id: 130, last_link_id: 0, version: 0.4, nodes: [
+    { id: 109, type: "UNETLoader", title: "확산 모델 로드", pos: [0, 0], size: [1, 1], flags: {}, order: 0, mode: 0, widgets_values: ["z_image_turbo_fp8_e4m3fn.safetensors", "default"], properties: {}, inputs: [], outputs: [] },
+    { id: 130, type: "UNETLoader", pos: [0, 0], size: [1, 1], flags: {}, order: 1, mode: 0, widgets_values: ["z_image_turbo_fp8_e4m3fn.safetensors", "default"], properties: {}, inputs: [], outputs: [] },
+    { id: 42, type: "CLIPLoader", title: "내 클립", pos: [0, 0], size: [1, 1], flags: {}, order: 2, mode: 0, widgets_values: ["clip.safetensors"], properties: {}, inputs: [], outputs: [] },
+    { id: 7, type: "VAELoader", pos: [0, 0], size: [1, 1], flags: {}, order: 3, mode: 2, widgets_values: ["muted_vae.safetensors"], properties: {}, inputs: [], outputs: [] },
+  ] }), null);
+  const fp8Refs = (nrRep.nodeRefs || []).filter((r) => r.files.includes("z_image_turbo_fp8_e4m3fn.safetensors"));
+  if (fp8Refs.length !== 2 || !fp8Refs.some((r) => r.id === 109 && r.title === "확산 모델 로드") || !fp8Refs.some((r) => r.id === 130 && r.title == null)) { console.log(`  ❌ nodeRefs 복수·title 분기 실패: ${JSON.stringify(fp8Refs)}`); fail++; ok = false; }
+  const clipRef = (nrRep.nodeRefs || []).find((r) => r.files.includes("clip.safetensors"));
+  if (!clipRef || clipRef.id !== 42 || clipRef.title !== "내 클립") { console.log(`  ❌ nodeRefs title 사용 실패: ${JSON.stringify(clipRef)}`); fail++; ok = false; }
+  if ((nrRep.nodeRefs || []).some((r) => r.files.includes("muted_vae.safetensors"))) { console.log("  ❌ 비활성(muted) 노드가 nodeRefs에 포함(활성만이어야)"); fail++; ok = false; }
+  if (ok) console.log("  ✅ altHeld·altVariant·altCorrupt·altUnsized·bf16(12.3GB)·요약합=total·logPath·nodeRefs(복수109/130·title유무·muted제외) 전부 충족");
 }
 
 console.log("\n" + "=".repeat(70));

@@ -1552,6 +1552,17 @@ export default function Teardown() {
   }, []);
   // 다행 판정: 부속 줄(sub·넣기·용량·가이드·대체·링크·노드·이동안내)이 하나라도 있으면 다행. 모델 행은 항상 다행.
   const rowMultiLine = (r) => r.kind === "model" || !!(r.sub || r.guides?.length || r.alternatives?.length || r.exclusions?.length || r.links?.length || r.nodes?.length || r.diagLink);
+  // 작업2: 파일명을 widgets로 참조하는 활성 노드 위치 문자열. "#109, #130 확산 모델 로드"(같은 라벨) 또는 "#109 A, #130 B". title(캔버스 표시명) 우선·없으면 타입. 참조 0이면 null.
+  const nodeLocStr = (filename) => {
+    const base = String(filename || "").replace(/\\/g, "/").split("/").pop().toLowerCase();
+    if (!base || !report?.nodeRefs?.length) return null;
+    const refs = report.nodeRefs.filter((r) => r.files.includes(base));
+    if (!refs.length) return null;
+    const labels = new Set(refs.map((r) => r.title || r.type || "노드"));
+    return labels.size === 1 ? `#${refs.map((r) => r.id).join(", #")} ${[...labels][0]}` : refs.map((r) => `#${r.id} ${r.title || r.type || "노드"}`).join(", ");
+  };
+  // 화면당 1회 캡션 노출 여부 — 모델 행 또는 에러 진단 중 하나라도 노드 위치가 잡히면.
+  const hasNodeLoc = !!(report?.nodeRefs?.length) && ([...(plan?.items || []), ...(plan?.unknowns || [])].some((it) => nodeLocStr(it.selectedFile || it.workflowValue)) || (summary?.valueFindings || []).some((f) => nodeLocStr(f.required)));
   const renderActionRow = (r, first, dim, variant = "fill") => {
     const align = alignMode === "auto" ? (rowMultiLine(r) ? "top" : "center") : alignMode;
     const rr = r.kind === "model" ? reconcile?.byFile?.get(r.planItem?.selectedFile) : null;
@@ -1587,13 +1598,14 @@ export default function Teardown() {
         {r.kind === "model" && (() => { const rr = reconcile?.byFile?.get(r.planItem?.selectedFile); const cands = r.planItem?.promoted ? (rr?.altVariantCandidates || []) : (rr?.variantCandidates || []); return cands.length ? <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.5 }}>보유 파일 중 표기만 다른 후보가 있습니다: {cands.map((v, i) => <span key={i}>{i > 0 ? ", " : ""}<span style={{ fontFamily: MONO, color: C.point }}>{v}</span></span>)}. 같은 모델이면 로더 드롭다운에서 이 파일을 선택해 주세요.</div> : null; })()}
         {/* 수리2(재감사): 대체 이미 보유(altHeld)면 '넣기' 억제 — 받으라는 언어와 '이미 있음·선택'이 충돌하므로. */}
         {r.kind === "model" && !altHeld && (r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders)?.filter(Boolean).length > 0 && <div style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>넣기: {(r.planItem?.promoted ? [r.planItem.promoted.fullPath || r.planItem.promoted.folder] : r.folders).map((f, fi) => <span key={fi} style={{ fontFamily: MONO }}>{fi > 0 ? ", " : ""}{f}</span>)}</div>}
-        {r.kind === "model" && r.selects.map((sel, si) => <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></div>)}
+        {/* 작업2: '선택:' 안내에 노드 번호·제목 병기(파일명 역추적). 캔버스에서 어느 노드인지 특정. loc 없으면 현행(타입명). */}
+        {r.kind === "model" && r.selects.map((sel, si) => { const loc = nodeLocStr(sel.value); return <div key={si} style={{ fontFamily: SANS, fontSize: 14, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>선택: {loc ? <>{loc}에서 <span style={{ fontFamily: MONO }}>{sel.value}</span></> : <>{sel.nodeType}: <span style={{ fontFamily: MONO }}>{sel.value}</span></>}</div>; })}
         {r.kind === "model" && (r.planItem?.promoted?.size || r.planItem?.size || r.planItem?.sourceRepo) && <div style={{ fontFamily: SANS, fontSize: 13, color: C.dim, marginTop: 4, lineHeight: 1.45 }}>{(r.planItem.promoted?.size || r.planItem.size) ? `용량 ${r.planItem.promoted?.size || r.planItem.size}` : ""}{(r.planItem.promoted?.size || r.planItem.size) && r.planItem.sourceRepo ? " · " : ""}{r.planItem.sourceRepo ? <>출처 <span style={{ fontFamily: MONO }}>{r.planItem.sourceRepo}</span></> : ""}</div>}
         {r.kind === "model" && r.planItem?.vramWarning && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.point, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.vramWarning}{r.planItem.noConfirmedAlt && <a className="td-hf td-outline-w" href={searchUrl((r.planItem.selectedFile || "").replace(/\.[^.]+$/, "") + " gguf")} target="_blank" rel="noopener noreferrer" style={{ padding: "1px 8px", fontSize: 12, marginLeft: 8 }}>저용량 버전 검색 ↗</a>}</div>}
         {r.kind === "model" && r.planItem?.renameHint && !r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: C.memoBright, marginTop: 4, lineHeight: 1.45 }}>{r.planItem.renameHint}</div>}
         {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 6, lineHeight: 1.5 }}>{r.planItem.promoted.originLabel || "워크플로우 원 지정값(상위 VRAM용)"}: <span style={{ fontFamily: MONO }}>{r.planItem.promoted.originalFile}</span>{r.planItem.promoted.originalSize ? ` (${r.planItem.promoted.originalSize})` : ""}</div>}
         {/* 수리1·2(재감사): altHeld=재선택 대기(활성·memoBright) / altUnsized=기대 용량 미등재로 검증 불가(확인 필요·point) / 그 외 promoted=현행 안내. */}
-        {r.kind === "model" && r.planItem?.promoted && <div style={{ fontFamily: SANS, fontSize: 14, color: altHeld ? C.memoBright : altUnsized ? C.point : C.dim, marginTop: 4, lineHeight: 1.5 }}>{altHeld ? <>이미 있음 · 선택: {r.planItem.promoted.node}에서 <span style={{ fontFamily: MONO }}>{altHeld}</span>으로 바꿔 주세요.</> : altUnsized ? <>파일은 있으나 이 파일의 정상 용량 정보가 아직 없어 크기 확인을 할 수 없습니다. <span style={{ fontFamily: MONO }}>{altUnsized}</span>이 정상인지 확인해 주세요.</> : `${r.planItem.promoted.node}에서 받은 파일로 선택을 바꿔 주세요.`}</div>}
+        {r.kind === "model" && r.planItem?.promoted && (() => { const loc = nodeLocStr(r.planItem?.selectedFile) || r.planItem.promoted.node; return <div style={{ fontFamily: SANS, fontSize: 14, color: altHeld ? C.memoBright : altUnsized ? C.point : C.dim, marginTop: 4, lineHeight: 1.5 }}>{altHeld ? <>이미 있음 · 선택: {loc}에서 <span style={{ fontFamily: MONO }}>{altHeld}</span>으로 바꿔 주세요.</> : altUnsized ? <>파일은 있으나 이 파일의 정상 용량 정보가 아직 없어 크기 확인을 할 수 없습니다. <span style={{ fontFamily: MONO }}>{altUnsized}</span>이 정상인지 확인해 주세요.</> : <>{loc}에서 받은 파일로 선택을 바꿔 주세요.</>}</div>; })()}
         {/* 2(판단근거 흡수): 별도 리스트 폐지 → 각 행 1층 접이. 등급·근거·출처만(링크 텍스트, 버튼 중복 0). evidenceBg 계승. */}
         {r.kind === "model" && r.planItem?.reason && (
           <details style={{ marginTop: 8 }}>
@@ -2061,7 +2073,8 @@ export default function Teardown() {
             {revisit && summary?.valueFindings?.length > 0 && (
               <div style={{ marginTop: 8, marginBottom: 18, background: C.surface, border: `1px solid ${C.divider}`, borderRadius: 12, padding: "14px 16px" }}>
                 <div style={{ fontSize: 14, fontWeight: 700, color: C.text, marginBottom: 8 }}>진단 결과: ComfyUI가 거부한 값</div>
-                {summary.valueFindings.map((f, fi) => <div key={fi} style={{ fontSize: 13.5, color: C.dim, marginTop: 5, lineHeight: 1.5 }}><span style={{ fontFamily: MONO }}>{f.widget}</span> = <span style={{ fontFamily: MONO, color: C.red }}>{f.required}</span>{f.best ? <> · PC에 있는 후보: <span style={{ fontFamily: MONO, color: C.point }}>{f.best}</span></> : " · 폴더에 없거나 이름이 다릅니다"}</div>)}
+                {/* 작업2: 에러 진단에도 노드 위치 병기(required 파일명 역추적). "#199 UnetLoaderGGUF · unet_name = ...". loc 없으면 현행. */}
+                {summary.valueFindings.map((f, fi) => { const loc = nodeLocStr(f.required); return <div key={fi} style={{ fontSize: 13.5, color: C.dim, marginTop: 5, lineHeight: 1.5 }}>{loc && <><span style={{ fontFamily: MONO, color: C.faint }}>{loc}</span> · </>}<span style={{ fontFamily: MONO }}>{f.widget}</span> = <span style={{ fontFamily: MONO, color: C.red }}>{f.required}</span>{f.best ? <> · PC에 있는 후보: <span style={{ fontFamily: MONO, color: C.point }}>{f.best}</span></> : " · 폴더에 없거나 이름이 다릅니다"}</div>; })}
                 <div style={{ marginTop: 8 }}><a href="#diagnose-section" onClick={scrollToDiagnose} style={{ fontSize: 13, color: C.dim, textDecoration: "underline", cursor: "pointer" }}>전체 에러 로그 진단 보기</a></div>
               </div>
             )}
@@ -2116,6 +2129,9 @@ export default function Teardown() {
                 )}
               </div>
             )}
+
+            {/* 작업2: 노드 번호 안내 캡션 — 화면당 1회(hasNodeLoc). 처방 테이블 직후 단일 노출(중복 방지). 노드 ID 배지 켜는 법. */}
+            {hasNodeLoc && <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 4, marginBottom: 8, lineHeight: 1.5 }}>노드 번호는 ComfyUI 설정에서 노드 ID 배지를 켜면 캔버스에 표시됩니다.</div>}
 
             {/* 2(판단근거 흡수): 별도 per-model 리스트 폐지 → 각 행 "근거" 접이로 흡수. 여긴 총론(판단 기준)만. clone 스크립트는 설치 행 install.bat 다운로드로 보존. */}
             {rxTodos.length > 0 && (
