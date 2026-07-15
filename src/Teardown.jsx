@@ -1052,7 +1052,8 @@ export default function Teardown() {
   const [briefingBusy, setBriefingBusy] = useState(false); // 브리핑 복사 처리 중 표시(딤+스피너)
   const [briefingInfo, setBriefingInfo] = useState(null);  // 무엇을 담았는지 요약 {lines, shots, chars}
   const [envOpen, setEnvOpen] = useState(false);
-  const [altOpen, setAltOpen] = useState(false); // 작업1: 환경 '다른 방법으로 입력'(직접 선택·폴더 대조) 접이
+  const [altOpen, setAltOpen] = useState(false); // 작업1: 환경 '다른 방법으로 입력'(직접 선택) 접이
+  const [scanOpen, setScanOpen] = useState(false); // 작업1(재분류): 폴더 대조 독립 접이(로그의 추가 입력)
   const [envLog, setEnvLog] = useState("");
   const [env, setEnv] = useState({ gpu: "", torch: "", cuda: "", vram: null, modelRoot: "", basePath: "", customNodesPath: "", installedPacks: [], importFailed: [], modelRootAssembled: false, platform: "", logPath: "" });
   const [folderPickMac, setFolderPickMac] = useState(false); // v: Mac·Linux 토글에서 폴더 선택 시 발화(전체 경로 직접 입력 유도)
@@ -1217,8 +1218,8 @@ export default function Teardown() {
   // 4(4차): 전체 현황 집계 1줄 → Bypassed 섹션 상세로. bp1 펼침 + #bypassed-section 스크롤(같은 detail 블록 내).
   const openBypassed = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, bp1: true })); setTimeout(() => document.getElementById("bypassed-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   // B: Solution 헤더 환경 칩 '지금 채우기' — 입력 존 단계2로 스크롤 + 환경정보 펼침.
-  // 수리3: 폴더 대조·직접 선택이 altOpen 접이 안이므로, '지금 채우기'는 envOpen + altOpen 둘 다 열어 대조 지점까지 도달 보장.
-  const goFillEnv = (e) => { if (e) e.preventDefault(); setEnvOpen(true); setAltOpen(true); setTimeout(() => document.getElementById("env-step")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
+  // 작업1(재분류): 폴더 대조가 독립 접이로 분리됐으므로, '지금 채우기'(보유 대조 생략됨)는 envOpen + scanOpen을 열어 폴더 대조 지점으로 스크롤.
+  const goFillEnv = (e) => { if (e) e.preventDefault(); setEnvOpen(true); setScanOpen(true); setTimeout(() => document.getElementById("scan-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1835,79 +1836,16 @@ export default function Teardown() {
                 </div>
               )}
 
-              {/* 작업1-2: 직접 선택·폴더 대조는 '다른 방법으로 입력' 접이로. 기본 경로(로그)와 시각 분리(marginTop 20 + 구분선). 기존 접기 문법. */}
-              <div style={{ marginTop: 20, borderTop: `1px solid ${C.divider}`, paddingTop: 14 }}>
-                <button onClick={() => setAltOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, width: "100%", textAlign: "left" }}>
-                  {altOpen ? <Minus size={15} color={C.dim} style={{ flexShrink: 0 }} /> : <Plus size={15} color={C.dim} style={{ flexShrink: 0 }} />}
-                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>다른 방법으로 입력</span>
-                  <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>직접 선택 · 폴더 대조</span>
+              {/* 작업1(재분류): 폴더 대조는 로그의 추가 입력(대체재 아님) → '다른 방법' 접이 밖 독립 블록. 세로 순서: 로그 → 폴더 대조 → 다른 방법(직접 선택). 로그·접이 사이 시각 분리(marginTop 20 + 구분선). */}
+              {/* b. 내 모델 폴더 대조 — 독립 접이 + dim 유도 한 줄 상시 노출(로그만 넣은 사용자가 보유 대조를 지나치는 함정 방지). 좌측 폴더 아이콘. */}
+              <div id="scan-block" style={{ marginTop: 20, borderTop: `1px solid ${C.divider}`, paddingTop: 14, scrollMarginTop: 16 }}>
+                <button onClick={() => setScanOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, width: "100%", textAlign: "left" }}>
+                  {scanOpen ? <Minus size={15} color={C.dim} style={{ flexShrink: 0 }} /> : <Plus size={15} color={C.dim} style={{ flexShrink: 0 }} />}
+                  <FolderOpen size={15} color={C.dim} style={{ flexShrink: 0 }} />
+                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>내 모델 폴더 대조</span>
                 </button>
-                {altOpen && (<div className="td-fade" style={{ marginTop: 14 }}>
-
-              {/* ② 직접 선택 (슬라이더 아이콘 섹션) */}
-              <div>
-                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
-                  <SlidersHorizontal size={15} color={C.dim} style={{ flexShrink: 0 }} />
-                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>직접 선택</div>
-                </div>
-                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-                  <div style={{ flex: "1 1 160px", minWidth: 140 }}>
-                    <label style={{ fontSize: 13, color: C.dim, marginBottom: 4, display: "block" }}>GPU</label>
-                    <select value={GPU_OPTIONS.includes(env.gpu) ? env.gpu : (env.gpu ? "__custom" : "")}
-                      onChange={(e) => { if (e.target.value === "__custom") setEnv((p) => ({ ...p, gpu: "" })); else setEnv((p) => ({ ...p, gpu: e.target.value })); }}
-                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: SANS, fontSize: 13, boxSizing: "border-box" }}>
-                      <option value="">선택 안 함</option>
-                      {GPU_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
-                      <option value="__custom">직접 입력</option>
-                    </select>
-                    {(env.gpu && !GPU_OPTIONS.includes(env.gpu)) && (
-                      <input type="text" value={env.gpu} onChange={(e) => setEnv((p) => ({ ...p, gpu: e.target.value }))} placeholder="예: RTX A6000"
-                        style={{ width: "100%", marginTop: 6, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: SANS, fontSize: 13, boxSizing: "border-box" }} />
-                    )}
-                  </div>
-                  <div style={{ flex: "1 1 120px", minWidth: 100 }}>
-                    <label style={{ fontSize: 13, color: C.dim, marginBottom: 4, display: "block" }}>torch 버전</label>
-                    <input type="text" value={env.torch} onChange={(e) => setEnv((p) => ({ ...p, torch: e.target.value }))} placeholder="예: 2.8.0"
-                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
-                  </div>
-                  <div style={{ flex: "1 1 120px", minWidth: 100 }}>
-                    <label style={{ fontSize: 13, color: C.dim, marginBottom: 4, display: "block" }}>CUDA 버전</label>
-                    <input type="text" value={env.cuda} onChange={(e) => setEnv((p) => ({ ...p, cuda: e.target.value }))} placeholder="예: 12.8"
-                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
-                  </div>
-                </div>
-              </div>
-
-              {/* 소형1(4차): 명령어로 확인하는 법 — '또는 직접 선택' 바로 아래(나온 값을 위 칸에 입력). Mac 판정 시 미노출(CUDA 무관). 대조 구역 하단에서 이설. */}
-              {env.platform !== "mac" && (
-                <div style={{ marginTop: 12 }}>
-                  <button onClick={() => setCmdOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, color: C.faint, fontFamily: SANS, fontSize: 13 }}>
-                    <CircleAlert size={13} /> 명령어로 확인하는 법</button>
-                  {cmdOpen && (
-                    <div className="td-fade" style={{ marginTop: 10 }}>
-                      <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.55, marginBottom: 8 }}>ComfyUI가 쓰는 파이썬 환경에서 실행하면 torch·CUDA 버전이 나옵니다. ComfyUI 폴더에서 <span style={{ fontFamily: MONO, color: C.text }}>source venv/bin/activate</span> (Windows: <span style={{ fontFamily: MONO, color: C.text }}>{"venv\\Scripts\\activate"}</span>) 실행 후 아래 명령을 입력하고, 나온 값을 위 칸에 입력해 주세요.</div>
-                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                        {[
-                          { label: "torch + CUDA", cmd: 'python -c "import torch; print(torch.__version__, torch.version.cuda)"' },
-                          { label: "GPU 정보", cmd: "nvidia-smi" },
-                        ].map((item) => (
-                          <div key={item.cmd} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "7px 11px" }}>
-                            <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, flex: 1, overflowWrap: "anywhere" }}>{item.cmd}</code>
-                            <button onClick={() => copy(item.cmd, "cmd-" + item.label)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: C.point, flexShrink: 0 }}>
-                              {copiedKey === "cmd-" + item.label ? <Check size={14} /> : <Copy size={14} />}</button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* 작업1-2: 폴더 대조 구획 헤더(좌측 폴더 아이콘). OS 토글·모델 폴더 경로·대조가 이 헤더 아래로. */}
-              <div style={{ display: "flex", alignItems: "center", gap: 7, marginTop: 20, paddingTop: 16, borderTop: `1px solid ${C.divider}`, marginBottom: 4 }}>
-                <FolderOpen size={15} color={C.dim} style={{ flexShrink: 0 }} />
-                <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>폴더 대조</div>
-              </div>
+                <div style={{ fontFamily: SANS, fontSize: 13, color: C.faint, marginTop: 4, paddingLeft: 46, lineHeight: 1.5 }}>보유 모델을 걸러내려면 폴더 대조를 추가하세요.</div>
+                {scanOpen && (<div className="td-fade" style={{ marginTop: 12 }}>
               {/* 1: OS 토글 승격 — '내 PC 환경' 독립 줄. 경로 placeholder·드라이브 조립·대조 스니펫이 이 값(scanOs)을 상속(위치만 이동, 로직 무변). ②-c에서 이설. */}
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 13, fontWeight: 600, color: C.text, marginBottom: 8 }}>내 PC 환경</div>
@@ -2012,9 +1950,78 @@ export default function Teardown() {
                 })()}
               </div>
 
-              {/* ③ 명령어 안내는 소형1(4차)에서 '또는 직접 선택' 바로 아래로 이설. */}
+              {/* 폴더 대조 독립 접이 끝. */}
                 </div>
               )}
+              </div>
+
+              {/* c. 다른 방법으로 입력 — 직접 선택만(로그의 대체재). 접이 헤더 dim 부속 '직접 선택'. */}
+              <div style={{ marginTop: 20, borderTop: `1px solid ${C.divider}`, paddingTop: 14 }}>
+                <button onClick={() => setAltOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, width: "100%", textAlign: "left" }}>
+                  {altOpen ? <Minus size={15} color={C.dim} style={{ flexShrink: 0 }} /> : <Plus size={15} color={C.dim} style={{ flexShrink: 0 }} />}
+                  <span style={{ fontFamily: SANS, fontSize: 15, fontWeight: 600, color: C.text }}>다른 방법으로 입력</span>
+                  <span style={{ fontFamily: SANS, fontSize: 13, color: C.faint }}>직접 선택</span>
+                </button>
+                {altOpen && (<div className="td-fade" style={{ marginTop: 14 }}>
+              {/* ② 직접 선택 (슬라이더 아이콘 섹션) */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 10 }}>
+                  <SlidersHorizontal size={15} color={C.dim} style={{ flexShrink: 0 }} />
+                  <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>직접 선택</div>
+                </div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                  <div style={{ flex: "1 1 160px", minWidth: 140 }}>
+                    <label style={{ fontSize: 13, color: C.dim, marginBottom: 4, display: "block" }}>GPU</label>
+                    <select value={GPU_OPTIONS.includes(env.gpu) ? env.gpu : (env.gpu ? "__custom" : "")}
+                      onChange={(e) => { if (e.target.value === "__custom") setEnv((p) => ({ ...p, gpu: "" })); else setEnv((p) => ({ ...p, gpu: e.target.value })); }}
+                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: SANS, fontSize: 13, boxSizing: "border-box" }}>
+                      <option value="">선택 안 함</option>
+                      {GPU_OPTIONS.map((g) => <option key={g} value={g}>{g}</option>)}
+                      <option value="__custom">직접 입력</option>
+                    </select>
+                    {(env.gpu && !GPU_OPTIONS.includes(env.gpu)) && (
+                      <input type="text" value={env.gpu} onChange={(e) => setEnv((p) => ({ ...p, gpu: e.target.value }))} placeholder="예: RTX A6000"
+                        style={{ width: "100%", marginTop: 6, background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: SANS, fontSize: 13, boxSizing: "border-box" }} />
+                    )}
+                  </div>
+                  <div style={{ flex: "1 1 120px", minWidth: 100 }}>
+                    <label style={{ fontSize: 13, color: C.dim, marginBottom: 4, display: "block" }}>torch 버전</label>
+                    <input type="text" value={env.torch} onChange={(e) => setEnv((p) => ({ ...p, torch: e.target.value }))} placeholder="예: 2.8.0"
+                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                  <div style={{ flex: "1 1 120px", minWidth: 100 }}>
+                    <label style={{ fontSize: 13, color: C.dim, marginBottom: 4, display: "block" }}>CUDA 버전</label>
+                    <input type="text" value={env.cuda} onChange={(e) => setEnv((p) => ({ ...p, cuda: e.target.value }))} placeholder="예: 12.8"
+                      style={{ width: "100%", background: C.bg, border: `1px solid ${C.line}`, borderRadius: 8, padding: "8px 10px", color: C.text, fontFamily: MONO, fontSize: 13, boxSizing: "border-box" }} />
+                  </div>
+                </div>
+              </div>
+
+              {/* 소형1(4차): 명령어로 확인하는 법 — 직접 선택 값을 위 칸에 입력. Mac 판정 시 미노출(CUDA 무관). */}
+              {env.platform !== "mac" && (
+                <div style={{ marginTop: 12 }}>
+                  <button onClick={() => setCmdOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 6, background: "none", border: "none", cursor: "pointer", padding: 0, color: C.faint, fontFamily: SANS, fontSize: 13 }}>
+                    <CircleAlert size={13} /> 명령어로 확인하는 법</button>
+                  {cmdOpen && (
+                    <div className="td-fade" style={{ marginTop: 10 }}>
+                      <div style={{ fontSize: 13, color: C.dim, lineHeight: 1.55, marginBottom: 8 }}>ComfyUI가 쓰는 파이썬 환경에서 실행하면 torch·CUDA 버전이 나옵니다. ComfyUI 폴더에서 <span style={{ fontFamily: MONO, color: C.text }}>source venv/bin/activate</span> (Windows: <span style={{ fontFamily: MONO, color: C.text }}>{"venv\\Scripts\\activate"}</span>) 실행 후 아래 명령을 입력하고, 나온 값을 위 칸에 입력해 주세요.</div>
+                      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+                        {[
+                          { label: "torch + CUDA", cmd: 'python -c "import torch; print(torch.__version__, torch.version.cuda)"' },
+                          { label: "GPU 정보", cmd: "nvidia-smi" },
+                        ].map((item) => (
+                          <div key={item.cmd} style={{ display: "flex", alignItems: "center", gap: 8, background: C.bg, borderRadius: 8, padding: "7px 11px" }}>
+                            <code style={{ fontFamily: MONO, fontSize: 13, color: C.text, flex: 1, overflowWrap: "anywhere" }}>{item.cmd}</code>
+                            <button onClick={() => copy(item.cmd, "cmd-" + item.label)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2, color: C.point, flexShrink: 0 }}>
+                              {copiedKey === "cmd-" + item.label ? <Check size={14} /> : <Copy size={14} />}</button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+                </div>)}
               </div>
               </div>
             )}

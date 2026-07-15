@@ -195,7 +195,7 @@ async function bundleEntry(entry, tmpName) {
     await new Promise((r) => setTimeout(r, 120));
     if (/로그 파일로 대신하기/.test(root.textContent) && /comfyui\.log/.test(root.textContent)) console.log("  ✅ Log path 로그 → '로그 파일로 대신하기' 실경로 렌더");
     else { console.log("  ❌ Log path 대안 블록 미렌더"); fail++; }
-    const altBtn = [...root.querySelectorAll("button")].find((b) => /다른 방법으로 입력/.test(b.textContent));
+    const altBtn = [...root.querySelectorAll("button")].find((b) => /내 모델 폴더 대조/.test(b.textContent)); // 작업1(재분류): 폴더 스캔은 이제 '내 모델 폴더 대조' 독립 접이 안
     if (altBtn) altBtn.dispatchEvent(new w.Event("click", { bubbles: true }));
     await new Promise((r) => setTimeout(r, 80));
     const scanTA = [...root.querySelectorAll("textarea")].find((t) => /실행 결과 전체를 여기에 붙여넣어/.test(t.placeholder || ""));
@@ -255,7 +255,7 @@ async function bundleEntry(entry, tmpName) {
     const envT = [...root.querySelectorAll('button[aria-label="펼치기/접기"]')].find((b) => { let p = b; for (let i = 0; i < 5 && p; i++) { if (/내 환경 정보/.test(p.textContent)) return true; p = p.parentElement; } return false; });
     if (envT) envT.dispatchEvent(new w.Event("click", { bubbles: true }));
     await new Promise((r) => setTimeout(r, 80));
-    const altBtn = [...root.querySelectorAll("button")].find((b) => /다른 방법으로 입력/.test(b.textContent));
+    const altBtn = [...root.querySelectorAll("button")].find((b) => /내 모델 폴더 대조/.test(b.textContent)); // 작업1(재분류): 폴더 스캔은 이제 '내 모델 폴더 대조' 독립 접이 안
     if (altBtn) altBtn.dispatchEvent(new w.Event("click", { bubbles: true }));
     await new Promise((r) => setTimeout(r, 80));
     const scanTA = [...root.querySelectorAll("textarea")].find((t) => /실행 결과 전체를 여기에 붙여넣어/.test(t.placeholder || ""));
@@ -278,6 +278,57 @@ async function bundleEntry(entry, tmpName) {
     if (/이미 있음 · 선택: CheckpointLoaderSimple에서/.test(txt)) console.log("  ✅ confirmed alias altHeld 처방 재선택 안내(활성)");
     else { console.log("  ❌ confirmed alias altHeld 재선택 안내 미렌더"); fail++; }
   } catch (e) { console.log(`  ❌ Models 표 필터 렌더 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
+  finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
+}
+
+// ── F. 작업1(재분류): goFillEnv('지금 채우기') 타깃 갱신 — 폴더 대조 독립 접이(scanOpen) 펼침 + #scan-block 스크롤. 접이 재배치 후 앵커 무결. ──
+{
+  const { JSDOM, VirtualConsole } = await import("jsdom");
+  let caught = null;
+  const scrolled = [];
+  const vc = new VirtualConsole(); vc.on("jsdomError", (e) => { caught = (e && e.detail) || e; });
+  const dom = new JSDOM(`<!DOCTYPE html><body><div id="root"></div></body>`, { url: "http://localhost/", pretendToBeVisual: true, virtualConsole: vc });
+  const w = dom.window;
+  w.Element.prototype.scrollIntoView = function () { scrolled.push(this.id || ""); };
+  try { Object.defineProperty(globalThis.navigator, "clipboard", { value: { writeText: () => Promise.resolve() }, configurable: true }); } catch { /* noop */ }
+  w.matchMedia = w.matchMedia || (() => ({ matches: false, addEventListener() {}, removeEventListener() {} }));
+  globalThis.window = w; globalThis.document = w.document; globalThis.location = w.location;
+  globalThis.localStorage = w.localStorage; globalThis.matchMedia = w.matchMedia;
+  globalThis.FileReader = w.FileReader; globalThis.File = w.File; globalThis.Blob = w.Blob;
+  globalThis.Event = w.Event; globalThis.Node = w.Node; globalThis.HTMLElement = w.HTMLElement;
+  globalThis.requestAnimationFrame = (cb) => setTimeout(() => cb(Date.now()), 0);
+  globalThis.cancelAnimationFrame = (id) => clearTimeout(id);
+  const onErr = (e) => { caught = e && (e.error || e.reason || e); };
+  process.on("uncaughtException", onErr); process.on("unhandledRejection", onErr);
+  const nd = (id, type, file) => ({ id, type, pos: [0, 0], size: [1, 1], flags: {}, order: id, mode: 0, widgets_values: file != null ? [file, "default"] : [], properties: {}, inputs: [], outputs: [] });
+  const WF = JSON.stringify({ last_node_id: 9, last_link_id: 0, version: 0.4, groups: [], links: [], nodes: [nd(1, "UNETLoader", "z_image_turbo_fp8_e4m3fn.safetensors"), nd(9, "SaveImage", null)] });
+  let tmp;
+  try {
+    tmp = await bundleEntry(`import React from "react"; import { createRoot } from "react-dom/client"; import Teardown from "./src/Teardown.jsx"; createRoot(document.getElementById("root")).render(React.createElement(Teardown)); export const ok = true;`, ".smoke-fill.mjs");
+    await import("file://" + tmp);
+    await new Promise((r) => setTimeout(r, 60));
+    const root = w.document.getElementById("root");
+    const input = w.document.querySelector('input[type="file"]');
+    Object.defineProperty(input, "files", { value: [new w.File([WF], "z.json", { type: "application/json" })], configurable: true });
+    input.dispatchEvent(new w.Event("change", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 300));
+    if (caught) throw caught;
+    scrolled.length = 0;
+    const fillLink = [...root.querySelectorAll("span")].find((s) => s.textContent === "지금 채우기");
+    if (fillLink) fillLink.dispatchEvent(new w.Event("click", { bubbles: true }));
+    await new Promise((r) => setTimeout(r, 150));
+    if (caught) throw caught;
+    const scanTAopen = [...root.querySelectorAll("textarea")].some((t) => /실행 결과 전체를 여기에 붙여넣어/.test(t.placeholder || ""));
+    if (fillLink && scanTAopen && scrolled.includes("scan-block")) console.log("  ✅ '지금 채우기'(goFillEnv) → 폴더 대조 독립 접이 펼침 + #scan-block 스크롤(타깃 재지정)");
+    else { console.log(`  ❌ goFillEnv 타깃 갱신 실패: link=${!!fillLink} scanTA=${scanTAopen} scrolled=${JSON.stringify(scrolled)}`); fail++; }
+    // 구조 무결: 폴더 대조 유도 dim 줄 상시 노출 + '다른 방법으로 입력' 접이 부속이 '직접 선택'으로 갱신.
+    const t = root.textContent;
+    if (/보유 모델을 걸러내려면 폴더 대조를 추가하세요/.test(t)) console.log("  ✅ 폴더 대조 dim 유도 한 줄 상시 노출");
+    else { console.log("  ❌ 폴더 대조 유도 줄 부재"); fail++; }
+    const altHeader = [...root.querySelectorAll("button")].find((b) => /다른 방법으로 입력/.test(b.textContent));
+    if (altHeader && /직접 선택/.test(altHeader.textContent) && !/폴더 대조/.test(altHeader.textContent)) console.log("  ✅ '다른 방법으로 입력' 접이 부속 '직접 선택'으로 갱신(폴더 대조 제거)");
+    else { console.log(`  ❌ '다른 방법으로 입력' 부속 갱신 실패: '${altHeader?.textContent}'`); fail++; }
+  } catch (e) { console.log(`  ❌ goFillEnv 재분류 크래시: ${e && e.name}: ${e && e.message}`); fail++; }
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
 }
 
