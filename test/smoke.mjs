@@ -286,7 +286,7 @@ async function bundleEntry(entry, tmpName) {
   finally { try { fs.unlinkSync(tmp); } catch { /* noop */ } process.removeListener("uncaughtException", onErr); process.removeListener("unhandledRejection", onErr); }
 }
 
-// ── F. 작업1(재분류): goFillEnv('지금 채우기') 타깃 갱신 — 폴더 대조 독립 접이(scanOpen) 펼침 + #scan-block 스크롤. 접이 재배치 후 앵커 무결. ──
+// ── F. 판정(감사 [중] 채택): goFillEnv('지금 채우기') 로그 우선 착지 — #env-step 스크롤 + envOpen(로그)·scanOpen(폴더 대조) 둘 다 펼침(로그 상단·폴더 대조 열린 채 아래). 고아 앵커 없음(#scan-block 미스크롤). ──
 {
   const { JSDOM, VirtualConsole } = await import("jsdom");
   let caught = null;
@@ -324,8 +324,9 @@ async function bundleEntry(entry, tmpName) {
     await new Promise((r) => setTimeout(r, 150));
     if (caught) throw caught;
     const scanTAopen = [...root.querySelectorAll("textarea")].some((t) => /실행 결과 전체를 여기에 붙여넣어/.test(t.placeholder || ""));
-    if (fillLink && scanTAopen && scrolled.includes("scan-block")) console.log("  ✅ '지금 채우기'(goFillEnv) → 폴더 대조 독립 접이 펼침 + #scan-block 스크롤(타깃 재지정)");
-    else { console.log(`  ❌ goFillEnv 타깃 갱신 실패: link=${!!fillLink} scanTA=${scanTAopen} scrolled=${JSON.stringify(scrolled)}`); fail++; }
+    const logTAopen = [...root.querySelectorAll("textarea")].some((t) => /ComfyUI 시작 콘솔 로그 전체를/.test(t.placeholder || ""));
+    if (fillLink && logTAopen && scanTAopen && scrolled.includes("env-step") && !scrolled.includes("scan-block")) console.log("  ✅ '지금 채우기'(goFillEnv) → 로그 우선 착지(#env-step) + envOpen(로그)·scanOpen(폴더 대조) 둘 다 펼침");
+    else { console.log(`  ❌ goFillEnv 로그 우선 착지 실패: link=${!!fillLink} logTA=${logTAopen} scanTA=${scanTAopen} scrolled=${JSON.stringify(scrolled)}`); fail++; }
     // 구조 무결: 폴더 대조 유도 dim 줄 상시 노출 + '다른 방법으로 입력' 접이 부속이 '직접 선택'으로 갱신.
     const t = root.textContent;
     if (/보유 모델을 걸러내려면 폴더 대조를 추가하세요/.test(t)) console.log("  ✅ 폴더 대조 dim 유도 한 줄 상시 노출");

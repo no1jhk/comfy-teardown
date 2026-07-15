@@ -1218,8 +1218,9 @@ export default function Teardown() {
   // 4(4차): 전체 현황 집계 1줄 → Bypassed 섹션 상세로. bp1 펼침 + #bypassed-section 스크롤(같은 detail 블록 내).
   const openBypassed = (e) => { if (e) e.preventDefault(); setOpen((o) => ({ ...o, bp1: true })); setTimeout(() => document.getElementById("bypassed-section")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   // B: Solution 헤더 환경 칩 '지금 채우기' — 입력 존 단계2로 스크롤 + 환경정보 펼침.
-  // 작업1(재분류): 폴더 대조가 독립 접이로 분리됐으므로, '지금 채우기'(보유 대조 생략됨)는 envOpen + scanOpen을 열어 폴더 대조 지점으로 스크롤.
-  const goFillEnv = (e) => { if (e) e.preventDefault(); setEnvOpen(true); setScanOpen(true); setTimeout(() => document.getElementById("scan-block")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
+  // 판정(감사 [중] 채택): CTA "환경 미입력 · 보유 대조 생략됨"의 앞 절(환경=로그)이 착지에서 밀리면 폴더 대조만 채우고 종료하는 구조 → 로그 우선 착지.
+  // envOpen + scanOpen 둘 다 펼치되(로그가 뷰 상단, 폴더 대조는 열린 채 아래), 스크롤 타깃은 #env-step(로그 입력).
+  const goFillEnv = (e) => { if (e) e.preventDefault(); setEnvOpen(true); setScanOpen(true); setTimeout(() => document.getElementById("env-step")?.scrollIntoView({ behavior: "smooth", block: "start" }), 80); };
   const researchUnknownModel = async (filename) => {
     setModelResearch((s) => ({ ...s, [filename]: { loading: true } }));
     try {
@@ -1854,7 +1855,7 @@ export default function Teardown() {
 
               {/* 작업1(재분류): 폴더 대조는 로그의 추가 입력(대체재 아님) → '다른 방법' 접이 밖 독립 블록. 세로 순서: 로그 → 폴더 대조 → 다른 방법(직접 선택). 로그·접이 사이 시각 분리(marginTop 20 + 구분선). */}
               {/* b. 내 모델 폴더 대조 — 독립 접이 + dim 유도 한 줄 상시 노출(로그만 넣은 사용자가 보유 대조를 지나치는 함정 방지). 좌측 폴더 아이콘. */}
-              <div id="scan-block" style={{ marginTop: 20, borderTop: `1px solid ${C.divider}`, paddingTop: 14, scrollMarginTop: 16 }}>
+              <div style={{ marginTop: 20, borderTop: `1px solid ${C.divider}`, paddingTop: 14 }}>
                 <button onClick={() => setScanOpen((v) => !v)} style={{ display: "flex", alignItems: "center", gap: 8, background: "none", border: "none", cursor: "pointer", padding: 0, width: "100%", textAlign: "left" }}>
                   {scanOpen ? <Minus size={15} color={C.dim} style={{ flexShrink: 0 }} /> : <Plus size={15} color={C.dim} style={{ flexShrink: 0 }} />}
                   <FolderOpen size={15} color={C.dim} style={{ flexShrink: 0 }} />
